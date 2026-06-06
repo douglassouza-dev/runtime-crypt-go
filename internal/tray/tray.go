@@ -5,7 +5,7 @@ import (
 
 	"github.com/getlantern/systray"
 
-	"github.com/eufrauzino/runtime-crypto/internal/core"
+	"github.com/eufrauzino/runtime-crypt-go/internal/core"
 )
 
 // TipoAcaoTray identifica o tipo de ação enviada pelo tray.

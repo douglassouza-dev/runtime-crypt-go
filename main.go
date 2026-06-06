@@ -11,10 +11,10 @@ import (
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/theme"
 
-	"github.com/eufrauzino/runtime-crypto/internal/core"
-	"github.com/eufrauzino/runtime-crypto/internal/gui"
-	"github.com/eufrauzino/runtime-crypto/internal/plataforma"
-	"github.com/eufrauzino/runtime-crypto/internal/tray"
+	"github.com/eufrauzino/runtime-crypt-go/internal/core"
+	"github.com/eufrauzino/runtime-crypt-go/internal/gui"
+	"github.com/eufrauzino/runtime-crypt-go/internal/plataforma"
+	"github.com/eufrauzino/runtime-crypt-go/internal/tray"
 )
 
 //go:embed assets/icone.ico

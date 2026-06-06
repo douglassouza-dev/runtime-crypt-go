@@ -84,37 +84,37 @@ runtime-crypto/
 
 ```bash
 # Clone o repositório
-git clone https://github.com/eufrauzino/runtime-crypto.git
-cd runtime-crypto
+git clone https://github.com/eufrauzino/runtime-crypt-go.git
+cd runtime-crypt-go
 
 # Baixar dependências
 go mod tidy
 
 # Compilar (Windows — sem janela de console)
-go build -o runtime-crypto.exe -ldflags="-H windowsgui" .
+go build -o runtime-crypt-go.exe -ldflags="-H windowsgui" .
 
 # Compilar (Linux)
-go build -o runtime-crypto .
+go build -o runtime-crypt-go .
 
 # Compilar (macOS)
-go build -o runtime-crypto .
+go build -o runtime-crypt-go .
 ```
 
 ### Cross-Compilation
 
 ```bash
 # De Linux/macOS para Windows
-GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc go build -o runtime-crypto.exe -ldflags="-H windowsgui" .
+GOOS=windows GOARCH=amd64 CGO_ENABLED=1 CC=x86_64-w64-mingw32-gcc go build -o runtime-crypt-go.exe -ldflags="-H windowsgui" .
 
 # De Windows para Linux
-set GOOS=linux&& set GOARCH=amd64&& go build -o runtime-crypto .
+set GOOS=linux&& set GOARCH=amd64&& go build -o runtime-crypt-go .
 ```
 
 ## 📖 Uso
 
 ```bash
 # Executar
-./runtime-crypto
+./runtime-crypt-go
 
 # O programa inicia com:
 # 1. Ícone no System Tray

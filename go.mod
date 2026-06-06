@@ -1,4 +1,4 @@
-module github.com/eufrauzino/runtime-crypto
+module github.com/eufrauzino/runtime-crypt-go
 
 go 1.26.4
 

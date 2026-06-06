@@ -7,7 +7,7 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
 
-	"github.com/eufrauzino/runtime-crypto/internal/core"
+	"github.com/eufrauzino/runtime-crypt-go/internal/core"
 )
 
 // DialogoSeletorPastaRemota exibe um navegador visual de pastas em um remoto rclone.
