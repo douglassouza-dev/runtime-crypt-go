@@ -1,0 +1,411 @@
+package main
+
+import (
+	_ "embed"
+	"encoding/json"
+	"fmt"
+	"image/color"
+	"time"
+
+	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/theme"
+
+	"github.com/eufrauzino/runtime-crypto/internal/core"
+	"github.com/eufrauzino/runtime-crypto/internal/gui"
+	"github.com/eufrauzino/runtime-crypto/internal/plataforma"
+	"github.com/eufrauzino/runtime-crypto/internal/tray"
+)
+
+//go:embed assets/icone.ico
+var iconeBytes []byte
+
+func main() {
+	// Inicializar gerenciador principal
+	gerenciador := core.NovoGerenciador()
+
+	// Canal de ações do tray
+	canalAcoes := make(chan tray.AcaoTray, 32)
+
+	// Criar aplicação Fyne
+	aplicacao := app.NewWithID("com.eufrauzino.runtime-crypto")
+	aplicacao.Settings().SetTheme(&temaRuntime{})
+
+	// Criar janela principal
+	janelaPrincipal := gui.NovaJanelaPrincipal(aplicacao, gerenciador)
+
+	// Configurar callbacks da janela principal
+	janelaPrincipal.CallbackCofre = func(cofre core.CofreStatus) {
+		go acaoCofre(gerenciador, janelaPrincipal, cofre)
+	}
+	janelaPrincipal.CallbackNovoCofre = func() {
+		go acaoNovoCofre(gerenciador, janelaPrincipal)
+	}
+	janelaPrincipal.CallbackImportarCofre = func() {
+		go acaoImportarCofre(gerenciador, janelaPrincipal)
+	}
+	janelaPrincipal.CallbackConfigVfs = func() {
+		go gui.DialogoConfigVfs(janelaPrincipal.Janela(), gerenciador)
+	}
+	janelaPrincipal.CallbackVerificarFuse = func() {
+		go acaoVerificarFuse(janelaPrincipal)
+	}
+	janelaPrincipal.CallbackSobre = func() {
+		gui.DialogoMensagem(
+			janelaPrincipal.Janela(),
+			"RuntimeCrypto",
+			fmt.Sprintf(
+				"RuntimeCrypto — Cofre Criptografado na Nuvem\n\n"+
+					"Versão %s\n"+
+					"Escrito em Go — Binário nativo multiplataforma\n\n"+
+					"Usa RClone + Crypt para criptografia ponta-a-ponta.\n"+
+					"Seus arquivos são criptografados antes de enviados à nuvem\n"+
+					"e descriptografados instantaneamente no seu PC.\n\n"+
+					"Licença AGPL-3.0 — Copyright (c) Douglas Eufrauzino de Souza",
+				core.Versao,
+			),
+			gui.MsgInfo,
+		)
+	}
+	janelaPrincipal.CallbackSair = func() {
+		gerenciador.Encerrar()
+		aplicacao.Quit()
+	}
+
+	// Iniciar tray em goroutine
+	gerenciadorTray := tray.NovoGerenciadorTray(gerenciador, canalAcoes, iconeBytes)
+	go gerenciadorTray.Iniciar(nil, nil)
+
+	// Processar ações do tray em goroutine
+	go func() {
+		for acao := range canalAcoes {
+			switch acao.Tipo {
+			case tray.AcaoMostrarJanela:
+				janelaPrincipal.Mostrar()
+			case tray.AcaoCofre:
+				cofre := gerenciador.Cofres.Obter(acao.Dados)
+				if cofre != nil {
+					status := core.CofreStatus{Cofre: *cofre}
+					go acaoCofre(gerenciador, janelaPrincipal, status)
+				}
+			case tray.AcaoNovoCofre:
+				go acaoNovoCofre(gerenciador, janelaPrincipal)
+			case tray.AcaoConfigVfs:
+				janelaPrincipal.Mostrar()
+				go gui.DialogoConfigVfs(janelaPrincipal.Janela(), gerenciador)
+			case tray.AcaoVerificarFuse:
+				go acaoVerificarFuse(janelaPrincipal)
+			case tray.AcaoSobre:
+				janelaPrincipal.Mostrar()
+				janelaPrincipal.CallbackSobre()
+			case tray.AcaoAutoIniciar:
+				if plataforma.VerificarAutoIniciar() {
+					plataforma.RemoverAutoIniciar()
+				} else {
+					plataforma.AdicionarAutoIniciar()
+				}
+			case tray.AcaoSair:
+				gerenciador.Encerrar()
+				aplicacao.Quit()
+			}
+		}
+	}()
+
+	// Auto-montar cofres configurados
+	go func() {
+		time.Sleep(1500 * time.Millisecond)
+		autoMontarCofres(gerenciador)
+	}()
+
+	// Mostrar janela e iniciar mainloop
+	janelaPrincipal.Mostrar()
+	aplicacao.Run()
+}
+
+// acaoCofre processa o clique em um cofre (destrancar ou trancar).
+func acaoCofre(gerenciador *core.GerenciadorRClone, jp *gui.JanelaPrincipal, cofre core.CofreStatus) {
+	montagens := gerenciador.Montagens.ObterMontagens()
+	_, montado := montagens[cofre.Nome]
+
+	if montado {
+		travarCofre(gerenciador, jp, cofre.Nome)
+	} else {
+		destravarCofre(gerenciador, jp, cofre.Nome)
+	}
+}
+
+// destravarCofre solicita senha e monta o cofre.
+func destravarCofre(gerenciador *core.GerenciadorRClone, jp *gui.JanelaPrincipal, nome string) {
+	jp.Mostrar()
+
+	senha := gerenciador.Senhas.Obter(nome)
+	if senha == "" {
+		senha = gui.DialogoSenha(jp.Janela(), nome, "Desbloquear")
+	}
+	if senha == "" {
+		return
+	}
+
+	gerenciador.Senhas.Armazenar(nome, senha)
+	sucesso, msg, letra := gerenciador.Montagens.MontarUnidade(nome, "", senha, nil)
+
+	if sucesso && letra != "" {
+		core.AbrirExplorador(letra + ":\\")
+		gui.DialogoMensagem(
+			jp.Janela(),
+			"Cofre Destrancado",
+			fmt.Sprintf("'%s' montado em %s:\\\n\nO Explorador de Arquivos foi aberto.", nome, letra),
+			gui.MsgInfo,
+		)
+	} else {
+		gerenciador.Senhas.Limpar(nome)
+		gui.DialogoMensagem(
+			jp.Janela(),
+			"Erro ao Destrancar",
+			fmt.Sprintf("Falha ao montar '%s':\n%s", nome, msg),
+			gui.MsgErro,
+		)
+	}
+
+	jp.ForcarAtualizacao()
+}
+
+// travarCofre desmonta o cofre e limpa a senha.
+func travarCofre(gerenciador *core.GerenciadorRClone, jp *gui.JanelaPrincipal, nome string) {
+	letra := gerenciador.Montagens.ObterLetraPorRemoto(nome)
+	var sucesso bool
+	var msg string
+	if letra != "" {
+		sucesso, msg = gerenciador.Montagens.DesmontarUnidade(letra)
+	} else {
+		sucesso, msg = gerenciador.Montagens.DesmontarUnidade(nome)
+	}
+
+	gerenciador.Senhas.Limpar(nome)
+
+	tipo := gui.MsgInfo
+	titulo := "Cofre Trancado"
+	if !sucesso {
+		tipo = gui.MsgErro
+		titulo = "Erro"
+	}
+	gui.DialogoMensagem(jp.Janela(), titulo, msg, tipo)
+	jp.ForcarAtualizacao()
+}
+
+// acaoNovoCofre executa o fluxo de criação de novo cofre.
+func acaoNovoCofre(gerenciador *core.GerenciadorRClone, jp *gui.JanelaPrincipal) {
+	jp.Mostrar()
+	resultado := gui.DialogoNovoCofre(jp.Janela())
+	if !resultado.Sucesso {
+		return
+	}
+
+	prov := resultado.Provedor
+	nome := resultado.Nome
+	senha := resultado.Senha
+	nomeBase := nome + "_base"
+
+	if prov.OAuth {
+		sucesso := gerenciador.OAuth.Iniciar(gerenciador.Executavel, prov.Id)
+		if !sucesso {
+			gui.DialogoMensagem(jp.Janela(), "Erro OAuth", "Falha ao iniciar autenticação.", gui.MsgErro)
+			return
+		}
+
+		time.Sleep(1 * time.Second)
+		status := gerenciador.OAuth.ObterStatus()
+		if status.URL != "" {
+			core.AbrirNavegador(status.URL)
+			gui.DialogoMensagem(jp.Janela(), "Autorização",
+				"O navegador foi aberto para autorização.\nApós concluir, volte para esta janela.", gui.MsgInfo)
+		}
+
+		// Polling de token
+		for i := 0; i < 120; i++ {
+			time.Sleep(1 * time.Second)
+			status = gerenciador.OAuth.ObterStatus()
+			if status.Concluido {
+				var tokenData map[string]interface{}
+				if err := json.Unmarshal([]byte(status.Token), &tokenData); err != nil {
+					gui.DialogoMensagem(jp.Janela(), "Erro OAuth", "Token OAuth inválido.", gui.MsgErro)
+					return
+				}
+				sucesso, msg := gerenciador.CriarRemoto(nomeBase, prov.Id, map[string]string{
+					"token": status.Token,
+				})
+				if !sucesso {
+					gui.DialogoMensagem(jp.Janela(), "Erro", msg, gui.MsgErro)
+					return
+				}
+				break
+			}
+		}
+
+		if !gerenciador.OAuth.ObterStatus().Concluido {
+			gerenciador.OAuth.Abortar()
+			gui.DialogoMensagem(jp.Janela(), "Timeout", "Autorização não concluída em 2 minutos.", gui.MsgErro)
+			return
+		}
+	} else if prov.Id == "local_path" {
+		sucesso, msg := gerenciador.CriarRemoto(nomeBase, "local", map[string]string{"remote": ""})
+		if !sucesso {
+			gui.DialogoMensagem(jp.Janela(), "Erro", msg, gui.MsgErro)
+			return
+		}
+	}
+
+	remotoBase := nomeBase + ":"
+	sucesso, msg := gerenciador.CriarCrypt(nome, remotoBase, senha, senha, nil)
+	if !sucesso {
+		gui.DialogoMensagem(jp.Janela(), "Erro", msg, gui.MsgErro)
+		return
+	}
+
+	sucesso, msg = gerenciador.Cofres.Adicionar(nome, prov.Id, prov.Nome, remotoBase)
+	if sucesso {
+		gerenciador.Senhas.Armazenar(nome, senha)
+		gui.DialogoMensagem(jp.Janela(), "Sucesso",
+			fmt.Sprintf("Cofre '%s' criado com sucesso!\n\nProvedor: %s\nRemoto base: %s\n\nUse o botão 'Destrancar' para montar.", nome, prov.Nome, remotoBase),
+			gui.MsgInfo,
+		)
+		jp.ForcarAtualizacao()
+	} else {
+		gui.DialogoMensagem(jp.Janela(), "Erro", msg, gui.MsgErro)
+	}
+}
+
+// acaoImportarCofre executa o fluxo de importação de cofre existente.
+func acaoImportarCofre(gerenciador *core.GerenciadorRClone, jp *gui.JanelaPrincipal) {
+	jp.Mostrar()
+	resultado := gui.DialogoImportarCofre(jp.Janela())
+	if !resultado.Sucesso {
+		return
+	}
+
+	prov := resultado.Provedor
+	nome := resultado.Nome
+	senha := resultado.Senha
+	senha2 := resultado.Senha2
+	nomeBase := nome + "_base"
+
+	if prov.Id == "local_path" {
+		// Para local: usar diálogo nativo de pasta do Fyne
+		// TODO: Integrar com dialog.ShowFolderOpen
+		gui.DialogoMensagem(jp.Janela(), "Info", "Selecione a pasta no explorador.", gui.MsgInfo)
+		return
+	}
+
+	if prov.OAuth {
+		sucesso := gerenciador.OAuth.Iniciar(gerenciador.Executavel, prov.Id)
+		if !sucesso {
+			gui.DialogoMensagem(jp.Janela(), "Erro OAuth", "Falha ao iniciar autenticação.", gui.MsgErro)
+			return
+		}
+
+		time.Sleep(1 * time.Second)
+		status := gerenciador.OAuth.ObterStatus()
+		if status.URL != "" {
+			core.AbrirNavegador(status.URL)
+			gui.DialogoMensagem(jp.Janela(), "Autorização",
+				"O navegador foi aberto para autorização.\nApós concluir, volte para esta janela.", gui.MsgInfo)
+		}
+
+		for i := 0; i < 120; i++ {
+			time.Sleep(1 * time.Second)
+			status = gerenciador.OAuth.ObterStatus()
+			if status.Concluido {
+				sucesso, msg := gerenciador.CriarRemoto(nomeBase, prov.Id, map[string]string{
+					"token": status.Token,
+				})
+				if !sucesso {
+					gui.DialogoMensagem(jp.Janela(), "Erro", msg, gui.MsgErro)
+					return
+				}
+				break
+			}
+		}
+
+		if !gerenciador.OAuth.ObterStatus().Concluido {
+			gerenciador.OAuth.Abortar()
+			gui.DialogoMensagem(jp.Janela(), "Timeout", "Autorização não concluída em 2 minutos.", gui.MsgErro)
+			return
+		}
+	}
+
+	// Selecionar pasta remota
+	caminho := gui.DialogoSeletorPastaRemota(jp.Janela(), gerenciador, nomeBase, prov.Nome)
+	if caminho == nil {
+		gerenciador.RemoverRemoto(nomeBase)
+		return
+	}
+
+	var remotoBase string
+	if *caminho != "" {
+		remotoBase = nomeBase + ":" + *caminho
+	} else {
+		remotoBase = nomeBase + ":"
+	}
+
+	sucesso, msg := gerenciador.ImportarCrypt(nome, remotoBase, senha, senha2, nil)
+	if !sucesso {
+		gui.DialogoMensagem(jp.Janela(), "Erro", msg, gui.MsgErro)
+		return
+	}
+
+	sucesso, msg = gerenciador.Cofres.Adicionar(nome, prov.Id, prov.Nome, remotoBase)
+	if sucesso {
+		gerenciador.Senhas.Armazenar(nome, senha)
+		gui.DialogoMensagem(jp.Janela(), "Sucesso",
+			fmt.Sprintf("Cofre '%s' importado com sucesso!\n\nProvedor: %s\nRemoto: %s\n\nUse o botão 'Destrancar' para montar.", nome, prov.Nome, remotoBase),
+			gui.MsgInfo,
+		)
+		jp.ForcarAtualizacao()
+	} else {
+		gui.DialogoMensagem(jp.Janela(), "Erro", msg, gui.MsgErro)
+	}
+}
+
+// acaoVerificarFuse verifica se WinFsp/FUSE está instalado.
+func acaoVerificarFuse(jp *gui.JanelaPrincipal) {
+	info := plataforma.VerificarWinfsp()
+	if info.Instalado {
+		gui.DialogoMensagem(jp.Janela(), "WinFsp/FUSE", "WinFsp/FUSE está instalado e funcionando.", gui.MsgInfo)
+	} else {
+		gui.DialogoMensagem(jp.Janela(), "WinFsp/FUSE Ausente",
+			fmt.Sprintf("%s\n\nBaixe em: %s", info.Motivo, info.UrlDownload), gui.MsgAviso)
+	}
+}
+
+// autoMontarCofres monta automaticamente cofres configurados para auto-montagem.
+func autoMontarCofres(gerenciador *core.GerenciadorRClone) {
+	for _, cofre := range gerenciador.ListarCofres() {
+		if cofre.AutoMontar && cofre.TemSenha && !cofre.Montado {
+			senha := gerenciador.Senhas.Obter(cofre.Nome)
+			if senha != "" {
+				gerenciador.Montagens.MontarUnidade(cofre.Nome, "", senha, nil)
+			}
+		}
+	}
+}
+
+// temaRuntime implementa o tema escuro do RuntimeCrypto para Fyne.
+// Delega ao tema dark padrão, customizando apenas o que precisamos.
+type temaRuntime struct{}
+
+func (t *temaRuntime) Color(name fyne.ThemeColorName, variant fyne.ThemeVariant) color.Color {
+	// Usar o tema dark padrão como base
+	return theme.DarkTheme().Color(name, theme.VariantDark)
+}
+
+func (t *temaRuntime) Font(style fyne.TextStyle) fyne.Resource {
+	return theme.DarkTheme().Font(style)
+}
+
+func (t *temaRuntime) Icon(name fyne.ThemeIconName) fyne.Resource {
+	return theme.DarkTheme().Icon(name)
+}
+
+func (t *temaRuntime) Size(name fyne.ThemeSizeName) float32 {
+	return theme.DarkTheme().Size(name)
+}

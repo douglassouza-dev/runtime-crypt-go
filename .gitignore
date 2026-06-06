@@ -1,0 +1,44 @@
+# Binários Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+runtime-crypto
+
+# Testes
+*.test
+*.out
+*.prof
+
+# Vendor (se usado)
+vendor/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Arquivos sensíveis (NUNCA comitar)
+cofre.bin
+historico.bin
+master.key
+*.qnt
+vaults.json
+
+# RClone
+rclone.exe
+rclone
+
+# Cache VFS do RClone
+vfs_cache/
+
+# Sistema
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
