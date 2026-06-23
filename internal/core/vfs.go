@@ -1,6 +1,10 @@
 package core
 
-import "sync"
+import (
+	"fmt"
+	"regexp"
+	"sync"
+)
 
 // ConfigVfs gerencia as configurações VFS do RClone (cache, chunking, polling).
 type ConfigVfs struct {
@@ -28,15 +32,43 @@ func (c *ConfigVfs) Obter() map[string]string {
 	return copia
 }
 
+// validarValorVfs valida o valor de uma chave VFS contra regras de formato e faixa.
+func validarValorVfs(chave, valor string) error {
+	if valor == "" {
+		return nil
+	}
+	switch chave {
+	case "vfs_cache_mode":
+		if valor != "off" && valor != "minimal" && valor != "writes" && valor != "full" {
+			return fmt.Errorf("vfs_cache_mode invalido: '%s'. Use: off, minimal, writes, full", valor)
+		}
+	case "vfs_cache_max_size", "vfs_read_chunk_size", "vfs_read_chunk_size_limit", "vfs_read_ahead", "buffer_size", "vfs_disk_space_total_size":
+		if !regexp.MustCompile(`^\d+[KMGT]$`).MatchString(valor) && !regexp.MustCompile(`^\d+[KMG]i?$`).MatchString(valor) && valor != "0" {
+			return fmt.Errorf("%s invalido: '%s'. Use formato como 10G, 512M, 8M, 256Ki, ou 0 para desligado", chave, valor)
+		}
+	case "vfs_cache_max_age", "dir_cache_time", "poll_interval", "attr_timeout", "vfs_write_back":
+		if !regexp.MustCompile(`^\d+[smh]$`).MatchString(valor) && !regexp.MustCompile(`^\d+m[smh]$`).MatchString(valor) {
+			return fmt.Errorf("%s invalido: '%s'. Use formato como 1h, 30m, 5s, 10ms", chave, valor)
+		}
+	case "cache_dir":
+		return nil
+	}
+	return nil
+}
+
 // Atualizar atualiza as configurações VFS com os valores fornecidos.
-// Apenas chaves válidas (existentes no padrão) são aceitas.
+// Apenas chaves válidas (existentes no padrão) com valores válidos são aceitas.
 func (c *ConfigVfs) Atualizar(novasConfig map[string]string) map[string]string {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for chave, valor := range novasConfig {
-		if _, existe := ConfiguracoesVfsPadrao[chave]; existe && valor != "" {
-			c.config[chave] = valor
+		if _, existe := ConfiguracoesVfsPadrao[chave]; !existe || valor == "" {
+			continue
 		}
+		if err := validarValorVfs(chave, valor); err != nil {
+			continue
+		}
+		c.config[chave] = valor
 	}
 	copia := make(map[string]string)
 	for k, v := range c.config {

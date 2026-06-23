@@ -43,6 +43,14 @@ func DialogoConfigVfs(janelaPai fyne.Window, gerenciador *core.GerenciadorRClone
 	entries := make(map[string]*widget.Entry)
 	cfgAtual := gerenciador.Vfs.Obter()
 
+	aplicarPreset := func(preset core.PresetVfs) {
+		for chave, entry := range entries {
+			if valor, ok := preset.Valores[chave]; ok {
+				entry.SetText(valor)
+			}
+		}
+	}
+
 	// Header
 	lblIcone := canvas.NewText("⚙️", CorVerde)
 	lblIcone.TextSize = 28
@@ -56,6 +64,21 @@ func DialogoConfigVfs(janelaPai fyne.Window, gerenciador *core.GerenciadorRClone
 	lblSub := canvas.NewText("Ajustes de cache e streaming do RClone", CorTextoSec)
 	lblSub.TextSize = 11
 	lblSub.Alignment = fyne.TextAlignCenter
+
+	// Seletor de presets
+	lblPresets := canvas.NewText("🎯 Presets por tipo de uso:", CorTextoSec)
+	lblPresets.TextSize = 11
+
+	containerPresets := container.NewHBox()
+	for _, preset := range core.PresetsVfs {
+		p := preset
+		btn := widget.NewButton(p.Nome, func() { aplicarPreset(p) })
+		btn.Importance = widget.LowImportance
+		containerPresets.Add(btn)
+	}
+
+	containerPresetsScroll := container.NewHScroll(containerPresets)
+	containerPresetsScroll.SetMinSize(fyne.NewSize(0, 40))
 
 	// Campos
 	containerCampos := container.NewVBox()
@@ -78,7 +101,7 @@ func DialogoConfigVfs(janelaPai fyne.Window, gerenciador *core.GerenciadorRClone
 	}
 
 	scrollCampos := container.NewVScroll(containerCampos)
-	scrollCampos.SetMinSize(fyne.NewSize(0, 260))
+	scrollCampos.SetMinSize(fyne.NewSize(0, 200))
 
 	var dialogo *widget.PopUp
 
@@ -117,6 +140,9 @@ func DialogoConfigVfs(janelaPai fyne.Window, gerenciador *core.GerenciadorRClone
 		lblTitulo,
 		lblSub,
 		widget.NewSeparator(),
+		lblPresets,
+		containerPresetsScroll,
+		widget.NewSeparator(),
 		scrollCampos,
 		layout.NewSpacer(),
 		container.NewHBox(btnRestaurar, btnCancelar, layout.NewSpacer(), btnSalvar),
@@ -125,7 +151,7 @@ func DialogoConfigVfs(janelaPai fyne.Window, gerenciador *core.GerenciadorRClone
 	padded := container.NewPadded(conteudo)
 
 	dialogo = widget.NewModalPopUp(padded, janelaPai.Canvas())
-	dialogo.Resize(fyne.NewSize(520, 500))
+	dialogo.Resize(fyne.NewSize(520, 580))
 	dialogo.Show()
 
 	<-resultado

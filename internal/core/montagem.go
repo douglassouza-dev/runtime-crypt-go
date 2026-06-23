@@ -13,10 +13,11 @@ import (
 
 // InfoMontagem armazena informações de uma montagem ativa.
 type InfoMontagem struct {
-	Processo *os.Process
-	Cmd      *exec.Cmd
-	Remoto   string
-	Letra    string
+	Processo  *os.Process
+	Cmd       *exec.Cmd
+	Remoto    string
+	Letra     string
+	finalizado chan struct{}
 }
 
 // StatusMontagem representa o estado público de uma montagem.
@@ -104,53 +105,55 @@ func (g *GerenciadorMontagem) MontarUnidade(remoto string, letra string, senha s
 		return false, fmt.Sprintf("Erro ao iniciar rclone: %s", err.Error()), ""
 	}
 
-	// Polling: aguardar até 45s para a unidade ficar disponível
+	info := &InfoMontagem{
+		Processo:  cmd.Process,
+		Cmd:       cmd,
+		Remoto:    remoto,
+		Letra:     letra,
+		finalizado: make(chan struct{}),
+	}
+
+	go func() {
+		cmd.Wait()
+		close(info.finalizado)
+	}()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 
 	intervalo := 200 * time.Millisecond
-	montou := false
 
 	for {
 		select {
 		case <-ctx.Done():
 			cmd.Process.Kill()
 			return false, "Timeout: A unidade nao ficou pronta em 45 segundos.", ""
+		case <-info.finalizado:
+			return false, "Falha ao montar: Processo encerrou inesperadamente.", ""
 		default:
-			time.Sleep(intervalo)
+		}
 
-			if caminhoExiste(letra + ":\\") {
-				montou = true
-				break
+		time.Sleep(intervalo)
+
+		if caminhoExiste(letra + ":\\") {
+			g.mu.Lock()
+			if _, existe := g.montagens[letra]; existe {
+				g.mu.Unlock()
+				cmd.Process.Kill()
+				return false, fmt.Sprintf("A letra %s: foi ocupada por outra montagem (concorrencia).", letra), ""
 			}
+			g.montagens[letra] = info
+			g.mu.Unlock()
+			return true, fmt.Sprintf("Unidade %s: montada com sucesso.", letra), letra
+		}
 
-			// Verificar se o processo morreu
-			if cmd.ProcessState != nil && cmd.ProcessState.Exited() {
-				return false, "Falha ao montar: Processo encerrou inesperadamente.", ""
-			}
-
-			if intervalo < time.Second {
-				intervalo = time.Duration(float64(intervalo) * 1.5)
-				if intervalo > time.Second {
-					intervalo = time.Second
-				}
+		if intervalo < time.Second {
+			intervalo = time.Duration(float64(intervalo) * 1.5)
+			if intervalo > time.Second {
+				intervalo = time.Second
 			}
 		}
-		if montou {
-			break
-		}
 	}
-
-	g.mu.Lock()
-	g.montagens[letra] = &InfoMontagem{
-		Processo: cmd.Process,
-		Cmd:      cmd,
-		Remoto:   remoto,
-		Letra:    letra,
-	}
-	g.mu.Unlock()
-
-	return true, fmt.Sprintf("Unidade %s: montada com sucesso.", letra), letra
 }
 
 // DesmontarUnidade desmonta uma unidade ativa.
@@ -165,34 +168,49 @@ func (g *GerenciadorMontagem) DesmontarUnidade(letra string) (bool, string) {
 	}
 	g.mu.Unlock()
 
-	// Tentar encerrar o processo (até 3 tentativas)
-	for tentativa := 0; tentativa < 3; tentativa++ {
-		if tentativa == 0 {
+	if !estaFinalizado(info) {
+		if runtime.GOOS != "windows" {
 			info.Processo.Signal(os.Interrupt)
-		} else {
-			info.Processo.Kill()
+
+			select {
+			case <-info.finalizado:
+				goto removido
+			case <-time.After(5 * time.Second):
+			}
 		}
 
-		done := make(chan error, 1)
-		go func() {
-			_, err := info.Processo.Wait()
-			done <- err
-		}()
-
+		info.Processo.Kill()
 		select {
-		case <-done:
-			goto limpeza
+		case <-info.finalizado:
 		case <-time.After(5 * time.Second):
-			continue
+			residual := estaFinalizado(info)
+			g.mu.Lock()
+			if !residual {
+				g.mu.Unlock()
+				return false, fmt.Sprintf("Nao foi possivel encerrar o processo em %s:. Tente novamente.", letra)
+			}
+			delete(g.montagens, letra)
+			g.mu.Unlock()
+			return true, fmt.Sprintf("Unidade %s: desmontada (processo residual limpo).", letra)
 		}
 	}
 
-limpeza:
+removido:
 	g.mu.Lock()
 	delete(g.montagens, letra)
 	g.mu.Unlock()
 
 	return true, fmt.Sprintf("Unidade %s: desmontada com sucesso.", letra)
+}
+
+// estaFinalizado verifica se o canal finalizado está fechado (não-bloqueante).
+func estaFinalizado(info *InfoMontagem) bool {
+	select {
+	case <-info.finalizado:
+		return true
+	default:
+		return false
+	}
 }
 
 // DesmontarTodas desmonta todas as unidades ativas.
@@ -218,8 +236,7 @@ func (g *GerenciadorMontagem) Status() []StatusMontagem {
 	letrasRemover := make([]string, 0)
 
 	for letra, info := range g.montagens {
-		// Verificar se o processo ainda está vivo
-		if !processoAtivo(info.Processo) {
+		if estaFinalizado(info) {
 			letrasRemover = append(letrasRemover, letra)
 			continue
 		}
@@ -285,7 +302,6 @@ func ObterLetrasDisponiveis(ocupadasExtra []string) []string {
 		ocupadas[strings.ToUpper(l)] = true
 	}
 
-	// Verificar letras já em uso no SO
 	for _, letra := range "ABCDEFGHIJKLMNOPQRSTUVWXYZ" {
 		l := string(letra)
 		if caminhoExiste(l + ":\\") {
@@ -305,16 +321,5 @@ func ObterLetrasDisponiveis(ocupadasExtra []string) []string {
 // caminhoExiste verifica se um caminho existe no sistema de arquivos.
 func caminhoExiste(caminho string) bool {
 	_, err := os.Stat(caminho)
-	return err == nil
-}
-
-// processoAtivo verifica se um processo ainda está em execução.
-func processoAtivo(p *os.Process) bool {
-	if p == nil {
-		return false
-	}
-	// No Windows, FindProcess sempre retorna sem erro.
-	// Usamos Signal(0) para verificar se o processo existe.
-	err := p.Signal(os.Signal(nil))
 	return err == nil
 }

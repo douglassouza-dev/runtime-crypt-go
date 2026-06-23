@@ -69,6 +69,7 @@ func main() {
 	}
 	janelaPrincipal.CallbackSair = func() {
 		gerenciador.Encerrar()
+		close(canalAcoes)
 		aplicacao.Quit()
 	}
 
@@ -106,6 +107,7 @@ func main() {
 				}
 			case tray.AcaoSair:
 				gerenciador.Encerrar()
+				close(canalAcoes)
 				aplicacao.Quit()
 			}
 		}
@@ -130,12 +132,12 @@ func acaoCofre(gerenciador *core.GerenciadorRClone, jp *gui.JanelaPrincipal, cof
 	if montado {
 		travarCofre(gerenciador, jp, cofre.Nome)
 	} else {
-		destravarCofre(gerenciador, jp, cofre.Nome)
+		destravarCofre(gerenciador, jp, cofre.Nome, cofre.VfsOverride)
 	}
 }
 
 // destravarCofre solicita senha e monta o cofre.
-func destravarCofre(gerenciador *core.GerenciadorRClone, jp *gui.JanelaPrincipal, nome string) {
+func destravarCofre(gerenciador *core.GerenciadorRClone, jp *gui.JanelaPrincipal, nome string, vfsOverride map[string]string) {
 	jp.Mostrar()
 
 	senha := gerenciador.Senhas.Obter(nome)
@@ -147,7 +149,7 @@ func destravarCofre(gerenciador *core.GerenciadorRClone, jp *gui.JanelaPrincipal
 	}
 
 	gerenciador.Senhas.Armazenar(nome, senha)
-	sucesso, msg, letra := gerenciador.Montagens.MontarUnidade(nome, "", senha, nil)
+	sucesso, msg, letra := gerenciador.Montagens.MontarUnidade(nome, "", senha, vfsOverride)
 
 	if sucesso && letra != "" {
 		core.AbrirExplorador(letra + ":\\")
@@ -248,7 +250,11 @@ func acaoNovoCofre(gerenciador *core.GerenciadorRClone, jp *gui.JanelaPrincipal)
 			return
 		}
 	} else if prov.Id == "local_path" {
-		sucesso, msg := gerenciador.CriarRemoto(nomeBase, "local", map[string]string{"remote": ""})
+		caminho := gui.DialogoPastaLocal(jp.Janela(), "Pasta Local — "+nome)
+		if caminho == "" {
+			return
+		}
+		sucesso, msg := gerenciador.CriarRemoto(nomeBase, "local", map[string]string{"remote": caminho})
 		if !sucesso {
 			gui.DialogoMensagem(jp.Janela(), "Erro", msg, gui.MsgErro)
 			return
@@ -290,10 +296,15 @@ func acaoImportarCofre(gerenciador *core.GerenciadorRClone, jp *gui.JanelaPrinci
 	nomeBase := nome + "_base"
 
 	if prov.Id == "local_path" {
-		// Para local: usar diálogo nativo de pasta do Fyne
-		// TODO: Integrar com dialog.ShowFolderOpen
-		gui.DialogoMensagem(jp.Janela(), "Info", "Selecione a pasta no explorador.", gui.MsgInfo)
-		return
+		caminho := gui.DialogoPastaLocal(jp.Janela(), "Pasta Local — "+nome)
+		if caminho == "" {
+			return
+		}
+		sucesso, msg := gerenciador.CriarRemoto(nomeBase, "local", map[string]string{"remote": caminho})
+		if !sucesso {
+			gui.DialogoMensagem(jp.Janela(), "Erro", msg, gui.MsgErro)
+			return
+		}
 	}
 
 	if prov.OAuth {
@@ -383,7 +394,7 @@ func autoMontarCofres(gerenciador *core.GerenciadorRClone) {
 		if cofre.AutoMontar && cofre.TemSenha && !cofre.Montado {
 			senha := gerenciador.Senhas.Obter(cofre.Nome)
 			if senha != "" {
-				gerenciador.Montagens.MontarUnidade(cofre.Nome, "", senha, nil)
+				gerenciador.Montagens.MontarUnidade(cofre.Nome, "", senha, cofre.VfsOverride)
 			}
 		}
 	}

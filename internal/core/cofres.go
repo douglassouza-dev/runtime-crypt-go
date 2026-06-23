@@ -2,21 +2,24 @@ package core
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
 
 // Cofre representa os metadados persistidos de um cofre criptografado.
 type Cofre struct {
-	Nome          string `json:"nome"`
-	ProvedorId    string `json:"provedor_id"`
-	ProvedorNome  string `json:"provedor_nome"`
-	RemotoBase    string `json:"remoto_base"`
-	CaminhoCripto string `json:"caminho_cripto"`
-	CriadoEm      string `json:"criado_em"`
-	AutoMontar    bool   `json:"auto_montar"`
+	Nome          string            `json:"nome"`
+	ProvedorId    string            `json:"provedor_id"`
+	ProvedorNome  string            `json:"provedor_nome"`
+	RemotoBase    string            `json:"remoto_base"`
+	CaminhoCripto string            `json:"caminho_cripto"`
+	CriadoEm      string            `json:"criado_em"`
+	AutoMontar    bool              `json:"auto_montar"`
+	VfsOverride   map[string]string `json:"vfs_override,omitempty"`
 }
 
 // CofreStatus é um Cofre enriquecido com estado em tempo real.
@@ -48,29 +51,72 @@ func (g *GerenciadorCofres) caminhoArquivo() string {
 	return filepath.Join(g.diretorioApp, ArquivoCofres)
 }
 
-// carregar lê os cofres do disco.
+// carregar lê os cofres do disco, com fallback para backup se o arquivo principal estiver corrompido.
 func (g *GerenciadorCofres) carregar() {
 	caminho := g.caminhoArquivo()
+
 	dados, err := os.ReadFile(caminho)
 	if err != nil {
 		g.cofres = []Cofre{}
 		return
 	}
+
 	var cofres []Cofre
 	if err := json.Unmarshal(dados, &cofres); err != nil {
-		g.cofres = []Cofre{}
-		return
+		cofres = g.carregarBackup(caminho)
 	}
 	g.cofres = cofres
+
+	if len(cofres) > 0 {
+		g.salvarBackup(caminho)
+	}
 }
 
-// salvar persiste os cofres no disco.
+// carregarBackup tenta recuperar cofres do arquivo de backup (.bak).
+func (g *GerenciadorCofres) carregarBackup(caminho string) []Cofre {
+	caminhoBak := caminho + ".bak"
+	dados, err := os.ReadFile(caminhoBak)
+	if err != nil {
+		return []Cofre{}
+	}
+	var cofres []Cofre
+	if err := json.Unmarshal(dados, &cofres); err != nil {
+		return []Cofre{}
+	}
+	return cofres
+}
+
+// salvarBackup copia o arquivo principal para .bak após carga bem-sucedida.
+func (g *GerenciadorCofres) salvarBackup(caminho string) {
+	dados, err := os.ReadFile(caminho)
+	if err != nil {
+		return
+	}
+	caminhoBak := caminho + ".bak"
+	_ = os.WriteFile(caminhoBak, dados, 0644)
+}
+
+// salvar persiste os cofres no disco de forma atômica (tmp + rename).
 func (g *GerenciadorCofres) salvar() error {
 	dados, err := json.MarshalIndent(g.cofres, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(g.caminhoArquivo(), dados, 0644)
+
+	caminho := g.caminhoArquivo()
+	caminhoTmp := caminho + ".tmp"
+
+	if err := os.WriteFile(caminhoTmp, dados, 0644); err != nil {
+		return fmt.Errorf("erro ao escrever arquivo temporario: %w", err)
+	}
+
+	if err := os.Rename(caminhoTmp, caminho); err != nil {
+		_ = os.Remove(caminhoTmp)
+		return fmt.Errorf("erro ao renomear arquivo temporario: %w", err)
+	}
+
+	g.salvarBackup(caminho)
+	return nil
 }
 
 // Listar retorna todos os cofres com status enriquecido.
@@ -97,6 +143,10 @@ func (g *GerenciadorCofres) Listar(montagens map[string]InfoMontagem, senhas *Ca
 
 // Adicionar cria um novo cofre.
 func (g *GerenciadorCofres) Adicionar(nome, provedorId, provedorNome, remotoBase string) (bool, string) {
+	if err := validarNomeCofre(nome); err != "" {
+		return false, err
+	}
+
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
@@ -155,11 +205,33 @@ func (g *GerenciadorCofres) Atualizar(nome string, campos map[string]interface{}
 					g.cofres[i].CaminhoCripto = sv
 				}
 			}
-			g.salvar()
+			if v, ok := campos["vfs_override"]; ok {
+				g.cofres[i].VfsOverride = converterMapaString(v)
+			}
+			if err := g.salvar(); err != nil {
+				return false
+			}
 			return true
 		}
 	}
 	return false
+}
+
+// converterMapaString converte interface{} para map[string]string se possível.
+func converterMapaString(valor interface{}) map[string]string {
+	if m, ok := valor.(map[string]interface{}); ok {
+		resultado := make(map[string]string)
+		for k, v := range m {
+			if sv, ok := v.(string); ok {
+				resultado[k] = sv
+			}
+		}
+		return resultado
+	}
+	if m, ok := valor.(map[string]string); ok {
+		return m
+	}
+	return nil
 }
 
 // Obter retorna uma cópia do cofre pelo nome, ou nil se não encontrado.
@@ -174,4 +246,19 @@ func (g *GerenciadorCofres) Obter(nome string) *Cofre {
 		}
 	}
 	return nil
+}
+
+// validarNomeCofre valida o nome do cofre contra caracteres ilegais.
+// Retorna mensagem de erro ou string vazia se válido.
+func validarNomeCofre(nome string) string {
+	if strings.TrimSpace(nome) == "" {
+		return "O nome do cofre nao pode estar vazio."
+	}
+	if strings.ContainsAny(nome, ":/\\") {
+		return "O nome do cofre nao pode conter : / \\"
+	}
+	if len(nome) > 64 {
+		return "O nome do cofre deve ter no maximo 64 caracteres."
+	}
+	return ""
 }

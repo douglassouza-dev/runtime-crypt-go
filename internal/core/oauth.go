@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 )
 
 // StatusOAuth representa o estado atual do fluxo OAuth.
@@ -17,10 +18,11 @@ type StatusOAuth struct {
 
 // GerenciadorOAuth controla o fluxo de autorização OAuth via rclone authorize.
 type GerenciadorOAuth struct {
-	processo *exec.Cmd
-	token    string
-	url      string
-	mu       sync.Mutex
+	processo  *exec.Cmd
+	token     string
+	url       string
+	mu        sync.Mutex
+	finalizado chan struct{}
 }
 
 // NovoGerenciadorOAuth cria uma nova instância.
@@ -35,6 +37,8 @@ func (g *GerenciadorOAuth) Iniciar(executavel string, tipo string) bool {
 	g.mu.Lock()
 	g.token = ""
 	g.url = ""
+	finalizado := make(chan struct{})
+	g.finalizado = finalizado
 	g.mu.Unlock()
 
 	cmd := exec.Command(executavel, "authorize", tipo)
@@ -45,14 +49,19 @@ func (g *GerenciadorOAuth) Iniciar(executavel string, tipo string) bool {
 		ocultarJanela(cmd)
 	}
 
-	// Capturar stdout combinado
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
+		g.mu.Lock()
+		g.finalizado = nil
+		g.mu.Unlock()
 		return false
 	}
-	cmd.Stderr = cmd.Stdout // Combinar stderr com stdout
+	cmd.Stderr = cmd.Stdout
 
 	if err := cmd.Start(); err != nil {
+		g.mu.Lock()
+		g.finalizado = nil
+		g.mu.Unlock()
 		return false
 	}
 
@@ -60,8 +69,9 @@ func (g *GerenciadorOAuth) Iniciar(executavel string, tipo string) bool {
 	g.processo = cmd
 	g.mu.Unlock()
 
-	// Goroutine para ler a saída
 	go func() {
+		defer close(finalizado)
+
 		buf := make([]byte, 4096)
 		var bufferToken []string
 		capturandoToken := false
@@ -76,7 +86,6 @@ func (g *GerenciadorOAuth) Iniciar(executavel string, tipo string) bool {
 				for _, linha := range strings.Split(texto, "\n") {
 					linhaStrip := strings.TrimSpace(linha)
 
-					// Detectar URL de auth
 					if strings.Contains(linhaStrip, "127.0.0.1") || strings.Contains(linhaStrip, "localhost") {
 						match := reURL.FindString(linhaStrip)
 						if match != "" {
@@ -86,14 +95,12 @@ func (g *GerenciadorOAuth) Iniciar(executavel string, tipo string) bool {
 						}
 					}
 
-					// Detectar início do token
 					if strings.Contains(linhaStrip, "Paste the following") {
 						capturandoToken = true
 						bufferToken = nil
 						continue
 					}
 
-					// Capturar token JSON
 					if capturandoToken {
 						if strings.Contains(linhaStrip, "End paste") {
 							tokenStr := strings.Join(bufferToken, "")
@@ -133,22 +140,29 @@ func (g *GerenciadorOAuth) ObterStatus() StatusOAuth {
 	}
 }
 
-// Abortar encerra o processo OAuth se estiver em execução.
+// Abortar encerra o processo OAuth e aguarda a goroutine de leitura finalizar.
 func (g *GerenciadorOAuth) Abortar() {
 	g.mu.Lock()
 	cmd := g.processo
+	finalizado := g.finalizado
 	g.processo = nil
+	g.finalizado = nil
 	g.mu.Unlock()
 
 	if cmd != nil && cmd.Process != nil {
 		cmd.Process.Kill()
-		cmd.Wait()
+	}
+
+	if finalizado != nil {
+		select {
+		case <-finalizado:
+		case <-time.After(5 * time.Second):
+		}
 	}
 }
 
 // ocultarJanela configura o comando para não criar janela visível (Windows).
 func ocultarJanela(cmd *exec.Cmd) {
-	// Implementação em plataforma_windows.go via SysProcAttr
 	configurarOcultarJanela(cmd)
 }
 
@@ -162,6 +176,9 @@ func AbrirNavegador(url string) error {
 		cmd = exec.Command("open", url)
 	default:
 		cmd = exec.Command("xdg-open", url)
+	}
+	if runtime.GOOS == "windows" {
+		ocultarJanela(cmd)
 	}
 	return cmd.Start()
 }

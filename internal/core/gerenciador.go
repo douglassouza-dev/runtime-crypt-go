@@ -44,7 +44,10 @@ func NovoGerenciador() *GerenciadorRClone {
 func obterDiretorioApp() string {
 	exe, err := os.Executable()
 	if err != nil {
-		dir, _ := os.Getwd()
+		dir, err := os.Getwd()
+		if err != nil {
+			return "."
+		}
 		return dir
 	}
 	return filepath.Dir(exe)
@@ -374,7 +377,9 @@ func (g *GerenciadorRClone) ListarDiretoriosRemoto(nomeRemoto string, caminho st
 	select {
 	case <-done:
 	case <-time.After(30 * time.Second):
-		cmd.Process.Kill()
+		if cmd.Process != nil {
+			cmd.Process.Kill()
+		}
 		return nil
 	}
 
@@ -388,12 +393,11 @@ func (g *GerenciadorRClone) ListarDiretoriosRemoto(nomeRemoto string, caminho st
 		if linha == "" {
 			continue
 		}
-		// Formato: -1 2024-01-01 00:00:00 -1 nome_pasta
-		partes := strings.SplitN(linha, " ", 5)
-		if len(partes) >= 5 {
-			dirs = append(dirs, strings.TrimSpace(partes[4]))
-		} else if len(partes) >= 1 {
-			dirs = append(dirs, partes[len(partes)-1])
+		campos := strings.Fields(linha)
+		if len(campos) >= 5 {
+			dirs = append(dirs, strings.Join(campos[4:], " "))
+		} else if len(campos) >= 1 {
+			dirs = append(dirs, campos[len(campos)-1])
 		}
 	}
 

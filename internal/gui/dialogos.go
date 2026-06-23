@@ -1,6 +1,8 @@
 package gui
 
 import (
+	"os"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
@@ -72,6 +74,72 @@ func DialogoSenha(janelaPai fyne.Window, nomeCofre string, acao string) string {
 	dialogo.Show()
 
 	janelaPai.Canvas().Focus(entrySenha)
+
+	return <-resultado
+}
+
+// DialogoPastaLocal exibe um diálogo modal para informar o caminho de uma pasta local.
+func DialogoPastaLocal(janelaPai fyne.Window, titulo string) string {
+	resultado := make(chan string, 1)
+
+	lblIcone := canvas.NewText("📁", CorVerde)
+	lblIcone.TextSize = 36
+	lblIcone.Alignment = fyne.TextAlignCenter
+
+	lblTitulo := canvas.NewText(titulo, CorVerde)
+	lblTitulo.TextSize = 16
+	lblTitulo.TextStyle = fyne.TextStyle{Bold: true}
+	lblTitulo.Alignment = fyne.TextAlignCenter
+
+	lblDica := canvas.NewText("Informe o caminho completo da pasta:\nEx: C:\\MeusArquivos ou /home/user/docs", CorTextoSec)
+	lblDica.TextSize = 11
+
+	entryCaminho := widget.NewEntry()
+	entryCaminho.SetPlaceHolder("C:\\caminho\\para\\pasta...")
+
+	var dialogo *widget.PopUp
+
+	btnCancelar := widget.NewButton("Cancelar", func() {
+		resultado <- ""
+		if dialogo != nil {
+			dialogo.Hide()
+		}
+	})
+
+	btnConfirmar := widget.NewButton("Confirmar", func() {
+		caminho := entryCaminho.Text
+		if caminho == "" {
+			return
+		}
+		if info, err := os.Stat(caminho); err != nil || !info.IsDir() {
+			DialogoMensagem(janelaPai, "Pasta inválida", "O caminho informado não existe ou não é uma pasta.", MsgErro)
+			return
+		}
+		resultado <- caminho
+		if dialogo != nil {
+			dialogo.Hide()
+		}
+	})
+	btnConfirmar.Importance = widget.HighImportance
+
+	conteudo := container.NewVBox(
+		lblIcone,
+		lblTitulo,
+		widget.NewSeparator(),
+		lblDica,
+		entryCaminho,
+		layout.NewSpacer(),
+		container.NewHBox(btnCancelar, layout.NewSpacer(), btnConfirmar),
+	)
+
+	padded := container.NewPadded(conteudo)
+	padded.Resize(fyne.NewSize(480, 260))
+
+	dialogo = widget.NewModalPopUp(padded, janelaPai.Canvas())
+	dialogo.Resize(fyne.NewSize(480, 260))
+	dialogo.Show()
+
+	janelaPai.Canvas().Focus(entryCaminho)
 
 	return <-resultado
 }

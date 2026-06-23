@@ -1,6 +1,8 @@
 package gui
 
 import (
+	"sync"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
@@ -15,6 +17,7 @@ import (
 func DialogoSeletorPastaRemota(janelaPai fyne.Window, gerenciador *core.GerenciadorRClone, nomeRemoto string, tituloProvedor string) *string {
 	resultado := make(chan *string, 1)
 	caminhoAtual := ""
+	var muCaminho sync.Mutex
 
 	// Header
 	lblIcone := canvas.NewText("📂", CorVerde)
@@ -58,7 +61,11 @@ func DialogoSeletorPastaRemota(janelaPai fyne.Window, gerenciador *core.Gerencia
 
 		// Carregar em goroutine
 		go func() {
-			dirs := gerenciador.ListarDiretoriosRemoto(nomeRemoto, caminhoAtual)
+			muCaminho.Lock()
+			cam := caminhoAtual
+			muCaminho.Unlock()
+
+			dirs := gerenciador.ListarDiretoriosRemoto(nomeRemoto, cam)
 
 			// Atualizar UI na thread Fyne
 			containerLista.RemoveAll()
@@ -71,14 +78,15 @@ func DialogoSeletorPastaRemota(janelaPai fyne.Window, gerenciador *core.Gerencia
 				for _, nomePasta := range dirs {
 					np := nomePasta // captura
 					btn := widget.NewButton("📁  "+np, func() {
-						// Entrar na pasta (duplo clique simulado com clique normal)
-						if caminhoAtual != "" {
-							caminhoAtual = caminhoAtual + "/" + np
-						} else {
-							caminhoAtual = np
-						}
-						carregarPastas()
-					})
+					muCaminho.Lock()
+					if caminhoAtual != "" {
+						caminhoAtual = caminhoAtual + "/" + np
+					} else {
+						caminhoAtual = np
+					}
+					muCaminho.Unlock()
+					carregarPastas()
+				})
 					btn.Importance = widget.LowImportance
 					btn.Alignment = widget.ButtonAlignLeading
 					containerLista.Add(btn)
@@ -90,7 +98,9 @@ func DialogoSeletorPastaRemota(janelaPai fyne.Window, gerenciador *core.Gerencia
 
 	// Botão voltar
 	btnVoltar := widget.NewButton("⬆ Voltar", func() {
+		muCaminho.Lock()
 		if caminhoAtual == "" {
+			muCaminho.Unlock()
 			return
 		}
 		partes := splitCaminho(caminhoAtual)
@@ -99,6 +109,7 @@ func DialogoSeletorPastaRemota(janelaPai fyne.Window, gerenciador *core.Gerencia
 		} else {
 			caminhoAtual = joinCaminho(partes[:len(partes)-1])
 		}
+		muCaminho.Unlock()
 		carregarPastas()
 	})
 
@@ -115,7 +126,9 @@ func DialogoSeletorPastaRemota(janelaPai fyne.Window, gerenciador *core.Gerencia
 	})
 
 	btnSelecionar := widget.NewButton("✓  Selecionar esta pasta", func() {
+		muCaminho.Lock()
 		cam := caminhoAtual
+		muCaminho.Unlock()
 		resultado <- &cam
 		if dialogo != nil {
 			dialogo.Hide()

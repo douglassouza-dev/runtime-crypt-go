@@ -1,6 +1,8 @@
 package gui
 
 import (
+	"strings"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
@@ -92,6 +94,10 @@ func DialogoNovoCofre(janelaPai fyne.Window) ResultadoNovoCofre {
 		nome := entryNome.Text
 		if nome == "" {
 			DialogoMensagem(janelaPai, "Erro", "Informe um nome para o cofre.", MsgErro)
+			return
+		}
+		if strings.ContainsAny(nome, ":/\\") {
+			DialogoMensagem(janelaPai, "Erro", "O nome do cofre nao pode conter : / \\", MsgErro)
 			return
 		}
 		senha := entrySenha.Text
@@ -224,6 +230,10 @@ func DialogoImportarCofre(janelaPai fyne.Window) ResultadoImportarCofre {
 		nome := entryNome.Text
 		if nome == "" {
 			DialogoMensagem(janelaPai, "Erro", "Informe um nome para o cofre.", MsgErro)
+			return
+		}
+		if strings.ContainsAny(nome, ":/\\") {
+			DialogoMensagem(janelaPai, "Erro", "O nome do cofre nao pode conter : / \\", MsgErro)
 			return
 		}
 		senha := entrySenha.Text
