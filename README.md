@@ -17,6 +17,8 @@ RuntimeCrypto é um gerenciador de cofres criptografados na nuvem. Monta unidade
 
 Seus arquivos são **criptografados localmente antes de enviados** à nuvem e **descriptografados instantaneamente** ao acessar a unidade virtual. A chave de criptografia nunca sai do seu computador.
 
+📚 Documentação técnica, demandas e ADRs: [docs/](docs/README.md)
+
 ## ✨ Funcionalidades
 
 - 🔐 **Criptografia ponta-a-ponta** — AES-256 via RClone Crypt
