@@ -167,7 +167,6 @@ func TestDesmontarTodas(t *testing.T) {
 }
 
 func TestStatusMantemMontagemViva(t *testing.T) {
-	t.Skip("defeito conhecido: processoAtivo sempre devolve false e Status() apaga a montagem — demanda 001")
 	g, _ := novoMontadorFalso(t)
 	if ok, msg, _ := g.MontarUnidade("cofre", "V", "", nil); !ok {
 		t.Fatal(msg)
@@ -182,7 +181,6 @@ func TestStatusMantemMontagemViva(t *testing.T) {
 }
 
 func TestObterMontagensEObterLetraPorRemoto(t *testing.T) {
-	t.Skip("defeito conhecido: a montagem some na primeira leitura — demanda 001")
 	g, _ := novoMontadorFalso(t)
 	if ok, msg, _ := g.MontarUnidade("cofre", "V", "", nil); !ok {
 		t.Fatal(msg)
