@@ -1,0 +1,44 @@
+name: ci
+
+# Demanda 016: vet e testes do core em Linux e Windows a cada PR.
+# Os testes do core usam um rclone falso (o próprio binário de teste);
+# nenhum job instala rclone.
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+permissions:
+  contents: read
+
+jobs:
+  core:
+    name: vet e testes (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # Fyne (OpenGL/GLFW) e getlantern/systray (Ayatana AppIndicator) precisam
+      # dos cabeçalhos C para `go vet ./...` compilar os pacotes de GUI no Linux.
+      - name: Dependências C da GUI (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libgl1-mesa-dev xorg-dev libgtk-3-dev libayatana-appindicator3-dev
+
+      - name: go vet ./...
+        run: go vet ./...
+
+      - name: go test -race ./internal/core/...
+        run: go test -race ./internal/core/...

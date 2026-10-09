@@ -23,9 +23,16 @@ type GerenciadorRClone struct {
 }
 
 // NovoGerenciador cria e inicializa o gerenciador principal.
+// Usa o diretório do executável do programa e procura o rclone nele e no PATH.
 func NovoGerenciador() *GerenciadorRClone {
-	diretorioApp := obterDiretorioApp()
+	return NovoGerenciadorEm(obterDiretorioApp(), "")
+}
 
+// NovoGerenciadorEm cria o gerenciador com o diretório do app e o executável
+// do rclone escolhidos por quem chama. Com executavel vazio, o rclone é
+// procurado como em NovoGerenciador. É o ponto de troca usado pelos testes
+// para apontar para um rclone falso.
+func NovoGerenciadorEm(diretorioApp string, executavel string) *GerenciadorRClone {
 	g := &GerenciadorRClone{
 		DiretorioApp: diretorioApp,
 		Senhas:       NovoCacheSenhas(),
@@ -33,7 +40,10 @@ func NovoGerenciador() *GerenciadorRClone {
 		Vfs:          NovoConfigVfs(),
 	}
 
-	g.Executavel = g.localizarRclone()
+	g.Executavel = executavel
+	if g.Executavel == "" {
+		g.Executavel = g.localizarRclone()
+	}
 	g.Cofres = NovoGerenciadorCofres(diretorioApp)
 	g.Montagens = NovoGerenciadorMontagem(g.Executavel, g.Vfs)
 

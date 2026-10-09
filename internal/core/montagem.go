@@ -33,14 +33,19 @@ type GerenciadorMontagem struct {
 	mu         sync.Mutex
 	executavel string
 	configVfs  *ConfigVfs
+
+	// pontoExiste diz se o ponto de montagem já apareceu. Em produção é
+	// caminhoExiste; os testes trocam para não depender de WinFsp/FUSE.
+	pontoExiste func(caminho string) bool
 }
 
 // NovoGerenciadorMontagem cria uma instância do gerenciador de montagens.
 func NovoGerenciadorMontagem(executavel string, configVfs *ConfigVfs) *GerenciadorMontagem {
 	return &GerenciadorMontagem{
 		montagens:  make(map[string]*InfoMontagem),
-		executavel: executavel,
-		configVfs:  configVfs,
+		executavel:  executavel,
+		configVfs:   configVfs,
+		pontoExiste: caminhoExiste,
 	}
 }
 
@@ -119,7 +124,7 @@ func (g *GerenciadorMontagem) MontarUnidade(remoto string, letra string, senha s
 		default:
 			time.Sleep(intervalo)
 
-			if caminhoExiste(letra + ":\\") {
+			if g.pontoExiste(letra + ":\\") {
 				montou = true
 				break
 			}
