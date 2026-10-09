@@ -19,6 +19,10 @@ type GerenciadorRClone struct {
 	Senhas      *CacheSenhas
 	OAuth       *GerenciadorOAuth
 	Vfs         *ConfigVfs
+
+	// ErroCofres vem preenchido quando vaults.json existe mas não pôde ser
+	// lido. A tela mostra este erro na abertura (demanda 007).
+	ErroCofres error
 }
 
 // NovoGerenciador cria e inicializa o gerenciador principal.
@@ -43,7 +47,7 @@ func NovoGerenciadorEm(diretorioApp string, executavel string) *GerenciadorRClon
 	if g.Executavel == "" {
 		g.Executavel = g.localizarRclone()
 	}
-	g.Cofres = NovoGerenciadorCofres(diretorioApp)
+	g.Cofres, g.ErroCofres = NovoGerenciadorCofres(diretorioApp)
 	g.Montagens = NovoGerenciadorMontagem(g.Executavel, g.Vfs)
 
 	return g
