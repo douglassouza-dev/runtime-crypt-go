@@ -209,7 +209,16 @@ func acaoNovoCofre(gerenciador *core.GerenciadorRClone, jp *gui.JanelaPrincipal)
 	prov := resultado.Provedor
 	nome := resultado.Nome
 	senha := resultado.Senha
-	nomeBase := nome + "_base"
+	nomeBase := core.NomeRemotoBase(nome)
+
+	// Demanda 006: o nome é conferido antes de qualquer chamada ao rclone, e o
+	// que esta tentativa criar é removido se ela não chegar ao fim.
+	criacao, err := gerenciador.IniciarCriacaoCofre(nome)
+	if err != nil {
+		gui.DialogoMensagem(jp.Janela(), "Erro", err.Error(), gui.MsgErro)
+		return
+	}
+	defer criacao.Desfazer()
 
 	if prov.OAuth {
 		sucesso := gerenciador.OAuth.Iniciar(gerenciador.Executavel, prov.Id)
@@ -236,7 +245,7 @@ func acaoNovoCofre(gerenciador *core.GerenciadorRClone, jp *gui.JanelaPrincipal)
 					gui.DialogoMensagem(jp.Janela(), "Erro OAuth", "Token OAuth inválido.", gui.MsgErro)
 					return
 				}
-				sucesso, msg := gerenciador.CriarRemoto(nomeBase, prov.Id, map[string]string{
+				sucesso, msg := criacao.CriarRemoto(nomeBase, prov.Id, map[string]string{
 					"token": status.Token,
 				})
 				if !sucesso {
@@ -253,7 +262,7 @@ func acaoNovoCofre(gerenciador *core.GerenciadorRClone, jp *gui.JanelaPrincipal)
 			return
 		}
 	} else if prov.Id == "local_path" {
-		sucesso, msg := gerenciador.CriarRemoto(nomeBase, "local", map[string]string{"remote": ""})
+		sucesso, msg := criacao.CriarRemoto(nomeBase, "local", map[string]string{"remote": ""})
 		if !sucesso {
 			gui.DialogoMensagem(jp.Janela(), "Erro", msg, gui.MsgErro)
 			return
@@ -261,13 +270,13 @@ func acaoNovoCofre(gerenciador *core.GerenciadorRClone, jp *gui.JanelaPrincipal)
 	}
 
 	remotoBase := nomeBase + ":"
-	sucesso, msg := gerenciador.CriarCrypt(nome, remotoBase, senha, senha, nil)
+	sucesso, msg := criacao.CriarCrypt(remotoBase, senha, senha, nil)
 	if !sucesso {
 		gui.DialogoMensagem(jp.Janela(), "Erro", msg, gui.MsgErro)
 		return
 	}
 
-	sucesso, msg = gerenciador.Cofres.Adicionar(nome, prov.Id, prov.Nome, remotoBase)
+	sucesso, msg = criacao.Concluir(prov.Id, prov.Nome, remotoBase)
 	if sucesso {
 		gerenciador.Senhas.Armazenar(nome, senha)
 		gui.DialogoMensagem(jp.Janela(), "Sucesso",
@@ -292,7 +301,7 @@ func acaoImportarCofre(gerenciador *core.GerenciadorRClone, jp *gui.JanelaPrinci
 	nome := resultado.Nome
 	senha := resultado.Senha
 	senha2 := resultado.Senha2
-	nomeBase := nome + "_base"
+	nomeBase := core.NomeRemotoBase(nome)
 
 	if prov.Id == "local_path" {
 		// Para local: usar diálogo nativo de pasta do Fyne
@@ -300,6 +309,14 @@ func acaoImportarCofre(gerenciador *core.GerenciadorRClone, jp *gui.JanelaPrinci
 		gui.DialogoMensagem(jp.Janela(), "Info", "Selecione a pasta no explorador.", gui.MsgInfo)
 		return
 	}
+
+	// Demanda 006: mesmo cuidado de acaoNovoCofre.
+	criacao, err := gerenciador.IniciarCriacaoCofre(nome)
+	if err != nil {
+		gui.DialogoMensagem(jp.Janela(), "Erro", err.Error(), gui.MsgErro)
+		return
+	}
+	defer criacao.Desfazer()
 
 	if prov.OAuth {
 		sucesso := gerenciador.OAuth.Iniciar(gerenciador.Executavel, prov.Id)
@@ -320,7 +337,7 @@ func acaoImportarCofre(gerenciador *core.GerenciadorRClone, jp *gui.JanelaPrinci
 			time.Sleep(1 * time.Second)
 			status = gerenciador.OAuth.ObterStatus()
 			if status.Concluido {
-				sucesso, msg := gerenciador.CriarRemoto(nomeBase, prov.Id, map[string]string{
+				sucesso, msg := criacao.CriarRemoto(nomeBase, prov.Id, map[string]string{
 					"token": status.Token,
 				})
 				if !sucesso {
@@ -341,8 +358,7 @@ func acaoImportarCofre(gerenciador *core.GerenciadorRClone, jp *gui.JanelaPrinci
 	// Selecionar pasta remota
 	caminho := gui.DialogoSeletorPastaRemota(jp.Janela(), gerenciador, nomeBase, prov.Nome)
 	if caminho == nil {
-		gerenciador.RemoverRemoto(nomeBase)
-		return
+		return // o defer de criacao.Desfazer remove o remoto base
 	}
 
 	var remotoBase string
@@ -352,13 +368,13 @@ func acaoImportarCofre(gerenciador *core.GerenciadorRClone, jp *gui.JanelaPrinci
 		remotoBase = nomeBase + ":"
 	}
 
-	sucesso, msg := gerenciador.ImportarCrypt(nome, remotoBase, senha, senha2, nil)
+	sucesso, msg := criacao.CriarCrypt(remotoBase, senha, senha2, nil)
 	if !sucesso {
 		gui.DialogoMensagem(jp.Janela(), "Erro", msg, gui.MsgErro)
 		return
 	}
 
-	sucesso, msg = gerenciador.Cofres.Adicionar(nome, prov.Id, prov.Nome, remotoBase)
+	sucesso, msg = criacao.Concluir(prov.Id, prov.Nome, remotoBase)
 	if sucesso {
 		gerenciador.Senhas.Armazenar(nome, senha)
 		gui.DialogoMensagem(jp.Janela(), "Sucesso",

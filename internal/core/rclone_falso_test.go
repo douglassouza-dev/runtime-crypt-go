@@ -12,6 +12,11 @@ package core
 //   RCLONE_FALSO_DIR/lsd.txt    saída de `lsd`
 //   RCLONE_FALSO_FALHA=1        qualquer comando escreve no stderr e sai com 1
 //   RCLONE_FALSO_TOKEN=<json>   `authorize` entrega este token e sai
+//   RCLONE_CONFIG=<arquivo>     com esta variável, `config create|delete|dump`
+//                               e `listremotes` usam este arquivo INI, como o
+//                               rclone real (create em nome existente
+//                               substitui a seção, igual ao rclone v1.60)
+//   RCLONE_FALSO_FALHA_TIPO=<t> `config create <nome> <t>` falha
 //   RCLONE_FALSO_DORME=<dur>    qualquer comando dorme este tempo antes de
 //                               responder (ex.: 10m), para testar tempo limite
 //
@@ -38,6 +43,7 @@ const (
 	envFalsoFalha = "RCLONE_FALSO_FALHA"
 	envFalsoToken = "RCLONE_FALSO_TOKEN"
 	envFalsoDorme = "RCLONE_FALSO_DORME"
+	envFalsoFalhaTipo = "RCLONE_FALSO_FALHA_TIPO"
 
 	vidaMaximaFalso = 2 * time.Minute
 )
@@ -92,6 +98,12 @@ func rodarRcloneFalso(arg0 string, args []string) int {
 		return 0
 	}
 
+	if conf := os.Getenv("RCLONE_CONFIG"); conf != "" {
+		if codigo, tratado := configIniFalso(conf, args); tratado {
+			return codigo
+		}
+	}
+
 	switch args[0] {
 	case "--version":
 		fmt.Println("rclone v0.0.0-falso")
@@ -128,6 +140,96 @@ func rodarRcloneFalso(arg0 string, args []string) int {
 		time.Sleep(vidaMaximaFalso)
 	}
 	return 0
+}
+
+// secaoIni é uma seção [nome] do rclone.conf falso.
+type secaoIni struct {
+	nome   string
+	linhas []string // "chave = valor"
+}
+
+func lerIni(caminho string) []secaoIni {
+	dados, _ := os.ReadFile(caminho)
+	var secoes []secaoIni
+	for _, linha := range strings.Split(strings.ReplaceAll(string(dados), "\r\n", "\n"), "\n") {
+		linha = strings.TrimSpace(linha)
+		if strings.HasPrefix(linha, "[") && strings.HasSuffix(linha, "]") {
+			secoes = append(secoes, secaoIni{nome: linha[1 : len(linha)-1]})
+		} else if linha != "" && len(secoes) > 0 {
+			secoes[len(secoes)-1].linhas = append(secoes[len(secoes)-1].linhas, linha)
+		}
+	}
+	return secoes
+}
+
+func gravarIni(caminho string, secoes []secaoIni) {
+	var b strings.Builder
+	for _, s := range secoes {
+		b.WriteString("[" + s.nome + "]\n")
+		for _, l := range s.linhas {
+			b.WriteString(l + "\n")
+		}
+		b.WriteString("\n")
+	}
+	os.WriteFile(caminho, []byte(b.String()), 0o600)
+}
+
+// configIniFalso trata os comandos de configuração sobre o arquivo INI.
+func configIniFalso(caminho string, args []string) (int, bool) {
+	secoes := lerIni(caminho)
+	achar := func(nome string) int {
+		for i, s := range secoes {
+			if s.nome == nome {
+				return i
+			}
+		}
+		return -1
+	}
+	switch {
+	case args[0] == "listremotes":
+		for _, s := range secoes {
+			fmt.Println(s.nome + ":")
+		}
+		return 0, true
+	case len(args) >= 2 && args[0] == "config" && args[1] == "dump":
+		m := map[string]map[string]string{}
+		for _, s := range secoes {
+			kv := map[string]string{}
+			for _, l := range s.linhas {
+				if k, v, ok := strings.Cut(l, " = "); ok {
+					kv[k] = v
+				}
+			}
+			m[s.nome] = kv
+		}
+		saida, _ := json.Marshal(m)
+		fmt.Print(string(saida))
+		return 0, true
+	case len(args) >= 4 && args[0] == "config" && args[1] == "create":
+		nome, tipo := args[2], args[3]
+		if t := os.Getenv(envFalsoFalhaTipo); t != "" && t == tipo {
+			fmt.Fprintln(os.Stderr, "CRITICAL: falha simulada em config create "+tipo)
+			return 1, true
+		}
+		sec := secaoIni{nome: nome, linhas: []string{"type = " + tipo}}
+		for i := 4; i+1 < len(args); i += 2 {
+			sec.linhas = append(sec.linhas, args[i]+" = "+args[i+1])
+		}
+		if i := achar(nome); i >= 0 {
+			secoes[i] = sec
+		} else {
+			secoes = append(secoes, sec)
+		}
+		gravarIni(caminho, secoes)
+		return 0, true
+	case len(args) >= 3 && args[0] == "config" && args[1] == "delete":
+		if i := achar(args[2]); i >= 0 {
+			secoes = append(secoes[:i], secoes[i+1:]...)
+			gravarIni(caminho, secoes)
+		}
+		return 0, true
+	}
+	return 0, false
 }
 
 func registrarChamada(dir string, c chamadaFalsa) {
@@ -169,6 +271,8 @@ func novoRcloneFalso(t *testing.T) *rcloneFalso {
 	t.Setenv(envFalsoFalha, "")
 	t.Setenv(envFalsoToken, "")
 	t.Setenv(envFalsoDorme, "")
+	t.Setenv(envFalsoFalhaTipo, "")
+	t.Setenv("RCLONE_CONFIG", "")
 	t.Cleanup(f.matarSobreviventes)
 	return f
 }
