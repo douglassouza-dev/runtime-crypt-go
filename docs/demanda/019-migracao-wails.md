@@ -70,7 +70,7 @@ Se a 014 ou a 015 estiverem feitas antes, as ações novas delas também entram 
 - [ ] O ADR-0007 está com status Aceita e diz a versão do Wails escolhida.
 - [ ] As 30 ações da tabela existem no app Wails. O PR traz uma tabela com cada número e onde a ação está no frontend novo. Se a bandeja não existir na versão escolhida, a tabela mostra o substituto documentado no ADR-0007 para as ações 22 a 29.
 - [ ] Janela de cofres, wizard novo cofre, wizard conectar existente e bandeja (ou o substituto documentado) existem.
-- [ ] Cada cofre mostra `desmontado`, `montando`, `montado` ou `falhou`. `montado` só aparece com o processo `rclone mount` vivo **e** a letra ou a pasta existente. Verificação: destrancar, matar o `rclone.exe` pelo Gerenciador de Tarefas, e em até 5 s o card mostra `falhou`.
+- [ ] Cada cofre mostra uma das quatro frases da 018: `Trancado`, `Destrancando…`, `Destrancado • X:\` ou `Não destrancou: {motivo}`, as mesmas no card e na bandeja. `Destrancado` só aparece com o processo `rclone mount` vivo **e** a letra ou a pasta existente. Verificação: destrancar, matar o `rclone.exe` pelo Gerenciador de Tarefas, e em até 5 s o card mostra `Não destrancou: {motivo}`.
 - [ ] Sem regra de negócio no frontend: o código do frontend não contém `rclone`, `_base`, `password2`, o número `8` como tamanho de senha, nem decide estado do cofre. Conferido com `rg` sobre a pasta do frontend.
 - [ ] `go list -deps ./... | rg "fyne|getlantern/systray"` não encontra nada.
 - [ ] No Windows sem WebView2: o programa mostra mensagem clara ou o instalador o instala. O caminho escolhido está no ADR-0007.

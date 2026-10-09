@@ -6,7 +6,7 @@ Cada fluxo descreve o que o código faz hoje. Os pontos com defeito aparecem em 
 
 ### Regra alvo
 
-Quatro estados visíveis: **desmontado**, **montando**, **montado**, **falhou**.
+Quatro estados visíveis: **desmontado**, **montando**, **montado**, **falhou**. Na tela eles aparecem como `Trancado`, `Destrancando…`, `Destrancado • X:\` e `Não destrancou: {motivo}` ([demanda 018](demanda/018-estados-do-cofre.md)).
 **montado** = processo `rclone mount` vivo **E** ponto de montagem existe (letra ou pasta).
 
 ```mermaid

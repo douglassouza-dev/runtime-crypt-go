@@ -20,7 +20,7 @@ A bandeja não lista cofres. O tipo `AcaoCofre` existe e `main.go` sabe tratá-l
 
 ### Regra pedida
 
-Cada cofre mostra um de quatro estados: **desmontado**, **montando**, **montado**, **falhou**.
+Cada cofre mostra um de quatro estados: **desmontado**, **montando**, **montado**, **falhou**. São nomes do `core`. A tela escreve `Trancado`, `Destrancando…`, `Destrancado • X:\` e `Não destrancou: {motivo}`.
 
 **montado** só vale quando as duas condições são verdadeiras ao mesmo tempo:
 

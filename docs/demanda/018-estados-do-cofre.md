@@ -15,6 +15,19 @@ Regra: **montado só é verdadeiro quando o processo `rclone mount` está vivo E
 
 - O `core` expõe um tipo de estado com quatro valores: `desmontado`, `montando`, `montado` e `falhou`, mais o motivo da falha e o ponto de montagem.
 - O `core` é o único lugar que decide o estado. A GUI só lê.
+
+### O que a tela escreve
+
+Os quatro valores são nomes do `core`. A tela fala em cofre. Card, bandeja e Wails usam as mesmas quatro frases:
+
+| Estado no `core` | Frase na tela |
+|---|---|
+| `desmontado` | `Trancado` |
+| `montando` | `Destrancando…` |
+| `montado` | `Destrancado • X:\` (a letra ou a pasta real) |
+| `falhou` | `Não destrancou: {motivo}` |
+
+Os nomes `desmontado`, `montando`, `montado` e `falhou` não aparecem na tela.
 - Janela de cofres: cada card mostra o estado e o botão certo para ele. `montando` desabilita o botão. `falhou` mostra o motivo e oferece "Tentar de novo".
 - Wizards novo cofre e conectar existente: mostram em que passo estão (autorizando, criando remoto, gravando) e o erro do passo que falhou.
 - Bandeja: o tooltip resume quantos cofres há em cada estado e é atualizado a cada mudança.
@@ -28,7 +41,8 @@ Regra: **montado só é verdadeiro quando o processo `rclone mount` está vivo E
 
 - [ ] Teste em `internal/core`: processo vivo + ponto existe → `montado`; processo vivo + ponto ausente → `falhou`; processo morto + ponto existe → `falhou`; durante a espera → `montando`; sem processo → `desmontado`.
 - [ ] `rg -n "Montado\s+bool" internal/core` não encontra nada.
-- [ ] Na janela (Windows): durante o destrancar, o card mostra "montando" e o botão fica desabilitado. Um segundo clique não inicia outro `rclone.exe` (conferido no Gerenciador de Tarefas).
-- [ ] Matar o `rclone.exe` pelo Gerenciador de Tarefas: em até 5 s o card mostra "falhou" com o motivo.
+- [ ] Na janela (Windows): durante o destrancar, o card mostra `Destrancando…` e o botão fica desabilitado. Um segundo clique não inicia outro `rclone.exe` (conferido no Gerenciador de Tarefas).
+- [ ] Matar o `rclone.exe` pelo Gerenciador de Tarefas: em até 5 s o card mostra `Não destrancou: {motivo}`.
 - [ ] Wizard novo cofre com OAuth cancelado no navegador: o wizard mostra o passo "autorizando" e depois o erro.
-- [ ] Tooltip da bandeja muda de texto quando um cofre passa de `desmontado` para `montado`.
+- [ ] Tooltip da bandeja usa as mesmas frases do card e muda quando um cofre passa de `Trancado` para `Destrancado • X:\`.
+- [ ] `rg -n "desmontado|montando|\"montado\"|falhou" internal/gui internal/tray` não encontra texto exibido ao usuário.
