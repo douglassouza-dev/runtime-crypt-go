@@ -25,6 +25,8 @@ A ordem segue o risco à estabilidade e aos segredos. A migração para Wails (0
 | [017](017-extrair-logica-para-core.md) | Tirar a orquestração de `main.go` e as regras de `internal/gui` | Médio · estabilidade, migração | 016 | Aberta |
 | [018](018-estados-do-cofre.md) | Estados do cofre visíveis: desmontado, montando, montado, falhou | Médio · uso | 001, 003, 010, 017 | Aberta |
 | [019](019-migracao-wails.md) | Migrar a interface de Fyne para Wails | Alto · uso, estabilidade | 001–010, 016, 017, 018, ADR-0007 | Aberta |
+| [020](020-oauth-wait-duplo.md) | OAuth chama `cmd.Wait` duas vezes no mesmo processo | Médio · estabilidade | 016 | Aberta |
+| [021](021-nomes-no-seletor-de-pasta.md) | O seletor de pasta mostra "-1 alfa" no lugar de "alfa" | Médio · uso, dados | 016 | Aberta |
 
 ## Ordem sugerida de execução
 
@@ -50,6 +52,8 @@ flowchart LR
     d004 --> d015["015 auto-montar"]
     d009 --> d015
     d016 --> d017["017 lógica no core"]
+    d016 --> d020["020 OAuth Wait"]
+    d016 --> d021["021 nomes no seletor"]
     d003 --> d018["018 estados"]
     d010 --> d018
     d017 --> d018
