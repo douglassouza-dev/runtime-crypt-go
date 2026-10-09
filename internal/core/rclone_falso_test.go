@@ -12,6 +12,8 @@ package core
 //   RCLONE_FALSO_DIR/lsd.txt    saída de `lsd`
 //   RCLONE_FALSO_FALHA=1        qualquer comando escreve no stderr e sai com 1
 //   RCLONE_FALSO_TOKEN=<json>   `authorize` entrega este token e sai
+//   RCLONE_FALSO_DORME=<dur>    qualquer comando dorme este tempo antes de
+//                               responder (ex.: 10m), para testar tempo limite
 //
 // `mount` e `authorize` sem token ficam vivos até serem encerrados (no máximo
 // 2 min, para nunca deixar processo órfão depois dos testes).
@@ -35,6 +37,7 @@ const (
 	envFalsoDir   = "RCLONE_FALSO_DIR"
 	envFalsoFalha = "RCLONE_FALSO_FALHA"
 	envFalsoToken = "RCLONE_FALSO_TOKEN"
+	envFalsoDorme = "RCLONE_FALSO_DORME"
 
 	vidaMaximaFalso = 2 * time.Minute
 )
@@ -75,6 +78,10 @@ func rodarRcloneFalso(arg0 string, args []string) int {
 		c.Stdin = string(dados)
 	}
 	registrarChamada(dir, c)
+
+	if d, err := time.ParseDuration(os.Getenv(envFalsoDorme)); err == nil && d > 0 {
+		time.Sleep(d)
+	}
 
 	if os.Getenv(envFalsoFalha) == "1" {
 		fmt.Fprintln(os.Stderr, "CRITICAL: falha do rclone falso")
@@ -161,11 +168,15 @@ func novoRcloneFalso(t *testing.T) *rcloneFalso {
 	t.Setenv(envFalsoDir, f.dir)
 	t.Setenv(envFalsoFalha, "")
 	t.Setenv(envFalsoToken, "")
+	t.Setenv(envFalsoDorme, "")
 	t.Cleanup(f.matarSobreviventes)
 	return f
 }
 
 func (f *rcloneFalso) falhar() { f.t.Setenv(envFalsoFalha, "1") }
+
+// dormir faz toda chamada seguinte ao falso esperar d antes de responder.
+func (f *rcloneFalso) dormir(d time.Duration) { f.t.Setenv(envFalsoDorme, d.String()) }
 
 func (f *rcloneFalso) escrever(nome, conteudo string) {
 	f.t.Helper()
