@@ -38,4 +38,4 @@ O teste `TestListarDiretoriosRemotoFormatoRealDoRclone` em `internal/core/gerenc
 - [ ] Teste em `internal/core` com o rclone falso devolvendo pastas `alfa`, `minha pasta`, `ação`, `2024 fotos`, `-rascunho` e `  dois  espaços`: `ListarDiretoriosRemoto` devolve exatamente esses nomes, sem tirar nem pôr caractere.
 - [ ] Na tela (revisão de UI): o seletor mostra o nome da pasta exatamente como está no remoto, inclusive com espaço, acento, ou começando por número ou hífen.
 - [ ] Na tela: ao escolher uma pasta, o caminho mostrado no topo do seletor e o valor salvo no cofre (`remoto_base` em `vaults.json`) são esse mesmo nome.
-- [ ] Na tela: uma pasta sem subpastas mostra uma linha dizendo que não há subpastas, e não uma lista em branco.
+- [ ] Na tela: uma pasta sem subpastas mostra uma linha só, exatamente `Nenhuma subpasta aqui.`, sem botão, e não uma lista em branco. A pasta continua escolhível pelo caminho do topo.

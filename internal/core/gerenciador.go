@@ -375,7 +375,9 @@ func (g *GerenciadorRClone) ObterConfigRemoto(nome string) map[string]interface{
 	return nil
 }
 
-// ListarDiretoriosRemoto lista subdiretórios de um remoto via rclone lsd.
+// ListarDiretoriosRemoto lista os subdiretórios de um remoto com o nome exato
+// de cada um (demanda 021). Usa `rclone lsjson --dirs-only`, que entrega o
+// nome em JSON (campo Name), em vez de recortar as colunas alinhadas do `lsd`.
 func (g *GerenciadorRClone) ListarDiretoriosRemoto(nomeRemoto string, caminho string) []string {
 	if !g.EstaDisponivel() {
 		return nil
@@ -392,7 +394,7 @@ func (g *GerenciadorRClone) ListarDiretoriosRemoto(nomeRemoto string, caminho st
 
 	saida, err := chamadaRclone{
 		executavel: g.Executavel,
-		args:       []string{"lsd", alvo},
+		args:       []string{"lsjson", "--dirs-only", alvo},
 		limite:     limiteListagem,
 		ocultar:    true,
 	}.rodar()
@@ -400,19 +402,9 @@ func (g *GerenciadorRClone) ListarDiretoriosRemoto(nomeRemoto string, caminho st
 		return nil
 	}
 
-	var dirs []string
-	for _, linha := range strings.Split(string(saida), "\n") {
-		linha = strings.TrimSpace(linha)
-		if linha == "" {
-			continue
-		}
-		// Formato: -1 2024-01-01 00:00:00 -1 nome_pasta
-		partes := strings.SplitN(linha, " ", 5)
-		if len(partes) >= 5 {
-			dirs = append(dirs, strings.TrimSpace(partes[4]))
-		} else if len(partes) >= 1 {
-			dirs = append(dirs, partes[len(partes)-1])
-		}
+	dirs, err := lerNomesLsjson(saida)
+	if err != nil {
+		return nil
 	}
 
 	// Ordenar
@@ -428,6 +420,27 @@ func (g *GerenciadorRClone) ListarDiretoriosRemoto(nomeRemoto string, caminho st
 	sort(dirs)
 
 	return dirs
+}
+
+// itemLsjson é o pedaço de `rclone lsjson` que interessa ao seletor.
+type itemLsjson struct {
+	Name  string `json:"Name"`
+	IsDir bool   `json:"IsDir"`
+}
+
+// lerNomesLsjson devolve o nome de cada pasta, sem mexer em nenhum caractere.
+func lerNomesLsjson(saida []byte) ([]string, error) {
+	var itens []itemLsjson
+	if err := json.Unmarshal(saida, &itens); err != nil {
+		return nil, err
+	}
+	dirs := make([]string, 0, len(itens))
+	for _, it := range itens {
+		if it.IsDir && it.Name != "" {
+			dirs = append(dirs, it.Name)
+		}
+	}
+	return dirs, nil
 }
 
 // ListarCofres retorna todos os cofres com status enriquecido.

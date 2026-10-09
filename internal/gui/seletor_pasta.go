@@ -10,6 +10,9 @@ import (
 	"github.com/eufrauzino/runtime-crypt-go/internal/core"
 )
 
+// TextoPastaSemSubpastas é a linha mostrada quando a pasta não tem subpastas.
+const TextoPastaSemSubpastas = "Nenhuma subpasta aqui."
+
 // DialogoSeletorPastaRemota exibe um navegador visual de pastas em um remoto rclone.
 // Retorna o caminho selecionado ou "" se cancelado.
 func DialogoSeletorPastaRemota(janelaPai fyne.Window, gerenciador *core.GerenciadorRClone, nomeRemoto string, tituloProvedor string) *string {
@@ -64,7 +67,9 @@ func DialogoSeletorPastaRemota(janelaPai fyne.Window, gerenciador *core.Gerencia
 			containerLista.RemoveAll()
 
 			if len(dirs) == 0 {
-				lblVazio := canvas.NewText("📁 Nenhuma subpasta encontrada.\nVocê pode selecionar esta pasta.", CorTextoSec)
+				// Uma linha só, sem botão: a pasta atual continua escolhível
+				// pelo caminho do topo e por "Selecionar esta pasta" (demanda 021).
+				lblVazio := canvas.NewText(TextoPastaSemSubpastas, CorTextoSec)
 				lblVazio.TextSize = 12
 				containerLista.Add(lblVazio)
 			} else {

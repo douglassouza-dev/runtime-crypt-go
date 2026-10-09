@@ -335,30 +335,67 @@ func TestObterConfigRemoto(t *testing.T) {
 	}
 }
 
+// lsjsonReal é a saída de `rclone lsjson --dirs-only` do rclone v1.60.1 para
+// uma pasta com estas subpastas e um arquivo solto (que não aparece).
+const lsjsonReal = `[
+{"Path":"  dois  espaços","Name":"  dois  espaços","Size":-1,"MimeType":"inode/directory","ModTime":"2026-10-09T18:56:36.838441820-03:00","IsDir":true},
+{"Path":"-rascunho","Name":"-rascunho","Size":-1,"MimeType":"inode/directory","ModTime":"2026-10-09T18:56:36.838441820-03:00","IsDir":true},
+{"Path":"2024 fotos","Name":"2024 fotos","Size":-1,"MimeType":"inode/directory","ModTime":"2026-10-09T18:56:36.838441820-03:00","IsDir":true},
+{"Path":"alfa","Name":"alfa","Size":-1,"MimeType":"inode/directory","ModTime":"2026-10-09T18:56:36.838441820-03:00","IsDir":true},
+{"Path":"ação","Name":"ação","Size":-1,"MimeType":"inode/directory","ModTime":"2026-10-09T18:56:36.838441820-03:00","IsDir":true},
+{"Path":"minha pasta","Name":"minha pasta","Size":-1,"MimeType":"inode/directory","ModTime":"2026-10-09T18:56:36.838441820-03:00","IsDir":true}
+]
+`
+
 func TestListarDiretoriosRemoto(t *testing.T) {
 	g, f := novoGerenciadorFalso(t)
-	// Colunas separadas por um espaço só: é o formato que o parser de hoje entende.
-	f.escrever("lsd.txt", "-1 2024-01-01 00:00:00 -1 zeta\n-1 2024-01-01 00:00:00 -1 alfa\n")
+	f.escrever("lsjson.json", `[{"Path":"zeta","Name":"zeta","Size":-1,"IsDir":true},{"Path":"alfa","Name":"alfa","Size":-1,"IsDir":true}]`)
 
 	got := g.ListarDiretoriosRemoto("gdrive", "/fotos")
 
 	if strings.Join(got, ",") != "alfa,zeta" {
 		t.Errorf("dirs = %v", got)
 	}
-	if args := f.chamadas()[0].Args; !argsContem(args, "lsd", "gdrive:fotos") {
+	if args := f.chamadas()[0].Args; !argsContem(args, "lsjson", "--dirs-only", "gdrive:fotos") {
 		t.Errorf("args = %v", args)
 	}
 }
 
+// Formato real: a saída que o rclone de verdade imprime (demanda 021). Antes
+// da 021 o core usava `lsd` e recortava as colunas alinhadas, devolvendo
+// "-1 alfa".
 func TestListarDiretoriosRemotoFormatoRealDoRclone(t *testing.T) {
-	t.Skip("defeito conhecido, ainda sem demanda: o rclone alinha as colunas do lsd com vários espaços (largura fixa por coluna) e o parser devolve \"-1 alfa\" no lugar de \"alfa\"")
 	g, f := novoGerenciadorFalso(t)
-	f.escrever("lsd.txt", "          -1 2024-01-01 00:00:00        -1 zeta\n          -1 2024-01-01 00:00:00        -1 alfa\n")
+	f.escrever("lsjson.json", lsjsonReal)
 
 	got := g.ListarDiretoriosRemoto("gdrive", "")
 
-	if strings.Join(got, ",") != "alfa,zeta" {
-		t.Errorf("dirs = %v", got)
+	quer := []string{"  dois  espaços", "-rascunho", "2024 fotos", "alfa", "ação", "minha pasta"}
+	if len(got) != len(quer) {
+		t.Fatalf("dirs = %q, quer %q", got, quer)
+	}
+	for i := range quer {
+		if got[i] != quer[i] {
+			t.Errorf("dirs[%d] = %q, quer %q (nome exato, sem tirar nem pôr caractere)", i, got[i], quer[i])
+		}
+	}
+}
+
+func TestListarDiretoriosRemotoIgnoraArquivos(t *testing.T) {
+	g, f := novoGerenciadorFalso(t)
+	f.escrever("lsjson.json", `[{"Name":"pasta","IsDir":true},{"Name":"arquivo.txt","IsDir":false}]`)
+
+	if got := g.ListarDiretoriosRemoto("gdrive", ""); strings.Join(got, "|") != "pasta" {
+		t.Errorf("dirs = %q", got)
+	}
+}
+
+func TestListarDiretoriosRemotoPastaVazia(t *testing.T) {
+	g, f := novoGerenciadorFalso(t)
+	f.escrever("lsjson.json", "[]\n")
+
+	if got := g.ListarDiretoriosRemoto("gdrive", ""); len(got) != 0 {
+		t.Errorf("dirs = %q", got)
 	}
 }
 
