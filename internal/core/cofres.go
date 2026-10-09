@@ -119,6 +119,10 @@ func (g *GerenciadorCofres) salvar() error {
 	return gravarAtomico(g.caminhoArquivo(), dados)
 }
 
+// renomearArquivo é os.Rename. Os testes trocam para simular uma pasta onde
+// não se consegue gravar, do mesmo jeito em Linux e Windows.
+var renomearArquivo = os.Rename
+
 // gravarAtomico grava dados em caminho via arquivo temporário + rename.
 func gravarAtomico(caminho string, dados []byte) error {
 	tmp, err := os.CreateTemp(filepath.Dir(caminho), filepath.Base(caminho)+".*.tmp")
@@ -146,7 +150,7 @@ func gravarAtomico(caminho string, dados []byte) error {
 	if err := os.Chmod(nomeTmp, 0o644); err != nil {
 		return err
 	}
-	if err := os.Rename(nomeTmp, caminho); err != nil {
+	if err := renomearArquivo(nomeTmp, caminho); err != nil {
 		return err
 	}
 	falhou = false

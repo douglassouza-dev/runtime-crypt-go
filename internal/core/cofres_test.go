@@ -72,7 +72,36 @@ func TestVaultsJsonAusenteViraListaVazia(t *testing.T) {
 	}
 }
 
-func TestAtualizarEmDiretorioSomenteLeituraDevolveErro(t *testing.T) {
+// lerOuFalhar lê o arquivo e falha o teste se não conseguir (para uma falha
+// de leitura não parecer "o arquivo mudou").
+func lerOuFalhar(t *testing.T, caminho string) []byte {
+	t.Helper()
+	dados, err := os.ReadFile(caminho)
+	if err != nil {
+		t.Fatalf("ler %s: %v", caminho, err)
+	}
+	return dados
+}
+
+// conferirAtualizarFalha confere o contrato de Atualizar quando a gravação
+// falha: devolve erro, a memória volta e vaults.json fica igual.
+func conferirAtualizarFalha(t *testing.T, g *GerenciadorCofres, dir string, antes []byte) {
+	t.Helper()
+	err := g.Atualizar("a", map[string]interface{}{"auto_montar": true})
+
+	if err == nil {
+		t.Fatal("Atualizar deveria devolver erro quando não consegue gravar")
+	}
+	if g.Obter("a").AutoMontar {
+		t.Error("com a gravação falhando, a memória deveria voltar ao valor anterior")
+	}
+	if depois := lerOuFalhar(t, filepath.Join(dir, ArquivoCofres)); !bytes.Equal(antes, depois) {
+		t.Errorf("vaults.json mudou apesar do erro:\nantes  %q\ndepois %q", antes, depois)
+	}
+}
+
+func novoCofresComUm(t *testing.T) (*GerenciadorCofres, string, []byte) {
+	t.Helper()
 	dir := t.TempDir()
 	g, err := NovoGerenciadorCofres(dir)
 	if err != nil {
@@ -81,20 +110,38 @@ func TestAtualizarEmDiretorioSomenteLeituraDevolveErro(t *testing.T) {
 	if ok, msg := g.Adicionar("a", "drive", "Google Drive", "a_base:"); !ok {
 		t.Fatal(msg)
 	}
-	antes, _ := os.ReadFile(filepath.Join(dir, ArquivoCofres))
+	return g, dir, lerOuFalhar(t, filepath.Join(dir, ArquivoCofres))
+}
 
-	somenteLeitura(t, dir)
-	err = g.Atualizar("a", map[string]interface{}{"auto_montar": true})
+// Vale em Linux e Windows: a troca do arquivo temporário pelo final falha
+// como falharia numa pasta sem permissão de escrita.
+func TestAtualizarSemConseguirGravarDevolveErro(t *testing.T) {
+	g, dir, antes := novoCofresComUm(t)
+	original := renomearArquivo
+	renomearArquivo = func(_, _ string) error { return os.ErrPermission }
+	t.Cleanup(func() { renomearArquivo = original })
+
+	conferirAtualizarFalha(t, g, dir, antes)
+
+	entradas, _ := os.ReadDir(dir)
+	if len(entradas) != 1 {
+		t.Errorf("o temporário deveria ter sido apagado; a pasta tem %d entradas", len(entradas))
+	}
+}
+
+// Vale em Linux e Windows: a pasta do app sumiu e um arquivo comum ficou no
+// lugar dela, então não dá para criar o temporário.
+func TestAtualizarComPastaInvalidaDevolveErro(t *testing.T) {
+	g, dir, antes := novoCofresComUm(t)
+	g.diretorioApp = filepath.Join(dir, ArquivoCofres) // um arquivo, não uma pasta
+
+	err := g.Atualizar("a", map[string]interface{}{"auto_montar": true})
 
 	if err == nil {
-		t.Fatal("Atualizar deveria devolver erro em diretório somente leitura")
+		t.Fatal("Atualizar deveria devolver erro")
 	}
-	if g.Obter("a").AutoMontar {
-		t.Error("com a gravação falhando, a memória deveria voltar ao valor anterior")
-	}
-	depois, _ := os.ReadFile(filepath.Join(dir, ArquivoCofres))
-	if !bytes.Equal(antes, depois) {
-		t.Error("vaults.json mudou apesar do erro")
+	if depois := lerOuFalhar(t, filepath.Join(dir, ArquivoCofres)); !bytes.Equal(antes, depois) {
+		t.Errorf("vaults.json mudou apesar do erro")
 	}
 }
 
