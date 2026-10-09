@@ -42,7 +42,7 @@ type GerenciadorMontagem struct {
 // NovoGerenciadorMontagem cria uma instância do gerenciador de montagens.
 func NovoGerenciadorMontagem(executavel string, configVfs *ConfigVfs) *GerenciadorMontagem {
 	return &GerenciadorMontagem{
-		montagens:  make(map[string]*InfoMontagem),
+		montagens:   make(map[string]*InfoMontagem),
 		executavel:  executavel,
 		configVfs:   configVfs,
 		pontoExiste: caminhoExiste,
