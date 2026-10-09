@@ -121,50 +121,18 @@ func (g *GerenciadorMontagem) MontarUnidade(remoto string, letra string, senha s
 		ocultarJanela(cmd)
 	}
 
+	// Demanda 003: o stderr do rclone é guardado (últimas linhas) para a
+	// mensagem de erro dizer o motivo real.
+	saidaErro := novasUltimasLinhas(linhasErroMontagem)
 	cmd.Stdout = nil
-	cmd.Stderr = nil
+	cmd.Stderr = saidaErro
 
 	if err := cmd.Start(); err != nil {
 		return false, fmt.Sprintf("Erro ao iniciar rclone: %s", err.Error()), ""
 	}
 
-	// Polling: aguardar até 45s para a unidade ficar disponível
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
-	defer cancel()
-
-	intervalo := 200 * time.Millisecond
-	montou := false
-
-	for {
-		select {
-		case <-ctx.Done():
-			cmd.Process.Kill()
-			return false, "Timeout: A unidade nao ficou pronta em 45 segundos.", ""
-		default:
-			time.Sleep(intervalo)
-
-			if g.pontoExiste(letra + ":\\") {
-				montou = true
-				break
-			}
-
-			// Verificar se o processo morreu
-			if cmd.ProcessState != nil && cmd.ProcessState.Exited() {
-				return false, "Falha ao montar: Processo encerrou inesperadamente.", ""
-			}
-
-			if intervalo < time.Second {
-				intervalo = time.Duration(float64(intervalo) * 1.5)
-				if intervalo > time.Second {
-					intervalo = time.Second
-				}
-			}
-		}
-		if montou {
-			break
-		}
-	}
-
+	// A goroutine acompanhar (demanda 001) começa já aqui: o único Wait do
+	// processo também é o aviso de que ele saiu durante a espera.
 	info := &InfoMontagem{
 		Processo: cmd.Process,
 		Cmd:      cmd,
@@ -172,12 +140,123 @@ func (g *GerenciadorMontagem) MontarUnidade(remoto string, letra string, senha s
 		Letra:    letra,
 		fim:      make(chan struct{}),
 	}
+	go g.acompanhar(info)
+
+	limite := limiteMontagem
+	prazo := time.NewTimer(limite)
+	defer prazo.Stop()
+
+	intervalo := 200 * time.Millisecond
+	for {
+		select {
+		case <-info.fim:
+			return false, mensagemFalhaMontagem(cmd, saidaErro), ""
+		case <-prazo.C:
+			cmd.Process.Kill()
+			<-info.fim
+			msg := fmt.Sprintf("Timeout: A unidade nao ficou pronta em %s.", limite)
+			if linhas := saidaErro.Texto(); linhas != "" {
+				msg += "\n\nSaida do rclone:\n" + linhas
+			}
+			return false, msg, ""
+		case <-time.After(intervalo):
+		}
+
+		if g.pontoExiste(letra + ":\\") {
+			break
+		}
+
+		if intervalo < time.Second {
+			intervalo = time.Duration(float64(intervalo) * 1.5)
+			if intervalo > time.Second {
+				intervalo = time.Second
+			}
+		}
+	}
+
 	g.mu.Lock()
 	g.montagens[letra] = info
 	g.mu.Unlock()
-	go g.acompanhar(info)
+	// Se o processo saiu entre o ponto aparecer e a entrada no mapa, a
+	// acompanhar já passou e não tirou nada: tira aqui.
+	if !info.vivo() {
+		g.mu.Lock()
+		if atual, ok := g.montagens[letra]; ok && atual == info {
+			delete(g.montagens, letra)
+		}
+		g.mu.Unlock()
+		return false, mensagemFalhaMontagem(cmd, saidaErro), ""
+	}
 
 	return true, fmt.Sprintf("Unidade %s: montada com sucesso.", letra), letra
+}
+
+// LimiteMontagemPadrao é quanto se espera a unidade aparecer. O WinFsp pode
+// levar dezenas de segundos na primeira montagem do dia; a saída precoce do
+// rclone não espera isso (demanda 003).
+const LimiteMontagemPadrao = 45 * time.Second
+
+// limiteMontagem começa com LimiteMontagemPadrao; só os testes encurtam.
+var limiteMontagem = LimiteMontagemPadrao
+
+// linhasErroMontagem é quantas linhas finais do stderr do rclone entram na
+// mensagem de erro.
+const linhasErroMontagem = 20
+
+// mensagemFalhaMontagem explica a saída do rclone durante a montagem, com as
+// últimas linhas do stderr dele. Só chamar depois de info.fim fechado.
+func mensagemFalhaMontagem(cmd *exec.Cmd, saidaErro *ultimasLinhas) string {
+	msg := "Falha ao montar: o rclone encerrou"
+	if cmd.ProcessState != nil {
+		msg += fmt.Sprintf(" (codigo %d)", cmd.ProcessState.ExitCode())
+	}
+	if linhas := saidaErro.Texto(); linhas != "" {
+		return msg + ":\n" + linhas
+	}
+	return msg + " sem mensagem."
+}
+
+// ultimasLinhas é um io.Writer que guarda só as n últimas linhas escritas.
+type ultimasLinhas struct {
+	mu      sync.Mutex
+	n       int
+	linhas  []string
+	parcial string
+}
+
+func novasUltimasLinhas(n int) *ultimasLinhas { return &ultimasLinhas{n: n} }
+
+func (u *ultimasLinhas) Write(p []byte) (int, error) {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	texto := u.parcial + string(p)
+	partes := strings.Split(texto, "\n")
+	u.parcial = partes[len(partes)-1]
+	for _, l := range partes[:len(partes)-1] {
+		l = strings.TrimRight(l, "\r")
+		if strings.TrimSpace(l) == "" {
+			continue
+		}
+		u.linhas = append(u.linhas, l)
+		if len(u.linhas) > u.n {
+			u.linhas = u.linhas[len(u.linhas)-u.n:]
+		}
+	}
+	return len(p), nil
+}
+
+// Texto devolve as linhas guardadas, incluindo uma última sem quebra.
+func (u *ultimasLinhas) Texto() string {
+	u.mu.Lock()
+	defer u.mu.Unlock()
+	linhas := u.linhas
+	if p := strings.TrimSpace(u.parcial); p != "" {
+		linhas = append(append([]string(nil), linhas...), p)
+		if len(linhas) > u.n {
+			linhas = linhas[len(linhas)-u.n:]
+		}
+	}
+	return strings.Join(linhas, "\n")
 }
 
 // acompanhar chama cmd.Wait() uma única vez para a montagem. Quando o processo

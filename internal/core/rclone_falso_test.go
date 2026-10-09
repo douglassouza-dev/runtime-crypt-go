@@ -84,7 +84,11 @@ func rodarRcloneFalso(arg0 string, args []string) int {
 	}
 
 	if os.Getenv(envFalsoFalha) == "1" {
-		fmt.Fprintln(os.Stderr, "CRITICAL: falha do rclone falso")
+		msg := os.Getenv("RCLONE_FALSO_STDERR") // ver falha_montagem_test.go
+		if msg == "" {
+			msg = "CRITICAL: falha do rclone falso"
+		}
+		fmt.Fprintln(os.Stderr, msg)
 		return 1
 	}
 
