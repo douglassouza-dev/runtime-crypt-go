@@ -17,6 +17,23 @@ type InfoMontagem struct {
 	Cmd      *exec.Cmd
 	Remoto   string
 	Letra    string
+
+	// fim é fechado quando cmd.Wait() devolve, ou seja, quando o processo do
+	// rclone terminou. É a única fonte de "o processo vive" (demanda 001).
+	fim chan struct{}
+}
+
+// vivo diz se o processo da montagem ainda não terminou.
+func (i *InfoMontagem) vivo() bool {
+	if i == nil || i.fim == nil {
+		return false
+	}
+	select {
+	case <-i.fim:
+		return false
+	default:
+		return true
+	}
 }
 
 // StatusMontagem representa o estado público de uma montagem.
@@ -146,16 +163,32 @@ func (g *GerenciadorMontagem) MontarUnidade(remoto string, letra string, senha s
 		}
 	}
 
-	g.mu.Lock()
-	g.montagens[letra] = &InfoMontagem{
+	info := &InfoMontagem{
 		Processo: cmd.Process,
 		Cmd:      cmd,
 		Remoto:   remoto,
 		Letra:    letra,
+		fim:      make(chan struct{}),
 	}
+	g.mu.Lock()
+	g.montagens[letra] = info
 	g.mu.Unlock()
+	go g.acompanhar(info)
 
 	return true, fmt.Sprintf("Unidade %s: montada com sucesso.", letra), letra
+}
+
+// acompanhar chama cmd.Wait() uma única vez para a montagem. Quando o processo
+// termina, fecha info.fim e tira a montagem do mapa (se ela ainda for a mesma).
+func (g *GerenciadorMontagem) acompanhar(info *InfoMontagem) {
+	_ = info.Cmd.Wait()
+	close(info.fim)
+
+	g.mu.Lock()
+	if atual, ok := g.montagens[info.Letra]; ok && atual == info {
+		delete(g.montagens, info.Letra)
+	}
+	g.mu.Unlock()
 }
 
 // DesmontarUnidade desmonta uma unidade ativa.
@@ -178,14 +211,9 @@ func (g *GerenciadorMontagem) DesmontarUnidade(letra string) (bool, string) {
 			info.Processo.Kill()
 		}
 
-		done := make(chan error, 1)
-		go func() {
-			_, err := info.Processo.Wait()
-			done <- err
-		}()
-
+		// O Wait é da goroutine acompanhar; aqui só se espera o aviso dela.
 		select {
-		case <-done:
+		case <-info.fim:
 			goto limpeza
 		case <-time.After(5 * time.Second):
 			continue
@@ -214,18 +242,16 @@ func (g *GerenciadorMontagem) DesmontarTodas() {
 	}
 }
 
-// Status retorna as montagens ativas, removendo as que já encerraram.
+// Status retorna as montagens cujo processo ainda vive. É só leitura: quem
+// tira uma montagem do mapa é a goroutine acompanhar ou a desmontagem.
 func (g *GerenciadorMontagem) Status() []StatusMontagem {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
 	resultado := make([]StatusMontagem, 0)
-	letrasRemover := make([]string, 0)
 
 	for letra, info := range g.montagens {
-		// Verificar se o processo ainda está vivo
-		if !processoAtivo(info.Processo) {
-			letrasRemover = append(letrasRemover, letra)
+		if !info.vivo() {
 			continue
 		}
 		resultado = append(resultado, StatusMontagem{
@@ -234,10 +260,6 @@ func (g *GerenciadorMontagem) Status() []StatusMontagem {
 			Ativo:         true,
 			PontoMontagem: letra + ":\\",
 		})
-	}
-
-	for _, l := range letrasRemover {
-		delete(g.montagens, l)
 	}
 
 	return resultado
@@ -310,16 +332,5 @@ func ObterLetrasDisponiveis(ocupadasExtra []string) []string {
 // caminhoExiste verifica se um caminho existe no sistema de arquivos.
 func caminhoExiste(caminho string) bool {
 	_, err := os.Stat(caminho)
-	return err == nil
-}
-
-// processoAtivo verifica se um processo ainda está em execução.
-func processoAtivo(p *os.Process) bool {
-	if p == nil {
-		return false
-	}
-	// No Windows, FindProcess sempre retorna sem erro.
-	// Usamos Signal(0) para verificar se o processo existe.
-	err := p.Signal(os.Signal(nil))
 	return err == nil
 }

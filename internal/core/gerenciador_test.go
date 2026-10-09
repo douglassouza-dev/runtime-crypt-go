@@ -405,7 +405,6 @@ func TestEncerrarDesmontaELimpaSenhas(t *testing.T) {
 }
 
 func TestEncerrarDepoisDaTelaAtualizarDesmonta(t *testing.T) {
-	t.Skip("defeito conhecido: Status() esquece a montagem e Encerrar deixa o rclone órfão — demanda 001")
 	g, _ := novoGerenciadorFalso(t)
 	if ok, msg, _ := g.Montagens.MontarUnidade("cofre", "V", "s", nil); !ok {
 		t.Fatal(msg)
