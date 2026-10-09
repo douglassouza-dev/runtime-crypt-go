@@ -178,12 +178,10 @@ func destravarCofre(gerenciador *core.GerenciadorRClone, jp *gui.JanelaPrincipal
 // travarCofre desmonta o cofre e limpa a senha.
 func travarCofre(gerenciador *core.GerenciadorRClone, jp *gui.JanelaPrincipal, nome string) {
 	letra := gerenciador.Montagens.ObterLetraPorRemoto(nome)
-	var sucesso bool
-	var msg string
+	sucesso := false
+	msg := fmt.Sprintf("'%s' nao esta montado.", nome)
 	if letra != "" {
 		sucesso, msg = gerenciador.Montagens.DesmontarUnidade(letra)
-	} else {
-		sucesso, msg = gerenciador.Montagens.DesmontarUnidade(nome)
 	}
 
 	gerenciador.Senhas.Limpar(nome)

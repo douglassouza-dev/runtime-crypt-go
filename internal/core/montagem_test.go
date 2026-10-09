@@ -13,8 +13,27 @@ func novoMontadorFalso(t *testing.T) (*GerenciadorMontagem, *rcloneFalso) {
 	t.Helper()
 	f := novoRcloneFalso(t)
 	g := NovoGerenciadorMontagem(f.exe, NovoConfigVfs())
-	g.pontoExiste = func(string) bool { return true }
+	g.pontoExiste = pontoPeloFalso(f)
 	return g, f
+}
+
+// pontoPeloFalso simula o WinFsp/FUSE: o ponto "X:\" existe enquanto houver
+// um `rclone mount ... X:` do falso vivo, ou enquanto o mount ainda não
+// chegou a se registrar (montando).
+func pontoPeloFalso(f *rcloneFalso) func(string) bool {
+	return func(caminho string) bool {
+		alvo := strings.TrimSuffix(caminho, "\\")
+		achou := false
+		for _, c := range f.chamadas() {
+			if len(c.Args) > 2 && c.Args[0] == "mount" && c.Args[2] == alvo {
+				achou = true
+				if processoVivoNoSO(c.Pid) {
+					return true
+				}
+			}
+		}
+		return !achou
+	}
 }
 
 func pidDaMontagem(t *testing.T, g *GerenciadorMontagem, letra string) int {

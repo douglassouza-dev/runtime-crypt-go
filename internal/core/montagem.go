@@ -54,6 +54,27 @@ type GerenciadorMontagem struct {
 	// pontoExiste diz se o ponto de montagem já apareceu. Em produção é
 	// caminhoExiste; os testes trocam para não depender de WinFsp/FUSE.
 	pontoExiste func(caminho string) bool
+
+	// sinalizar pede o fim do processo: Interrupt (forcar=false) ou Kill
+	// (forcar=true). Em produção é sinalizarProcesso; os testes trocam para
+	// simular um rclone que não morre (demanda 002).
+	sinalizar func(p *os.Process, forcar bool) error
+
+	// esperaEncerrar é quanto se espera o processo terminar depois de cada
+	// pedido, e o ponto de montagem sumir depois que ele terminou.
+	esperaEncerrar time.Duration
+}
+
+// EsperaEncerrarPadrao é a espera por pedido de encerramento: cobre o
+// --vfs-write-back padrão (5 s) mais a desmontagem do WinFsp/FUSE.
+const EsperaEncerrarPadrao = 5 * time.Second
+
+// sinalizarProcesso é o sinalizar de produção.
+func sinalizarProcesso(p *os.Process, forcar bool) error {
+	if forcar {
+		return p.Kill()
+	}
+	return p.Signal(os.Interrupt)
 }
 
 // NovoGerenciadorMontagem cria uma instância do gerenciador de montagens.
@@ -63,6 +84,9 @@ func NovoGerenciadorMontagem(executavel string, configVfs *ConfigVfs) *Gerenciad
 		executavel:  executavel,
 		configVfs:   configVfs,
 		pontoExiste: caminhoExiste,
+		sinalizar:   sinalizarProcesso,
+
+		esperaEncerrar: EsperaEncerrarPadrao,
 	}
 }
 
@@ -193,41 +217,82 @@ func (g *GerenciadorMontagem) acompanhar(info *InfoMontagem) {
 	g.mu.Unlock()
 }
 
-// DesmontarUnidade desmonta uma unidade ativa.
+// DesmontarUnidade desmonta uma unidade ativa (demanda 002).
+//
+// Primeiro pede o encerramento normal (Interrupt), para o rclone terminar de
+// enviar o que está no write-back. No Windows, Interrupt não existe para
+// processos (Signal devolve erro na hora) e o rclone roda sem console
+// (CREATE_NO_WINDOW), então também não há Ctrl+C a mandar; lá o caminho vai
+// direto para Kill, sem gastar a espera. Depois tenta Kill duas vezes.
+//
+// O fim do processo é sabido pela goroutine acompanhar da demanda 001 (único
+// Wait). Só devolve true quando o processo terminou e o ponto de montagem
+// sumiu; fora isso devolve false com o motivo.
 func (g *GerenciadorMontagem) DesmontarUnidade(letra string) (bool, string) {
 	letra = strings.ToUpper(strings.TrimRight(letra, ":\\"))
 
 	g.mu.Lock()
 	info, existe := g.montagens[letra]
+	g.mu.Unlock()
 	if !existe {
-		g.mu.Unlock()
 		return false, fmt.Sprintf("Nenhuma montagem ativa na letra %s:", letra)
 	}
-	g.mu.Unlock()
 
-	// Tentar encerrar o processo (até 3 tentativas)
-	for tentativa := 0; tentativa < 3; tentativa++ {
-		if tentativa == 0 {
-			info.Processo.Signal(os.Interrupt)
-		} else {
-			info.Processo.Kill()
+	terminou := false
+	var motivos []string
+	for tentativa := 0; tentativa < 3 && !terminou; tentativa++ {
+		forcar := tentativa > 0
+		if err := g.sinalizar(info.Processo, forcar); err != nil {
+			if !forcar {
+				// Interrupt não suportado (Windows): segue para Kill já.
+				motivos = append(motivos, "Interrupt: "+err.Error())
+				continue
+			}
+			motivos = append(motivos, "Kill: "+err.Error())
 		}
-
-		// O Wait é da goroutine acompanhar; aqui só se espera o aviso dela.
 		select {
 		case <-info.fim:
-			goto limpeza
-		case <-time.After(5 * time.Second):
-			continue
+			terminou = true
+		case <-time.After(g.esperaEncerrar):
 		}
 	}
 
-limpeza:
+	if !terminou {
+		msg := fmt.Sprintf("Unidade %s: o rclone (pid %d) nao terminou depois de Interrupt e duas tentativas de Kill. A unidade pode continuar aberta.", letra, info.Processo.Pid)
+		if len(motivos) > 0 {
+			msg += " (" + strings.Join(motivos, "; ") + ")"
+		}
+		return false, msg
+	}
+
+	// O processo terminou; acompanhar já tira a montagem do mapa. Garante
+	// aqui também, para quem chama ver o mapa limpo ao voltar.
 	g.mu.Lock()
-	delete(g.montagens, letra)
+	if atual, ok := g.montagens[letra]; ok && atual == info {
+		delete(g.montagens, letra)
+	}
 	g.mu.Unlock()
 
+	ponto := letra + ":\\"
+	if !esperarCondicao(g.esperaEncerrar, func() bool { return !g.pontoExiste(ponto) }) {
+		return false, fmt.Sprintf("Unidade %s: o rclone terminou, mas %s continua visivel. Confira no Explorador antes de considerar o cofre trancado.", letra, ponto)
+	}
+
 	return true, fmt.Sprintf("Unidade %s: desmontada com sucesso.", letra)
+}
+
+// esperarCondicao repete cond até ela valer ou o limite passar.
+func esperarCondicao(limite time.Duration, cond func() bool) bool {
+	fim := time.Now().Add(limite)
+	for {
+		if cond() {
+			return true
+		}
+		if time.Now().After(fim) {
+			return false
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
 }
 
 // DesmontarTodas desmonta todas as unidades ativas.
