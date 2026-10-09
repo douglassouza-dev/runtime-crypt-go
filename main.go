@@ -119,6 +119,11 @@ func main() {
 
 	// Mostrar janela e iniciar mainloop
 	janelaPrincipal.Mostrar()
+	if gerenciador.ErroCofres != nil {
+		// Demanda 007: vaults.json ilegível não é sobrescrito; o usuário vê o motivo.
+		go gui.DialogoMensagem(janelaPrincipal.Janela(), "Erro ao ler os cofres",
+			gerenciador.ErroCofres.Error(), gui.MsgErro)
+	}
 	aplicacao.Run()
 }
 
