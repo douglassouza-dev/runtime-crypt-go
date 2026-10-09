@@ -104,6 +104,13 @@ func (c chamadaRclone) rodar() ([]byte, error) {
 	return saida, err
 }
 
+// comandoSemLimite é para processos de vida longa (o mount), que não levam
+// tempo limite de execução. Existe para toda criação de processo do rclone no
+// core passar por exec.CommandContext.
+func comandoSemLimite(executavel string, args ...string) *exec.Cmd {
+	return exec.CommandContext(context.Background(), executavel, args...)
+}
+
 // erroTempoEsgotado monta a mensagem com o subcomando, sem os argumentos que
 // podem levar token ou senha ofuscada.
 func erroTempoEsgotado(limite time.Duration, args []string) error {

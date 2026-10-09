@@ -109,7 +109,7 @@ func (g *GerenciadorMontagem) MontarUnidade(remoto string, letra string, senha s
 
 	// O mount é um processo de vida longa: não leva tempo limite de execução.
 	// A espera de 45 s para a unidade aparecer é tratada na demanda 003.
-	cmd := exec.CommandContext(context.Background(), g.executavel, args...)
+	cmd := comandoSemLimite(g.executavel, args...)
 
 	env := os.Environ()
 	if senha != "" {
