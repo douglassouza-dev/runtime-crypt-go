@@ -2,13 +2,12 @@ package core
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
-	"time"
 )
 
 // GerenciadorRClone é a struct principal que coordena todas as operações.
@@ -88,11 +87,13 @@ func (g *GerenciadorRClone) localizarRclone() string {
 
 // testarRclone verifica se o binário do rclone funciona.
 func testarRclone(caminho string) bool {
-	cmd := exec.Command(caminho, "--version")
-	cmd.Stdout = nil
-	cmd.Stderr = nil
-	err := cmd.Run()
-	return err == nil
+	return verificarRclone(caminho) == nil
+}
+
+// verificarRclone roda `rclone --version` com tempo limite.
+func verificarRclone(caminho string) error {
+	_, err := chamadaRclone{executavel: caminho, args: []string{"--version"}, limite: limiteVersao}.rodar()
+	return err
 }
 
 // EstaDisponivel verifica se o rclone foi encontrado.
@@ -106,13 +107,13 @@ func (g *GerenciadorRClone) ObscurecerSenha(senha string) (string, error) {
 		return "", fmt.Errorf("RClone nao disponivel")
 	}
 
-	cmd := exec.Command(g.Executavel, "obscure", "-")
-	cmd.Stdin = strings.NewReader(senha)
-	if runtime.GOOS == "windows" {
-		configurarOcultarJanela(cmd)
-	}
-
-	saida, err := cmd.Output()
+	saida, err := chamadaRclone{
+		executavel: g.Executavel,
+		args:       []string{"obscure", "-"},
+		limite:     limiteObscure,
+		stdin:      strings.NewReader(senha),
+		ocultar:    true,
+	}.rodar()
 	if err != nil {
 		return "", err
 	}
@@ -132,9 +133,16 @@ func (g *GerenciadorRClone) CriarRemoto(nome string, tipo string, params map[str
 		}
 	}
 
-	cmd := exec.Command(g.Executavel, args...)
-	saida, err := cmd.CombinedOutput()
+	saida, err := chamadaRclone{
+		executavel: g.Executavel,
+		args:       args,
+		limite:     limiteConfigCreate,
+		combinada:  true,
+	}.rodar()
 	if err != nil {
+		if errors.Is(err, ErrTempoEsgotado) {
+			return false, err.Error()
+		}
 		msg := strings.TrimSpace(string(saida))
 		if msg == "" {
 			msg = "Erro desconhecido."
@@ -203,13 +211,17 @@ func (g *GerenciadorRClone) RemoverRemoto(nome string) (bool, string) {
 	}
 
 	nomeLimpo := strings.TrimSuffix(nome, ":")
-	cmd := exec.Command(g.Executavel, "config", "delete", nomeLimpo)
-	if runtime.GOOS == "windows" {
-		configurarOcultarJanela(cmd)
-	}
-
-	saida, err := cmd.CombinedOutput()
+	saida, err := chamadaRclone{
+		executavel: g.Executavel,
+		args:       []string{"config", "delete", nomeLimpo},
+		limite:     limiteConfigLocal,
+		combinada:  true,
+		ocultar:    true,
+	}.rodar()
 	if err != nil {
+		if errors.Is(err, ErrTempoEsgotado) {
+			return false, err.Error()
+		}
 		msg := strings.TrimSpace(string(saida))
 		if msg == "" {
 			msg = "Erro ao remover."
@@ -219,20 +231,32 @@ func (g *GerenciadorRClone) RemoverRemoto(nome string) (bool, string) {
 	return true, fmt.Sprintf("Remoto '%s' removido.", nomeLimpo)
 }
 
+// configDump roda `rclone config dump` com tempo limite e devolve o JSON lido.
+// As funções públicas que usam isto ainda trocam o erro por nil (demanda 009).
+func (g *GerenciadorRClone) configDump() (map[string]map[string]interface{}, error) {
+	saida, err := chamadaRclone{
+		executavel: g.Executavel,
+		args:       []string{"config", "dump"},
+		limite:     limiteConfigLocal,
+	}.rodar()
+	if err != nil {
+		return nil, err
+	}
+	var config map[string]map[string]interface{}
+	if err := json.Unmarshal(saida, &config); err != nil {
+		return nil, err
+	}
+	return config, nil
+}
+
 // ListarRemotos retorna apenas os remotos do tipo crypt.
 func (g *GerenciadorRClone) ListarRemotos() []string {
 	if !g.EstaDisponivel() {
 		return nil
 	}
 
-	cmd := exec.Command(g.Executavel, "config", "dump")
-	saida, err := cmd.Output()
+	config, err := g.configDump()
 	if err != nil {
-		return nil
-	}
-
-	var config map[string]map[string]interface{}
-	if err := json.Unmarshal(saida, &config); err != nil {
 		return nil
 	}
 
@@ -251,10 +275,22 @@ func (g *GerenciadorRClone) ListarTodosRemotos() []string {
 		return nil
 	}
 
-	cmd := exec.Command(g.Executavel, "listremotes")
-	saida, err := cmd.Output()
+	remotos, err := g.listarTodosRemotos()
 	if err != nil {
 		return nil
+	}
+	return remotos
+}
+
+// listarTodosRemotos roda `rclone listremotes` com tempo limite.
+func (g *GerenciadorRClone) listarTodosRemotos() ([]string, error) {
+	saida, err := chamadaRclone{
+		executavel: g.Executavel,
+		args:       []string{"listremotes"},
+		limite:     limiteConfigLocal,
+	}.rodar()
+	if err != nil {
+		return nil, err
 	}
 
 	var remotos []string
@@ -264,7 +300,7 @@ func (g *GerenciadorRClone) ListarTodosRemotos() []string {
 			remotos = append(remotos, linha)
 		}
 	}
-	return remotos
+	return remotos, nil
 }
 
 // RemotoDetalhado contém informações detalhadas de um remoto.
@@ -283,14 +319,8 @@ func (g *GerenciadorRClone) ListarRemotosDetalhado() []RemotoDetalhado {
 		return nil
 	}
 
-	cmd := exec.Command(g.Executavel, "config", "dump")
-	saida, err := cmd.Output()
+	config, err := g.configDump()
 	if err != nil {
-		return nil
-	}
-
-	var config map[string]map[string]interface{}
-	if err := json.Unmarshal(saida, &config); err != nil {
 		return nil
 	}
 
@@ -330,14 +360,8 @@ func (g *GerenciadorRClone) ObterConfigRemoto(nome string) map[string]interface{
 	}
 
 	nome = strings.TrimSuffix(nome, ":")
-	cmd := exec.Command(g.Executavel, "config", "dump")
-	saida, err := cmd.Output()
+	config, err := g.configDump()
 	if err != nil {
-		return nil
-	}
-
-	var config map[string]map[string]interface{}
-	if err := json.Unmarshal(saida, &config); err != nil {
 		return nil
 	}
 
@@ -362,33 +386,13 @@ func (g *GerenciadorRClone) ListarDiretoriosRemoto(nomeRemoto string, caminho st
 		alvo = nomeRemoto + strings.TrimLeft(caminho, "/")
 	}
 
-	cmd := exec.Command(g.Executavel, "lsd", alvo)
-	if runtime.GOOS == "windows" {
-		configurarOcultarJanela(cmd)
-	}
-
-	tipo := "timeout"
-	var saida []byte
-	done := make(chan struct{})
-	go func() {
-		var err error
-		saida, err = cmd.Output()
-		if err != nil {
-			tipo = "erro"
-		} else {
-			tipo = "ok"
-		}
-		close(done)
-	}()
-
-	select {
-	case <-done:
-	case <-time.After(30 * time.Second):
-		cmd.Process.Kill()
-		return nil
-	}
-
-	if tipo != "ok" {
+	saida, err := chamadaRclone{
+		executavel: g.Executavel,
+		args:       []string{"lsd", alvo},
+		limite:     limiteListagem,
+		ocultar:    true,
+	}.rodar()
+	if err != nil {
 		return nil
 	}
 

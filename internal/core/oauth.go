@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"os/exec"
 	"regexp"
 	"runtime"
@@ -13,6 +14,9 @@ type StatusOAuth struct {
 	URL       string `json:"url"`
 	Token     string `json:"token"`
 	Concluido bool   `json:"concluido"`
+	// Erro vem preenchido quando o rclone authorize foi encerrado por tempo
+	// esgotado (demanda 008).
+	Erro string `json:"erro,omitempty"`
 }
 
 // GerenciadorOAuth controla o fluxo de autorização OAuth via rclone authorize.
@@ -20,6 +24,7 @@ type GerenciadorOAuth struct {
 	processo *exec.Cmd
 	token    string
 	url      string
+	erro     string
 	mu       sync.Mutex
 }
 
@@ -35,9 +40,14 @@ func (g *GerenciadorOAuth) Iniciar(executavel string, tipo string) bool {
 	g.mu.Lock()
 	g.token = ""
 	g.url = ""
+	g.erro = ""
 	g.mu.Unlock()
 
-	cmd := exec.Command(executavel, "authorize", tipo)
+	// O contexto mata o authorize se o usuário nunca terminar o login.
+	limite := limiteAuthorize
+	ctx, cancelar := context.WithTimeout(context.Background(), limite)
+	cmd := exec.CommandContext(ctx, executavel, "authorize", tipo)
+	cmd.WaitDelay = esperaPipes
 	cmd.Stdout = nil
 	cmd.Stderr = nil
 
@@ -48,11 +58,13 @@ func (g *GerenciadorOAuth) Iniciar(executavel string, tipo string) bool {
 	// Capturar stdout combinado
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
+		cancelar()
 		return false
 	}
 	cmd.Stderr = cmd.Stdout // Combinar stderr com stdout
 
 	if err := cmd.Start(); err != nil {
+		cancelar()
 		return false
 	}
 
@@ -117,6 +129,12 @@ func (g *GerenciadorOAuth) Iniciar(executavel string, tipo string) bool {
 		}
 
 		cmd.Wait()
+		if ctx.Err() == context.DeadlineExceeded {
+			g.mu.Lock()
+			g.erro = erroTempoEsgotado(limite, []string{"authorize"}).Error()
+			g.mu.Unlock()
+		}
+		cancelar()
 	}()
 
 	return true
@@ -130,6 +148,7 @@ func (g *GerenciadorOAuth) ObterStatus() StatusOAuth {
 		URL:       g.url,
 		Token:     g.token,
 		Concluido: g.token != "",
+		Erro:      g.erro,
 	}
 }
 
