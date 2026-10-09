@@ -72,7 +72,6 @@ func TestAbortarSemProcessoNaoFazNada(t *testing.T) {
 }
 
 func TestAbortarEncerraOProcesso(t *testing.T) {
-	t.Skip("defeito conhecido, ainda sem demanda: Abortar chama cmd.Wait enquanto a goroutine de leitura de Iniciar também chama cmd.Wait no mesmo exec.Cmd; o detector de corrida (-race) acusa")
 	f := novoRcloneFalso(t)
 	g := NovoGerenciadorOAuth()
 	if !g.Iniciar(f.exe, "drive") {
@@ -135,5 +134,38 @@ func TestAbrirExplorador(t *testing.T) {
 	cs := f.esperarChamadas(1, 5*time.Second)
 	if len(cs) != 1 || !argsContem(cs[0].Args, alvo) {
 		t.Errorf("chamadas = %+v", cs)
+	}
+}
+
+func TestIniciarDuasVezesEncerraOPrimeiro(t *testing.T) {
+	f := novoRcloneFalso(t)
+	g := NovoGerenciadorOAuth()
+
+	if !g.Iniciar(f.exe, "drive") {
+		t.Fatal("primeiro Iniciar devolveu false")
+	}
+	primeiro := f.esperarChamadas(1, 5*time.Second)
+	if len(primeiro) != 1 {
+		t.Fatalf("chamadas = %+v", primeiro)
+	}
+	if !g.Iniciar(f.exe, "onedrive") {
+		t.Fatal("segundo Iniciar devolveu false")
+	}
+	cs := f.esperarChamadas(2, 5*time.Second)
+	if len(cs) != 2 {
+		t.Fatalf("chamadas = %+v", cs)
+	}
+
+	if processoVivoNoSO(cs[0].Pid) {
+		t.Errorf("o primeiro authorize %d continua vivo depois do segundo Iniciar", cs[0].Pid)
+	}
+	if !processoVivoNoSO(cs[1].Pid) {
+		t.Errorf("o segundo authorize %d deveria estar vivo até Abortar", cs[1].Pid)
+	}
+
+	g.Abortar()
+
+	if processoVivoNoSO(cs[1].Pid) {
+		t.Errorf("o segundo authorize %d continua vivo depois de Abortar", cs[1].Pid)
 	}
 }
