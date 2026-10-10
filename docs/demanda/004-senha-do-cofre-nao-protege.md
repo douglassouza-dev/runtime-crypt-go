@@ -5,6 +5,7 @@
 - Onde: `internal/core/gerenciador.go:CriarCrypt`; `internal/core/montagem.go:MontarUnidade`; `main.go:destravarCofre`
 - Depende de: ADR-0006 aceito
 - ADR: [0006 — Onde ficam os segredos dos cofres](../adr/0006-onde-ficam-os-segredos.md) (Proposta)
+- Parte já separada: [030 — Senha errada não destranca](030-senha-errada-nao-destranca.md). A 030 confere a senha digitada contra a que está no `rclone.conf`, sem mudar onde ela fica. Esta demanda continua aberta para o resto.
 
 ## Contexto
 

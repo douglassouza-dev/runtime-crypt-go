@@ -1,6 +1,9 @@
 package core
 
-import "errors"
+import (
+	"errors"
+	"sort"
+)
 
 // Fica fora de gerenciador.go pela regra da demanda 009 (lá não há
 // "return nil"): aqui nil é o sucesso de funções que só devolvem error.
@@ -12,12 +15,7 @@ func (g *GerenciadorRClone) criarRemoto(nome string, tipo string, params map[str
 		return errors.New("RClone nao disponivel.")
 	}
 
-	args := []string{"config", "create", nome, tipo}
-	for chave, valor := range params {
-		if valor != "" {
-			args = append(args, chave, valor)
-		}
-	}
+	args := argsConfigCreate(nome, tipo, params)
 
 	saida, err := chamadaRclone{
 		executavel: g.Executavel,
@@ -78,4 +76,26 @@ func (g *GerenciadorRClone) criarCrypt(nome string, remotoBase string, senha str
 	}
 
 	return g.criarRemoto(nome, "crypt", params)
+}
+
+// argsConfigCreate monta `config create -- <nome> <tipo> <chave> <valor> …`.
+//
+// Demanda 029: depois de `--` o rclone não lê mais nada como opção. Sem ele,
+// uma senha ofuscada que começa com "-" (cerca de 1 em 64) vira
+// "unknown shorthand flag" e a criação do cofre falha. As chaves saem em
+// ordem alfabética para a linha de comando ser sempre a mesma.
+func argsConfigCreate(nome, tipo string, params map[string]string) []string {
+	chaves := make([]string, 0, len(params))
+	for chave, valor := range params {
+		if valor != "" {
+			chaves = append(chaves, chave)
+		}
+	}
+	sort.Strings(chaves)
+
+	args := []string{"config", "create", "--", nome, tipo}
+	for _, chave := range chaves {
+		args = append(args, chave, params[chave])
+	}
+	return args
 }
