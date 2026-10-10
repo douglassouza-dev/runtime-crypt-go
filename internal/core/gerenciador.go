@@ -12,13 +12,13 @@ import (
 
 // GerenciadorRClone é a struct principal que coordena todas as operações.
 type GerenciadorRClone struct {
-	Executavel  string
+	Executavel   string
 	DiretorioApp string
-	Cofres      *GerenciadorCofres
-	Montagens   *GerenciadorMontagem
-	Senhas      *CacheSenhas
-	OAuth       *GerenciadorOAuth
-	Vfs         *ConfigVfs
+	Cofres       *GerenciadorCofres
+	Montagens    *GerenciadorMontagem
+	Senhas       *CacheSenhas
+	OAuth        *GerenciadorOAuth
+	Vfs          *ConfigVfs
 
 	// ErroCofres vem preenchido quando vaults.json existe mas não pôde ser
 	// lido. A tela mostra este erro na abertura (demanda 007).
@@ -190,11 +190,11 @@ func (g *GerenciadorRClone) CriarCrypt(nome string, remotoBase string, senha str
 	}
 
 	params := map[string]string{
-		"remote":                     remotoBase,
-		"password":                   senhaObs,
-		"password2":                  senha2Obs,
-		"filename_encryption":        cfg["filename_encryption"],
-		"directory_name_encryption":  cfg["directory_name_encryption"],
+		"remote":                    remotoBase,
+		"password":                  senhaObs,
+		"password2":                 senha2Obs,
+		"filename_encryption":       cfg["filename_encryption"],
+		"directory_name_encryption": cfg["directory_name_encryption"],
 	}
 	if cfg["no_data_encryption"] == "true" {
 		params["no_data_encryption"] = "true"
@@ -454,4 +454,25 @@ func (g *GerenciadorRClone) Encerrar() {
 	g.Montagens.DesmontarTodas()
 	g.Senhas.LimparTodas()
 	g.OAuth.Abortar()
+}
+
+// Trancar desmonta o cofre nome (demanda 022). A senha da sessão só é apagada
+// quando o cofre deixa de estar montado, ou seja, quando a tela passa a
+// mostrar "Trancado". Se a desmontagem não terminou, a senha fica e o erro
+// traz o motivo. Cofre que já não está montado conta como trancado.
+func (g *GerenciadorRClone) Trancar(nome string) error {
+	letra := g.Montagens.ObterLetraPorRemoto(nome)
+	if letra == "" {
+		g.Senhas.Limpar(nome)
+		return nil
+	}
+
+	ok, msg := g.Montagens.DesmontarUnidade(letra)
+	if g.Montagens.ObterLetraPorRemoto(nome) == "" {
+		g.Senhas.Limpar(nome)
+	}
+	if !ok {
+		return errors.New(msg)
+	}
+	return nil
 }
