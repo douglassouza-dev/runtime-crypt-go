@@ -1,6 +1,6 @@
 # 018 — Estados do cofre visíveis: desmontado, montando, montado, falhou
 
-- Estado: Aberta
+- Estado: Feita (abdcd81)
 - Risco: Médio — uso
 - Onde: `internal/core/cofres.go:CofreStatus`, `Listar`; `internal/core/montagem.go:Status`; `internal/gui/janela_principal.go:criarCardCofre`, `atualizarCofres`; `internal/tray/tray.go:aoIniciar`, `AtualizarTooltip`
 - Depende de: 001, 003, 010, 017

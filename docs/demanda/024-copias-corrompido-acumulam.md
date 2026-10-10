@@ -1,6 +1,6 @@
 # 024 — Cópias `.corrompido` se acumulam
 
-- Estado: Aberta
+- Estado: Feita (baf3d4b)
 - Risco: Baixo · uso
 - Onde: `internal/core/cofres.go:carregar`
 - Depende de: 007

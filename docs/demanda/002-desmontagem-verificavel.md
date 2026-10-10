@@ -1,6 +1,6 @@
 # 002 — Trancar informa sucesso sem confirmar a desmontagem
 
-- Estado: Aberta
+- Estado: Feita (4b3d378)
 - Risco: Alto — estabilidade e segredos
 - Onde: `internal/core/montagem.go:DesmontarUnidade`; `main.go:travarCofre`
 - Depende de: 001

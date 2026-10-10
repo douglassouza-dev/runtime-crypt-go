@@ -1,6 +1,6 @@
 # 003 — Falha de montagem só aparece depois de 45 s e sem motivo
 
-- Estado: Aberta
+- Estado: Feita (da9468e)
 - Risco: Alto — estabilidade
 - Onde: `internal/core/montagem.go:MontarUnidade`
 - Depende de: 001

@@ -1,6 +1,6 @@
 # 025 — Trancar logo depois de gravar não espera o envio
 
-- Estado: Aberta
+- Estado: Feita (abdcd81)
 - Risco: Alto · dados
 - Onde: `internal/core/montagem.go:DesmontarUnidade`, `MontarUnidade`; `internal/core/trancar.go:Trancar`; `internal/gui/janela_principal.go:criarCardCofre`
 - Depende de: 013, 018, 022

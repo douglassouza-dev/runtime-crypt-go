@@ -1,6 +1,6 @@
 # 011 — Configuração VFS aceita qualquer texto
 
-- Estado: Aberta
+- Estado: Feita (579a81f)
 - Risco: Médio — estabilidade
 - Onde: `internal/core/vfs.go:Atualizar`; `internal/gui/config_vfs.go:DialogoConfigVfs`
 - Depende de: 003

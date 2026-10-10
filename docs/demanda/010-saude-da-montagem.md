@@ -1,6 +1,6 @@
 # 010 — Ninguém confere a montagem depois que ela sobe
 
-- Estado: Aberta
+- Estado: Feita (52f93e7)
 - Risco: Médio — estabilidade
 - Onde: `internal/core/montagem.go:Status`, `MontarUnidade`
 - Depende de: 001

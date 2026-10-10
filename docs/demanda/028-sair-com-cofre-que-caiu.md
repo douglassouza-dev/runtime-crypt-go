@@ -1,6 +1,6 @@
 # 028 — Sair com cofre que caiu e arquivos que não subiram
 
-- Estado: Aberta
+- Estado: Feita (6a0b533)
 - Risco: Alto · dados
 - Onde: `main.go:sair`; `internal/core/gerenciador.go:Encerrar`; `internal/gui/acoes.go`
 - Depende de: 022, 025, 026
