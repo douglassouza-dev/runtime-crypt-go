@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"fyne.io/fyne/v2"
+	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
 
@@ -48,7 +49,7 @@ func TestSairSemPendenciasSaiSemPerguntar(t *testing.T) {
 func TestSairEscolhendoSairNaoEnvia(t *testing.T) {
 	r := &roteiroSair{pendentes: []core.PendenciaCofre{{Nome: "fotos", N: 2}}}
 	acoesParaSair(t, r).Sair(func() { r.encerrados++ })
-	if r.perguntou != "2 arquivos de fotos ainda não subiram. Eles sobem quando você destrancar de novo." {
+	if r.perguntou != "2 arquivos de fotos\nEles sobem quando você destrancar de novo." {
 		t.Errorf("pergunta = %q", r.perguntou)
 	}
 	if r.encerrados != 1 || r.enviados != nil {
@@ -84,7 +85,7 @@ func TestSairEnviarAgoraQueFalhaNaoSai(t *testing.T) {
 func TestDialogoSairTemSoEnviarAgoraESair(t *testing.T) {
 	test.NewTempApp(t)
 	enviou, saiu := 0, 0
-	c := conteudoSair("1 arquivo de fotos ainda não subiu. Ele sobe quando você destrancar de novo.", func() { enviou++ }, func() { saiu++ })
+	c := conteudoSair("1 arquivo de fotos\nEle sobe quando você destrancar de novo.", func() { enviou++ }, func() { saiu++ })
 	var bs []*widget.Button
 	var textos []string
 	var achar func(o fyne.CanvasObject)
@@ -93,6 +94,8 @@ func TestDialogoSairTemSoEnviarAgoraESair(t *testing.T) {
 		case *widget.Button:
 			bs = append(bs, v)
 		case *widget.Label:
+			textos = append(textos, v.Text)
+		case *canvas.Text:
 			textos = append(textos, v.Text)
 		case *fyne.Container:
 			for _, f := range v.Objects {
@@ -104,7 +107,7 @@ func TestDialogoSairTemSoEnviarAgoraESair(t *testing.T) {
 	if len(bs) != 2 || bs[0].Text != "Enviar agora" || bs[1].Text != "Sair" || bs[0].Importance != widget.HighImportance {
 		t.Fatalf("botões = %+v", bs)
 	}
-	if !strings.Contains(strings.Join(textos, "|"), "1 arquivo de fotos ainda não subiu.") {
+	if junto := strings.Join(textos, "|"); !strings.Contains(junto, "Arquivos que ainda não subiram|") || !strings.Contains(junto, "1 arquivo de fotos") {
 		t.Errorf("textos = %q", textos)
 	}
 	test.Tap(bs[0])
