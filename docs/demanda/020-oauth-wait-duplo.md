@@ -1,6 +1,6 @@
 # 020 — OAuth chama `cmd.Wait` duas vezes no mesmo processo
 
-- Estado: Aberta
+- Estado: Feita (0132f0b)
 - Risco: Médio — estabilidade
 - Onde: `internal/core/oauth.go:Iniciar` (goroutine de leitura), `Abortar`
 - Depende de: 016

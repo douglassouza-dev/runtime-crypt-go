@@ -1,6 +1,6 @@
 # 013 — Montagem impossível em Linux e macOS
 
-- Estado: Aberta
+- Estado: Feita (5376d81)
 - Risco: Médio — uso
 - Onde: `internal/core/montagem.go:ObterLetrasDisponiveis`, `MontarUnidade`; `main.go:destravarCofre`
 - Depende de: 001, 010

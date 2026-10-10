@@ -1,6 +1,6 @@
 # 009 — Erros engolidos viram lista vazia ou silêncio
 
-- Estado: Aberta
+- Estado: Feita (43eb57e)
 - Risco: Médio — estabilidade
 - Onde: `internal/core/gerenciador.go:ListarDiretoriosRemoto`, `ListarRemotos`, `ListarTodosRemotos`, `ListarRemotosDetalhado`, `ObterConfigRemoto`; `main.go:autoMontarCofres`, `main` (ramo `AcaoAutoIniciar`); `internal/gui/seletor_pasta.go:DialogoSeletorPastaRemota`
 - Depende de: 008

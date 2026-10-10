@@ -1,6 +1,6 @@
 # 017 — Tirar a orquestração de `main.go` e as regras de `internal/gui`
 
-- Estado: Aberta
+- Estado: Feita (d3f8002)
 - Risco: Médio — estabilidade e migração
 - Onde: `main.go:acaoNovoCofre`, `acaoImportarCofre`, `destravarCofre`, `travarCofre`, `autoMontarCofres`; `internal/gui/wizards.go:DialogoNovoCofre`, `DialogoImportarCofre`; `internal/gui/seletor_pasta.go:splitCaminho`, `joinCaminho`
 - Depende de: 016

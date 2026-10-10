@@ -1,6 +1,6 @@
 # 008 — Chamadas ao rclone sem tempo limite
 
-- Estado: Aberta
+- Estado: Feita (a63a524)
 - Risco: Médio — estabilidade
 - Onde: `internal/core/gerenciador.go:testarRclone`, `ObscurecerSenha`, `CriarRemoto`, `RemoverRemoto`, `ListarRemotos`, `ListarTodosRemotos`, `ListarRemotosDetalhado`, `ObterConfigRemoto`; `internal/core/oauth.go:Iniciar`
 - Depende de: —

@@ -1,6 +1,6 @@
 # 016 — Testes do core com executor de rclone substituível
 
-- Estado: Aberta
+- Estado: Feita (bc37337)
 - Risco: Médio — estabilidade
 - Onde: `internal/core/gerenciador.go`, `montagem.go`, `oauth.go` (todas as chamadas `exec.Command`)
 - Depende de: —

@@ -25,13 +25,13 @@ Seus arquivos são **criptografados localmente antes de enviados** à nuvem e **
 
 - 🔐 **Criptografia ponta-a-ponta** — AES-256 via RClone Crypt
 - 🖥️ **Unidades virtuais** — Monta como drive normal (ex: `V:\`) via WinFsp/FUSE
-- ☁️ **Multi-nuvem** — Google Drive, OneDrive, Dropbox, Amazon S3, Pasta Local
+- ☁️ **Multi-nuvem** — Google Drive, Microsoft OneDrive, Dropbox
 - 🔑 **OAuth nativo** — Autenticação segura sem copiar tokens manualmente
 - 🎨 **Interface gráfica** — GUI escura e moderna com Fyne
 - 📌 **System Tray** — Roda em segundo plano com menu no ícone da bandeja
 - ⚡ **Binário único** — Sem Python, sem pip, sem virtualenv (~15 MB)
 - 🖱️ **Um clique** — Destrancar cofre = montar + abrir Explorer
-- 🔄 **Auto-montar** — Cofres favoritos montam ao iniciar o programa
+- 🔄 **Auto-montar** — Ainda não funciona: nenhum cofre monta sozinho ao iniciar (demanda 015)
 - ⚙️ **VFS configurável** — Cache, chunking, polling, write-back
 
 ## 🏗️ Arquitetura
@@ -143,10 +143,13 @@ set GOOS=linux&& set GOARCH=amd64&& go build -o runtime-crypt-go .
 
 ### Fluxo Básico
 
-1. **Adicionar Cofre** → Escolher provedor → Autorizar (OAuth) → Definir senha
-2. **Destrancar** → Digitar senha → Unidade montada automaticamente → Explorer abre
-3. **Trancar** → Um clique → Unidade desmontada → Senha limpa da memória
-4. **Sair** → Todas as unidades são desmontadas automaticamente
+1. **Adicionar Cofre** → Escolher o provedor (Google Drive, Microsoft OneDrive ou Dropbox) → Senha, Confirmar senha e Nome do cofre → **Criar Cofre** → Autorizar no navegador (OAuth) → O cofre é criado na raiz da conta → Sucesso
+2. **Importar Cofre Existente** → Escolher o provedor → Senha do cofre, Senha 2 (se houver) e Nome → **Avançar** → Autorizar no navegador (OAuth) → Escolher a pasta onde o cofre está → Sucesso
+3. **Destrancar** → Digitar a senha → Unidade montada → O explorador de arquivos abre
+4. **Trancar** → Um clique → Espera o envio terminar → Unidade desmontada → Senha limpa da memória
+5. **Sair** → Todas as unidades são desmontadas. Se um cofre caiu com arquivos que não subiram, o programa avisa antes
+
+Amazon S3 / MinIO e Pasta Local não aparecem nos assistentes até funcionarem (demanda 014). Um cofre desses que já está em `vaults.json` continua aparecendo e funcionando.
 
 ## 🔒 Segurança
 

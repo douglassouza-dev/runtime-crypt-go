@@ -1,6 +1,6 @@
 # 022 — A senha da sessão só sai quando o cofre trancou
 
-- Estado: Aberta
+- Estado: Feita (b70d5e9)
 - Risco: Médio · segredos, uso
 - Onde: `main.go:travarCofre`; `internal/core/montagem.go:DesmontarUnidade`; `internal/gui/janela_principal.go:criarCardCofre`
 - Depende de: 002

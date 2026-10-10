@@ -1,6 +1,6 @@
 # 026 — Cofre que caiu: destrancar de novo e trancar sem perder envio
 
-- Estado: Aberta
+- Estado: Feita (dfb17dc)
 - Risco: Alto · dados, segredos
 - Onde: `internal/core/trancar.go:Trancar`; `internal/core/montagem.go:DesmontarUnidade`, `EstadosPorRemoto`; `internal/gui/frases/frases.go:Botao`; `internal/gui/janela_principal.go:criarCardCofre`; `internal/gui/acoes.go:Cofre`
 - Depende de: 018, 022, 025

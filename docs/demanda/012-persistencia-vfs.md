@@ -1,6 +1,6 @@
 # 012 — Configuração VFS volta ao padrão a cada reinício
 
-- Estado: Aberta
+- Estado: Feita (63d23f7)
 - Risco: Baixo — uso
 - Onde: `internal/core/vfs.go:NovoConfigVfs`
 - Depende de: 007, 011

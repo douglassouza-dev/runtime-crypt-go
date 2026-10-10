@@ -1,6 +1,6 @@
 # 027 — Erros do rclone em português e cabeçalho do seletor
 
-- Estado: Aberta
+- Estado: Feita (10bf04b)
 - Risco: Médio · uso
 - Onde:
   - `internal/core/montagem.go`: `motivoFalhaMontagem`, `mensagemFalhaMontagem`;
