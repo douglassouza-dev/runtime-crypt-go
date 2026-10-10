@@ -1,6 +1,9 @@
 package gui
 
 import (
+	"errors"
+	"strings"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
@@ -36,12 +39,74 @@ var ordemChaves = []string{
 	"cache_dir",
 }
 
+// formVfs são os campos do painel VFS. Os valores só chegam ao core em
+// salvar (demanda 011): "Restaurar Padrões" só troca o texto dos campos.
+type formVfs struct {
+	vfs     *core.ConfigVfs
+	entries map[string]*widget.Entry
+	lblErro *widget.Label
+}
+
+func novoFormVfs(vfs *core.ConfigVfs) *formVfs {
+	f := &formVfs{vfs: vfs, entries: make(map[string]*widget.Entry)}
+	cfgAtual := vfs.Obter()
+	for _, chave := range ordemChaves {
+		entry := widget.NewEntry()
+		entry.SetText(cfgAtual[chave])
+		f.entries[chave] = entry
+	}
+	f.lblErro = widget.NewLabel("")
+	f.lblErro.Wrapping = fyne.TextWrapWord
+	f.lblErro.Importance = widget.DangerImportance
+	f.lblErro.Hide()
+	return f
+}
+
+// restaurarPadroes põe os valores padrão nos campos, sem aplicar.
+func (f *formVfs) restaurarPadroes() {
+	for chave, entry := range f.entries {
+		entry.SetText(core.ConfiguracoesVfsPadrao[chave])
+	}
+}
+
+// salvar manda os campos ao core. Se algum valor for recusado, nada muda no
+// core, o motivo de cada campo aparece no painel e salvar devolve false.
+func (f *formVfs) salvar() bool {
+	config := make(map[string]string)
+	for chave, entry := range f.entries {
+		config[chave] = entry.Text
+	}
+	_, err := f.vfs.Atualizar(config)
+	if err == nil {
+		f.lblErro.Hide()
+		return true
+	}
+
+	linhas := []string{"Nada foi salvo. Corrija:"}
+	var erros core.ErrosVfs
+	if errors.As(err, &erros) {
+		for _, chave := range ordemChaves {
+			if e := erros[chave]; e != nil {
+				desc := descricoesVfs[chave]
+				if desc == "" {
+					desc = chave
+				}
+				linhas = append(linhas, desc+": "+e.Error())
+			}
+		}
+	} else {
+		linhas = append(linhas, err.Error())
+	}
+	f.lblErro.SetText(strings.Join(linhas, "\n"))
+	f.lblErro.Show()
+	return false
+}
+
 // DialogoConfigVfs exibe o painel de configurações VFS.
 func DialogoConfigVfs(janelaPai fyne.Window, gerenciador *core.GerenciadorRClone) {
 	resultado := make(chan struct{}, 1)
 
-	entries := make(map[string]*widget.Entry)
-	cfgAtual := gerenciador.Vfs.Obter()
+	form := novoFormVfs(gerenciador.Vfs)
 
 	// Header
 	lblIcone := canvas.NewText("⚙️", CorVerde)
@@ -60,7 +125,6 @@ func DialogoConfigVfs(janelaPai fyne.Window, gerenciador *core.GerenciadorRClone
 	// Campos
 	containerCampos := container.NewVBox()
 	for _, chave := range ordemChaves {
-		valor := cfgAtual[chave]
 		desc := descricoesVfs[chave]
 		if desc == "" {
 			desc = chave
@@ -69,11 +133,7 @@ func DialogoConfigVfs(janelaPai fyne.Window, gerenciador *core.GerenciadorRClone
 		lblDesc := canvas.NewText(desc, CorTextoSec)
 		lblDesc.TextSize = 11
 
-		entry := widget.NewEntry()
-		entry.SetText(valor)
-		entries[chave] = entry
-
-		linha := container.NewGridWithColumns(2, lblDesc, entry)
+		linha := container.NewGridWithColumns(2, lblDesc, form.entries[chave])
 		containerCampos.Add(linha)
 	}
 
@@ -83,13 +143,7 @@ func DialogoConfigVfs(janelaPai fyne.Window, gerenciador *core.GerenciadorRClone
 	var dialogo *widget.PopUp
 
 	// Botões
-	btnRestaurar := widget.NewButton("Restaurar Padrões", func() {
-		gerenciador.Vfs.Restaurar()
-		cfg := gerenciador.Vfs.Obter()
-		for chave, entry := range entries {
-			entry.SetText(cfg[chave])
-		}
-	})
+	btnRestaurar := widget.NewButton("Restaurar Padrões", form.restaurarPadroes)
 
 	btnCancelar := widget.NewButton("Cancelar", func() {
 		resultado <- struct{}{}
@@ -99,11 +153,9 @@ func DialogoConfigVfs(janelaPai fyne.Window, gerenciador *core.GerenciadorRClone
 	})
 
 	btnSalvar := widget.NewButton("Salvar", func() {
-		config := make(map[string]string)
-		for chave, entry := range entries {
-			config[chave] = entry.Text
+		if !form.salvar() {
+			return // o painel fica aberto com o motivo
 		}
-		gerenciador.Vfs.Atualizar(config)
 		if dialogo != nil {
 			dialogo.Hide()
 		}
@@ -118,6 +170,7 @@ func DialogoConfigVfs(janelaPai fyne.Window, gerenciador *core.GerenciadorRClone
 		lblSub,
 		widget.NewSeparator(),
 		scrollCampos,
+		form.lblErro,
 		layout.NewSpacer(),
 		container.NewHBox(btnRestaurar, btnCancelar, layout.NewSpacer(), btnSalvar),
 	)
