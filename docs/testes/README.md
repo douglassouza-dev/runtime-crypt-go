@@ -30,11 +30,7 @@ Testes para fazer com o programa aberto, olhando a janela, a bandeja e o Explora
 - `Criar Cofre` grava o cofre na raiz do Drive: a tela de sucesso diz `Pasta: /`. Não há como escolher a pasta ao criar.
 - No Drive da conta de teste, crie estas pastas na raiz, vazias: `alfa`, `minha pasta`, `ação`, `2024 fotos`, `-rascunho` e `vazia`. Elas servem para o seletor de pasta.
 
-**Pasta Local e S3 não servem para estes testes.** A demanda 014 ainda está aberta:
-
-- `Criar Novo Cofre` não oferece `Pasta Local`.
-- `Importar Cofre Existente` oferece `Pasta Local`, mas para com `Selecione a pasta no explorador.`
-- `Amazon S3 / MinIO` aparece no wizard, mas não pede as chaves.
+**Pasta Local e S3 não servem para estes testes.** Os dois assistentes não mostram `Amazon S3 / MinIO` nem `Pasta Local` até funcionarem (demandas 014 e 034).
 
 Por isso os testes usam só o Google Drive.
 
