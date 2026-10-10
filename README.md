@@ -102,6 +102,29 @@ A pasta não é configurável por cofre (demanda 013).
 
 ## 🚀 Compilação
 
+### Scripts Rápidos
+
+- **Windows (Prompt / Duplo clique):**
+  ```cmd
+  build.bat
+  :: Modo com console visível para depuração:
+  build.bat console
+  ```
+
+- **Windows (PowerShell):**
+  ```powershell
+  .\build.ps1
+  # Modo com console visível:
+  .\build.ps1 -ModoConsole
+  ```
+
+- **Linux / macOS (Makefile):**
+  ```bash
+  make
+  ```
+
+### Manual
+
 ```bash
 # Clone o repositório
 git clone https://github.com/eufrauzino/runtime-crypt-go.git
@@ -111,13 +134,13 @@ cd runtime-crypt-go
 go mod tidy
 
 # Compilar (Windows — sem janela de console)
-go build -o runtime-crypt-go.exe -ldflags="-H windowsgui" .
+go build -o runtime-crypt-go.exe -ldflags="-H windowsgui -s -w" .
 
 # Compilar (Linux)
-go build -o runtime-crypt-go .
+go build -o runtime-crypt-go -ldflags="-s -w" .
 
 # Compilar (macOS)
-go build -o runtime-crypt-go .
+go build -o runtime-crypt-go -ldflags="-s -w" .
 ```
 
 ### Cross-Compilation
