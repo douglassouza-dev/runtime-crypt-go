@@ -48,6 +48,19 @@ func TestMontagemVivaContinuaListadaEMortaSaiEmAte2s(t *testing.T) {
 
 	// Demanda 010: a montagem morta não some em silêncio. Ela fica no Status
 	// como falhou, com o motivo, até alguém trancar ou destrancar de novo.
+	// O processo morto tem precedência sobre o ponto que sumiu junto. O Wait
+	// pode voltar um pouco depois de o ponto sumir; espera o fim dele.
+	g.mu.Lock()
+	info := g.montagens["V"]
+	g.mu.Unlock()
+	if info == nil {
+		t.Fatal("a montagem morta não pode sumir do mapa (demanda 010)")
+	}
+	select {
+	case <-info.fim:
+	case <-time.After(5 * time.Second):
+		t.Fatal("o Wait do processo morto não voltou")
+	}
 	st := g.Status()
 	if len(st) != 1 || st[0].Estado != EstadoFalhou || st[0].Motivo != MotivoProcessoTerminou {
 		t.Errorf("Status = %+v, quer V falhou com %q", st, MotivoProcessoTerminou)

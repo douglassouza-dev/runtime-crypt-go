@@ -499,10 +499,22 @@ func (g *GerenciadorMontagem) estadoDe(info *InfoMontagem) (EstadoMontagem, stri
 		return EstadoFalhou, fmt.Sprintf(MotivoPontoNaoResponde, g.limitePonto)
 	}
 	if !existe {
+		// Quando o rclone morre, a unidade some antes de o Wait voltar. Dá um
+		// tempo curto para o fim do processo aparecer: processo terminou tem
+		// precedência sobre ponto sumiu.
+		select {
+		case <-info.fim:
+			return EstadoFalhou, MotivoProcessoTerminou
+		case <-time.After(esperaFimAntesDePontoSumiu):
+		}
 		return EstadoFalhou, MotivoPontoSumiu
 	}
 	return EstadoMontado, ""
 }
+
+// esperaFimAntesDePontoSumiu é quanto estadoDe espera o fim do processo antes
+// de dizer "ponto de montagem sumiu" (precedência de "processo terminou").
+const esperaFimAntesDePontoSumiu = time.Second
 
 // conferirPonto roda pontoExiste com limite de tempo. respondeu=false quando
 // o limite passou, ou quando a conferência anterior desta montagem ainda não

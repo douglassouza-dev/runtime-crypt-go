@@ -143,3 +143,25 @@ func TestSaudeDestrancarDeNovoSubstituiAFalha(t *testing.T) {
 		t.Errorf("Status = %+v", st)
 	}
 }
+
+// Como no Windows: a unidade some antes de o Wait do processo morto voltar.
+// A primeira leitura depois da morte já diz "processo terminou".
+func TestSaudeProcessoMortoTemPrecedenciaSobrePontoSumido(t *testing.T) {
+	g, ponto := novoMontadorComPasta(t)
+	p, err := os.FindProcess(pidDaMontagem(t, g, "V"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(ponto); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := p.Kill(); err != nil {
+		t.Fatal(err)
+	}
+	st := estadoUnico(t, g)
+
+	if st.Estado != EstadoFalhou || st.Motivo != MotivoProcessoTerminou {
+		t.Errorf("Status = %+v, quer falhou com %q", st, MotivoProcessoTerminou)
+	}
+}
