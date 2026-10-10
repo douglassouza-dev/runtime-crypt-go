@@ -305,12 +305,21 @@ func registrarChamada(dir string, c chamadaFalsa) {
 	f.Write(append(linha, '\n'))
 }
 
+// lerArquivo lê o arquivo de resposta do falso; sem o arquivo, vale padrao.
+// Outro erro (no Windows, o arquivo sendo trocado por escrever) é repetido:
+// cair no padrão ali responderia "fila vazia" no meio de um envio.
 func lerArquivo(dir, nome, padrao string) string {
-	dados, err := os.ReadFile(filepath.Join(dir, nome))
-	if err != nil {
-		return padrao
+	fim := time.Now().Add(2 * time.Second)
+	for {
+		dados, err := os.ReadFile(filepath.Join(dir, nome))
+		if err == nil {
+			return string(dados)
+		}
+		if os.IsNotExist(err) || time.Now().After(fim) {
+			return padrao
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
-	return string(dados)
 }
 
 // rcloneFalso é o lado do teste: prepara o diretório do falso e lê as chamadas.
@@ -343,10 +352,36 @@ func (f *rcloneFalso) falhar() { f.t.Setenv(envFalsoFalha, "1") }
 // dormir faz toda chamada seguinte ao falso esperar d antes de responder.
 func (f *rcloneFalso) dormir(d time.Duration) { f.t.Setenv(envFalsoDorme, d.String()) }
 
+// escrever troca o arquivo nome de uma vez: grava num temporário e renomeia.
+// O mount falso relê vfs_stats.json a cada chamada do rc, enquanto o teste
+// escreve. Com os.WriteFile direto, a leitura podia pegar o arquivo truncado
+// e vazio, e o rc respondia um corpo vazio ("unexpected end of JSON input"
+// no Trancar, TestTrancarEsperaOEnvioTerminar no CI).
 func (f *rcloneFalso) escrever(nome, conteudo string) {
 	f.t.Helper()
-	if err := os.WriteFile(filepath.Join(f.dir, nome), []byte(conteudo), 0o644); err != nil {
+	tmp, err := os.CreateTemp(f.dir, nome+".*.tmp")
+	if err != nil {
 		f.t.Fatal(err)
+	}
+	_, errEscrita := tmp.WriteString(conteudo)
+	errFechar := tmp.Close()
+	if errEscrita != nil || errFechar != nil {
+		os.Remove(tmp.Name())
+		f.t.Fatalf("gravar %s: %v %v", nome, errEscrita, errFechar)
+	}
+	// No Windows o rename falha enquanto o falso está lendo o destino (sem
+	// FILE_SHARE_DELETE): tenta de novo por pouco tempo.
+	fim := time.Now().Add(2 * time.Second)
+	for {
+		err = os.Rename(tmp.Name(), filepath.Join(f.dir, nome))
+		if err == nil {
+			return
+		}
+		if time.Now().After(fim) {
+			os.Remove(tmp.Name())
+			f.t.Fatalf("trocar %s: %v", nome, err)
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 }
 
