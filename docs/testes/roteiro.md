@@ -119,7 +119,7 @@ Para fechar o app, use sempre a bandeja → `Sair` ou o botão `✕  Sair` da ja
 - Demandas: —
 - Passos:
   1. Clique em `ℹ  Sobre`.
-- Esperado: diálogo `RuntimeCrypto`, com `Versão 3.0` e `Licença GPL-3.0 — Copyright (c) Douglas Eufrauzino de Souza`.
+- Esperado: diálogo `RuntimeCrypto`, com `Versão 3.0` e `Licença GPL-3.0 ou posterior — Copyright (c) Douglas Eufrauzino de Souza`.
 - [ ] Passou
 - Resultado:
 
