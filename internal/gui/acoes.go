@@ -364,7 +364,7 @@ func (a *Acoes) Sobre() {
 			"Usa RClone + Crypt para criptografia ponta-a-ponta.\n"+
 			"Seus arquivos são criptografados antes de enviados à nuvem\n"+
 			"e descriptografados instantaneamente no seu PC.\n\n"+
-			"Licença GPL-3.0 — Copyright (c) Douglas Eufrauzino de Souza",
+			"Licença GPL-3.0 ou posterior — Copyright (c) Douglas Eufrauzino de Souza",
 		core.Versao), MsgInfo)
 }
 

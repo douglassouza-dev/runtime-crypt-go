@@ -163,4 +163,4 @@ Amazon S3 / MinIO e Pasta Local não aparecem nos assistentes até funcionarem (
 
 Copyright (C) 2026 Douglas Eufrauzino de Souza
 
-O RuntimeCrypto é licenciado sob a GPLv3 ([GNU General Public License v3.0](LICENSE)), somente a versão 3 (SPDX: `GPL-3.0-only`). O texto completo está em [LICENSE](LICENSE).
+O RuntimeCrypto é licenciado sob a GPLv3 ou qualquer versão posterior ([GNU General Public License v3.0](LICENSE) ou posterior; SPDX: `GPL-3.0-or-later`). O texto completo está em [LICENSE](LICENSE).
