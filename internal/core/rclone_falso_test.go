@@ -10,6 +10,7 @@ package core
 //
 //   RCLONE_FALSO_DIR/dump.json  saída de `config dump` (e base de `listremotes`)
 //   RCLONE_FALSO_DIR/lsd.txt    saída de `lsd`
+//   RCLONE_FALSO_DIR/lsjson.json saída de `lsjson` (padrão: [])
 //   RCLONE_FALSO_FALHA=1        qualquer comando escreve no stderr e sai com 1
 //   RCLONE_FALSO_TOKEN=<json>   `authorize` entrega este token e sai
 //   RCLONE_CONFIG=<arquivo>     com esta variável, `config create|delete|dump`
@@ -126,6 +127,8 @@ func rodarRcloneFalso(arg0 string, args []string) int {
 		}
 	case "lsd":
 		fmt.Print(lerArquivo(dir, "lsd.txt", ""))
+	case "lsjson":
+		fmt.Print(lerArquivo(dir, "lsjson.json", "[]"))
 	case "mount":
 		time.Sleep(vidaMaximaFalso)
 	case "authorize":
