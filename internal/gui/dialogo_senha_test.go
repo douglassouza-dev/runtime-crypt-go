@@ -2,6 +2,7 @@ package gui
 
 import (
 	"errors"
+	"os/exec"
 	"testing"
 	"time"
 
@@ -131,6 +132,7 @@ func TestDialogoSenhaSemConferirMostraAFraseEFicaAberto(t *testing.T) {
 	casos := map[string]*core.ErroConferirSenha{
 		"Não destrancou: não deu para ler a configuração do rclone.":                           {Motivo: core.NaoLeuConfiguracao, Err: errors.New("exit status 1")},
 		"Não destrancou: a configuração deste cofre está incompleta. Conecte o cofre de novo.": {Motivo: core.ConfigIncompleta, Err: errors.New("sem password")},
+		"Não destrancou: o rclone não está instalado.":                                         {Motivo: core.RcloneAusente, Err: exec.ErrNotFound},
 	}
 	for quer, erro := range casos {
 		t.Run(quer, func(t *testing.T) {
@@ -194,6 +196,7 @@ func TestTextoFalhaSenha(t *testing.T) {
 		{core.ErrSenhaErrada, "Senha errada.", true},
 		{&core.ErroConferirSenha{Motivo: core.NaoLeuConfiguracao}, "Não destrancou: não deu para ler a configuração do rclone.", true},
 		{&core.ErroConferirSenha{Motivo: core.ConfigIncompleta}, "Não destrancou: a configuração deste cofre está incompleta. Conecte o cofre de novo.", true},
+		{&core.ErroConferirSenha{Motivo: core.RcloneAusente}, "Não destrancou: o rclone não está instalado.", true},
 		{errors.New("x"), "", false},
 		{nil, "", false},
 	}

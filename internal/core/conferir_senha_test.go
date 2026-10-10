@@ -181,7 +181,6 @@ func TestDestrancarSemLerAConfiguracaoNaoMonta(t *testing.T) {
 	casos := map[string]func(*GerenciadorRClone, *rcloneFalso){
 		"config dump falha":    func(_ *GerenciadorRClone, f *rcloneFalso) { f.falhar() },
 		"config dump ilegível": func(_ *GerenciadorRClone, f *rcloneFalso) { f.escrever("dump.json", "não é json") },
-		"rclone indisponível":  func(g *GerenciadorRClone, _ *rcloneFalso) { g.Executavel = "" },
 	}
 	for nome, preparar := range casos {
 		t.Run(nome, func(t *testing.T) {
@@ -199,6 +198,45 @@ func TestDestrancarSemLerAConfiguracaoNaoMonta(t *testing.T) {
 			}
 			naoDestrancou(t, g, f)
 		})
+	}
+}
+
+// O rclone não existe: o caminho aponta para um arquivo que não existe
+// (os.ErrNotExist), o nome não está no PATH (exec.ErrNotFound) ou nenhum
+// rclone foi achado na abertura (Executavel vazio).
+func TestDestrancarSemORcloneNaoMonta(t *testing.T) {
+	casos := map[string]func(t *testing.T) string{
+		"caminho que não existe": func(t *testing.T) string { return filepath.Join(t.TempDir(), "rclone-que-nao-existe.exe") },
+		"pasta que não existe":   func(t *testing.T) string { return filepath.Join(t.TempDir(), "sumiu", "rclone") },
+		"nome fora do PATH":      func(*testing.T) string { return "rclone-que-nao-existe-no-path-030" },
+		"nenhum na abertura":     func(*testing.T) string { return "" },
+	}
+	for nome, caminho := range casos {
+		t.Run(nome, func(t *testing.T) {
+			g, f := cofreComSenha(t)
+			g.Executavel = caminho(t)
+
+			_, err := g.Destrancar("cofre", func() (string, bool) { return "senha certa", true })
+
+			var e *ErroConferirSenha
+			if !errors.As(err, &e) || e.Motivo != RcloneAusente {
+				t.Fatalf("erro = %#v, quer *ErroConferirSenha com RcloneAusente", err)
+			}
+			if err.Error() != "Não destrancou: o rclone não está instalado." {
+				t.Errorf("frase = %q", err.Error())
+			}
+			naoDestrancou(t, g, f)
+		})
+	}
+}
+
+// Um rclone que existe e sai com erro não é "não está instalado".
+func TestRcloneQueFalhaNaoEAusente(t *testing.T) {
+	g, f := cofreComSenha(t)
+	f.falhar()
+	var e *ErroConferirSenha
+	if err := g.ConferirSenha("cofre", "senha certa"); !errors.As(err, &e) || e.Motivo != NaoLeuConfiguracao {
+		t.Fatalf("erro = %#v, quer NaoLeuConfiguracao", err)
 	}
 }
 

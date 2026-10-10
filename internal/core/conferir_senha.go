@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"os"
+	"os/exec"
 	"strings"
 )
 
@@ -23,19 +25,23 @@ var ErrSenhaErrada = errors.New("senha errada")
 const (
 	TextoNaoLeuConfiguracao = "Não destrancou: não deu para ler a configuração do rclone."
 	TextoConfigIncompleta   = "Não destrancou: a configuração deste cofre está incompleta. Conecte o cofre de novo."
+	TextoRcloneAusente      = "Não destrancou: o rclone não está instalado."
 )
 
 // MotivoNaoConferiu diz por que a senha não pôde ser comparada.
 type MotivoNaoConferiu int
 
 const (
-	// NaoLeuConfiguracao: `rclone config dump` falhou (rclone ausente,
-	// tempo esgotado, rclone.conf ilegível).
+	// NaoLeuConfiguracao: `rclone config dump` rodou e falhou (tempo
+	// esgotado, erro do rclone, saída ilegível).
 	NaoLeuConfiguracao MotivoNaoConferiu = iota
 	// ConfigIncompleta: o rclone.conf foi lido, mas o remoto do cofre não
 	// está lá, não é crypt, não tem `password` ou o valor não se revela.
 	// Conectar o cofre de novo grava o remoto inteiro.
 	ConfigIncompleta
+	// RcloneAusente: o binário do rclone não foi achado (nenhum rclone na
+	// abertura, exec.ErrNotFound no PATH ou os.ErrNotExist no caminho dele).
+	RcloneAusente
 )
 
 // ErroConferirSenha: não deu para comparar a senha. O cofre não destranca.
@@ -46,8 +52,11 @@ type ErroConferirSenha struct {
 }
 
 func (e *ErroConferirSenha) Error() string {
-	if e.Motivo == ConfigIncompleta {
+	switch e.Motivo {
+	case ConfigIncompleta:
 		return TextoConfigIncompleta
+	case RcloneAusente:
+		return TextoRcloneAusente
 	}
 	return TextoNaoLeuConfiguracao
 }
@@ -66,6 +75,9 @@ func (g *GerenciadorRClone) ConferirSenha(nome, senha string) error {
 		return ErrSenhaErrada
 	}
 	cfg, err := g.ObterConfigRemoto(nome)
+	if rcloneAusente(err) {
+		return naoConferiu(nome, RcloneAusente, err)
+	}
 	if errors.Is(err, ErrRemotoNaoEncontrado) {
 		return naoConferiu(nome, ConfigIncompleta, err)
 	}
@@ -87,6 +99,16 @@ func (g *GerenciadorRClone) ConferirSenha(nome, senha string) error {
 		return ErrSenhaErrada
 	}
 	return nil
+}
+
+// rcloneAusente diz se err é o binário do rclone que não existe: nenhum
+// rclone achado na abertura (ErrRcloneIndisponivel), o nome não está no PATH
+// (exec.ErrNotFound) ou o arquivo no caminho dele sumiu (os.ErrNotExist, que
+// no Windows também cobre ERROR_FILE_NOT_FOUND e ERROR_PATH_NOT_FOUND). Não
+// olha o texto da mensagem. A saída do rclone que roda e falha vem como
+// *exec.ExitError ou *ErroRclone, que não embrulham nenhum desses.
+func rcloneAusente(err error) bool {
+	return errors.Is(err, ErrRcloneIndisponivel) || errors.Is(err, exec.ErrNotFound) || errors.Is(err, os.ErrNotExist)
 }
 
 // chaveObscure é a chave fixa e pública que o rclone usa em `rclone obscure`
