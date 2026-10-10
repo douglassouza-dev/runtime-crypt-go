@@ -11,7 +11,7 @@
 
 - Os arquivos cifrados, com nomes ilegíveis, ficam misturados com os arquivos do usuário na raiz do Google Drive, OneDrive ou Dropbox. A doc do crypt chama isso de "not recommended" ([rclone crypt](https://rclone.org/crypt/#crypt-remote)).
 - Dois cofres criados na mesma conta usam o mesmo lugar.
-- Na 033, a raiz fica "dentro" de qualquer caminho. Por isso o bloqueio por arquivos em comum impede excluir do provedor qualquer cofre do mesmo provedor enquanto houver outro.
+- Na 033 (regra nova do #54), um cofre na raiz nunca pode ser excluído do provedor pelo app, porque divide a raiz com os arquivos do próprio usuário. Hoje, todo cofre criado pelo app está nessa situação.
 
 O seletor de pasta (021, 023) só aparece em "Importar Cofre Existente".
 
@@ -65,7 +65,8 @@ Por que essa opção e não só perguntar: o caminho comum é um clique e nunca 
 O usuário pode apagar o campo para usar a raiz. O app não bloqueia, porque cofres antigos e cofres importados já estão na raiz. Mas pergunta antes de autorizar (texto proposto):
 
 - Título: `Cofre na raiz`
-- Texto: `O cofre vai ficar na raiz do {provedor}, junto com os seus arquivos. Assim ele não poderá ser excluído do {provedor} pelo app enquanto houver outro cofre do {provedor}.`
+- Texto: `O cofre vai ficar na raiz do {provedor}, junto com outros arquivos. Na raiz, o app não consegue excluí-lo do {provedor}: depois, só dá para remover deste computador e apagar pelo site do {provedor}.`
+- O texto segue a frase aprovada da 033: `Não dá para excluir do {provedor}: este cofre está na raiz junto com outros arquivos. Remova só deste computador e apague pelo site do {provedor}.`
 - Botões: `Usar a raiz` e `Voltar`, em destaque.
 
 ### Escolher no seletor (opcional)
@@ -75,7 +76,8 @@ Ao lado do campo, um link `Escolher no {provedor}…` abre, depois de autorizar,
 ### Relação com a 033
 
 - Cofre na própria pasta: excluir do provedor roda `delete` pelo crypt e depois `rmdir` na pasta (033). Nada fora dela é tocado, e o risco de apagar a raiz da conta desaparece.
-- Bloqueio por arquivos em comum (#50, na 033): dois cofres em `Fotos` e `Fotos (2)` não se bloqueiam, porque nenhum caminho está dentro do outro. Um cofre na raiz continua bloqueando todos os cofres do mesmo provedor, e é isso que o aviso de raiz explica.
+- Cofre na raiz (033, regra nova do #54): o app nunca o exclui do provedor, mesmo que não haja outro cofre, porque a raiz tem os arquivos do próprio usuário. A tela mostra `Não dá para excluir do {provedor}: este cofre está na raiz junto com outros arquivos. Remova só deste computador e apague pelo site do {provedor}.` É isso que o aviso `Cofre na raiz` antecipa.
+- Bloqueio por arquivos em comum (#50, na 033): dois cofres em `Fotos` e `Fotos (2)` não se bloqueiam, porque nenhum caminho está dentro do outro.
 - O `(2)` evita que o app crie dois cofres na mesma pasta, o caso de "cofres irmãos" que a 033 não consegue separar.
 
 ### Cofres que já existem
