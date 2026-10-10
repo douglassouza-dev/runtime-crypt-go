@@ -1,12 +1,14 @@
 package core
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -97,12 +99,45 @@ func (g *GerenciadorCofres) carregar() error {
 // preservarIlegivel grava uma cópia do conteúdo ilegível ao lado do original,
 // com a data no nome. Devolve o caminho da cópia, ou o motivo de não ter
 // conseguido.
+//
+// Se já existe uma cópia .corrompido com o mesmo conteúdo, devolve essa e não
+// cria outra (demanda 024). Conteúdo diferente sempre ganha cópia nova, mesmo
+// no mesmo segundo: o nome leva -2, -3... se a data já estiver tomada.
 func (g *GerenciadorCofres) preservarIlegivel(dados []byte) string {
-	copia := g.caminhoArquivo() + ".corrompido-" + time.Now().Format("20060102-150405")
-	if err := os.WriteFile(copia, dados, 0o600); err != nil {
-		return "(nenhuma copia: " + err.Error() + ")"
+	prefixo := g.caminhoArquivo() + ".corrompido-"
+	if entradas, err := os.ReadDir(g.diretorioApp); err == nil {
+		for _, e := range entradas {
+			c := filepath.Join(g.diretorioApp, e.Name())
+			if e.Type().IsRegular() && strings.HasPrefix(c, prefixo) {
+				if anterior, err := os.ReadFile(c); err == nil && bytes.Equal(anterior, dados) {
+					return c
+				}
+			}
+		}
 	}
-	return copia
+
+	base := prefixo + time.Now().Format("20060102-150405")
+	copia := base
+	for n := 2; ; n++ {
+		f, err := os.OpenFile(copia, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+		if errors.Is(err, fs.ErrExist) && n < 1000 {
+			copia = fmt.Sprintf("%s-%d", base, n)
+			continue
+		}
+		if err != nil {
+			return "(nenhuma copia: " + err.Error() + ")"
+		}
+		_, errEscrita := f.Write(dados)
+		errFechar := f.Close()
+		if errEscrita == nil {
+			errEscrita = errFechar
+		}
+		if errEscrita != nil {
+			os.Remove(copia)
+			return "(nenhuma copia: " + errEscrita.Error() + ")"
+		}
+		return copia
+	}
 }
 
 // salvar persiste os cofres no disco. Grava num arquivo temporário na mesma

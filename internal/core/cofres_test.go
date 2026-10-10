@@ -200,3 +200,61 @@ func TestVaultsJsonSemPermissaoDeLeitura(t *testing.T) {
 		t.Error("Adicionar deveria recusar")
 	}
 }
+
+// Demanda 024: abrir o gerenciador três vezes com o mesmo vaults.json
+// ilegível deixa uma cópia .corrompido só.
+func TestMesmoVaultsJsonIlegivelGuardaUmaCopiaSo(t *testing.T) {
+	dir := t.TempDir()
+	caminho := filepath.Join(dir, ArquivoCofres)
+	if err := os.WriteFile(caminho, []byte("{ilegível"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	var mensagens []string
+	for i := 0; i < 3; i++ {
+		_, err := NovoGerenciadorCofres(dir)
+		if err == nil {
+			t.Fatalf("abertura %d: esperava erro de arquivo corrompido", i+1)
+		}
+		mensagens = append(mensagens, err.Error())
+	}
+
+	copias, _ := filepath.Glob(caminho + ".corrompido-*")
+	if len(copias) != 1 {
+		t.Fatalf("esperava uma cópia só, achei %v", copias)
+	}
+	for i, m := range mensagens {
+		if !strings.Contains(m, copias[0]) {
+			t.Errorf("abertura %d deveria apontar a cópia que já existe: %q", i+1, m)
+		}
+	}
+}
+
+// Demanda 024: conteúdo ilegível diferente ganha cópia nova, mesmo no mesmo
+// segundo.
+func TestVaultsJsonIlegivelDiferenteGuardaCopiaNova(t *testing.T) {
+	dir := t.TempDir()
+	caminho := filepath.Join(dir, ArquivoCofres)
+
+	for _, conteudo := range []string{"{primeiro", "{segundo"} {
+		if err := os.WriteFile(caminho, []byte(conteudo), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := NovoGerenciadorCofres(dir); err == nil {
+			t.Fatal("esperava erro de arquivo corrompido")
+		}
+	}
+
+	copias, _ := filepath.Glob(caminho + ".corrompido-*")
+	if len(copias) != 2 {
+		t.Fatalf("esperava duas cópias, achei %v", copias)
+	}
+	vistos := map[string]bool{}
+	for _, c := range copias {
+		dados, _ := os.ReadFile(c)
+		vistos[string(dados)] = true
+	}
+	if !vistos["{primeiro"] || !vistos["{segundo"] {
+		t.Errorf("cada conteúdo deveria ter a sua cópia; achei %v", vistos)
+	}
+}
