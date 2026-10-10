@@ -30,6 +30,7 @@ A ordem segue o risco à estabilidade e aos segredos. A migração para Wails (0
 | [022](022-senha-so-sai-quando-trancado.md) | A senha da sessão só sai quando o cofre trancou | Médio · segredos, uso | 002 | Aberta |
 | [023](023-seletor-atualiza-tela-fora-da-thread.md) | O seletor de pasta mexe na tela a partir de uma goroutine | Médio · estabilidade | 021 | Aberta |
 | [024](024-copias-corrompido-acumulam.md) | Cópias `.corrompido` se acumulam | Baixo · uso | 007 | Aberta |
+| [025](025-trancar-espera-envio.md) | Trancar logo depois de gravar não espera o envio | Alto · dados | 013, 018, 022 | Aberta |
 
 ## Ordem sugerida de execução
 
@@ -70,4 +71,7 @@ flowchart LR
     d002 --> d022["022 senha só sai trancado"]
     d021 --> d023["023 seletor na thread da tela"]
     d007 --> d024["024 cópias corrompido"]
+    d013 --> d025["025 trancar espera envio"]
+    d018 --> d025
+    d022 --> d025
 ```
