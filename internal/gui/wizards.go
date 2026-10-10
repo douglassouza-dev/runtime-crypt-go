@@ -12,10 +12,8 @@ import (
 
 // ResultadoNovoCofre contém o resultado do wizard de criação de cofre.
 type ResultadoNovoCofre struct {
-	Sucesso  bool
-	Provedor *core.Provedor
-	Nome     string
-	Senha    string
+	Sucesso bool
+	Dados   core.DadosNovoCofre
 }
 
 // DialogoNovoCofre exibe o wizard de criação de cofre.
@@ -85,30 +83,18 @@ func DialogoNovoCofre(janelaPai fyne.Window) ResultadoNovoCofre {
 	})
 
 	btnCriar := widget.NewButton("Criar Cofre", func() {
-		if provedorSelecionado == nil {
-			DialogoMensagem(janelaPai, "Erro", "Selecione um provedor primeiro.", MsgErro)
+		// Demanda 017: as regras do formulário moram no core.
+		dados := core.DadosNovoCofre{
+			Provedor:    provedorSelecionado,
+			Nome:        entryNome.Text,
+			Senha:       entrySenha.Text,
+			Confirmacao: entrySenha2.Text,
+		}
+		if err := core.ValidarNovoCofre(dados); err != nil {
+			DialogoMensagem(janelaPai, "Erro", err.Error(), MsgErro)
 			return
 		}
-		nome := entryNome.Text
-		if nome == "" {
-			DialogoMensagem(janelaPai, "Erro", "Informe um nome para o cofre.", MsgErro)
-			return
-		}
-		senha := entrySenha.Text
-		if len(senha) < 8 {
-			DialogoMensagem(janelaPai, "Erro", "A senha deve ter pelo menos 8 caracteres.", MsgErro)
-			return
-		}
-		if senha != entrySenha2.Text {
-			DialogoMensagem(janelaPai, "Erro", "As senhas não coincidem.", MsgErro)
-			return
-		}
-		resultado <- ResultadoNovoCofre{
-			Sucesso:  true,
-			Provedor: provedorSelecionado,
-			Nome:     nome,
-			Senha:    senha,
-		}
+		resultado <- ResultadoNovoCofre{Sucesso: true, Dados: dados}
 		if dialogo != nil {
 			dialogo.Hide()
 		}
@@ -152,11 +138,8 @@ func DialogoNovoCofre(janelaPai fyne.Window) ResultadoNovoCofre {
 
 // ResultadoImportarCofre contém o resultado do wizard de importação.
 type ResultadoImportarCofre struct {
-	Sucesso  bool
-	Provedor *core.Provedor
-	Nome     string
-	Senha    string
-	Senha2   string
+	Sucesso bool
+	Dados   core.DadosConectarCofre
 }
 
 // DialogoImportarCofre exibe o wizard de importação de cofre existente.
@@ -217,31 +200,18 @@ func DialogoImportarCofre(janelaPai fyne.Window) ResultadoImportarCofre {
 	})
 
 	btnAvancar := widget.NewButton("Avançar  →", func() {
-		if provedorSelecionado == nil {
-			DialogoMensagem(janelaPai, "Erro", "Selecione um provedor primeiro.", MsgErro)
-			return
-		}
-		nome := entryNome.Text
-		if nome == "" {
-			DialogoMensagem(janelaPai, "Erro", "Informe um nome para o cofre.", MsgErro)
-			return
-		}
-		senha := entrySenha.Text
-		if senha == "" {
-			DialogoMensagem(janelaPai, "Erro", "Informe a senha do cofre.", MsgErro)
-			return
-		}
-		senha2 := entrySenha2.Text
-		if senha2 == "" {
-			senha2 = senha
-		}
-		resultado <- ResultadoImportarCofre{
-			Sucesso:  true,
+		// Demanda 017: regras e password2 padrão moram no core.
+		dados := core.DadosConectarCofre{
 			Provedor: provedorSelecionado,
-			Nome:     nome,
-			Senha:    senha,
-			Senha2:   senha2,
+			Nome:     entryNome.Text,
+			Senha:    entrySenha.Text,
+			Senha2:   entrySenha2.Text,
 		}
+		if err := core.ValidarConectarCofre(dados); err != nil {
+			DialogoMensagem(janelaPai, "Erro", err.Error(), MsgErro)
+			return
+		}
+		resultado <- ResultadoImportarCofre{Sucesso: true, Dados: dados}
 		if dialogo != nil {
 			dialogo.Hide()
 		}
