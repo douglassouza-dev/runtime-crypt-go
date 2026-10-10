@@ -321,6 +321,9 @@ func (a *Acoes) Sobre() {
 		core.Versao), MsgInfo)
 }
 
+// TituloPastaConfig é o título do aviso da 031 (proposta).
+const TituloPastaConfig = "Pasta de configuração"
+
 // AvisosDaAbertura mostra o erro de vaults.json (demanda 007) e os avisos de
 // vfs.json (demanda 012), se houver.
 func (a *Acoes) AvisosDaAbertura() {
@@ -336,6 +339,3 @@ func (a *Acoes) AvisosDaAbertura() {
 		DialogoMensagem(a.jp.Janela(), "Configurações VFS", strings.Join(avisos, "\n"), MsgAviso)
 	}
 }
-
-// TituloPastaConfig é o título do aviso da 031 (proposta).
-const TituloPastaConfig = "Pasta de configuração"
