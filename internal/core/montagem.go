@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -451,12 +452,13 @@ func (g *GerenciadorMontagem) montar(remoto string, letra string, senha string, 
 		case <-prazo.C:
 			cmd.Process.Kill()
 			<-info.fim
-			msg := fmt.Sprintf("Tempo esgotado: a unidade não ficou pronta em %s.", limite)
+			motivo := MotivoUnidadeNaoFicouPronta(limite)
+			msg := "Não montou: " + motivo + "."
 			if linhas := saidaErro.Texto(); linhas != "" {
 				// Demanda 027: o texto do rclone só vai para o log.
 				log.Printf("rclone mount %s (tempo esgotado): %s", remoto, linhas)
 			}
-			return false, msg, "", fmt.Sprintf("a unidade não ficou pronta em %s", limite), nil
+			return false, msg, "", motivo, nil
 		case <-time.After(intervalo):
 		}
 
@@ -510,6 +512,13 @@ func falhouMontagem(cmd *exec.Cmd, saidaErro *ultimasLinhas) (bool, string, stri
 // levar dezenas de segundos na primeira montagem do dia; a saída precoce do
 // rclone não espera isso (demanda 003).
 const LimiteMontagemPadrao = 45 * time.Second
+
+// MotivoUnidadeNaoFicouPronta é o motivo de quando a unidade não aparece no
+// prazo: "a unidade não ficou pronta em 45 s". A mensagem é
+// "Não montou: {motivo}.", como a frase do card.
+func MotivoUnidadeNaoFicouPronta(limite time.Duration) string {
+	return fmt.Sprintf("a unidade não ficou pronta em %s s", strconv.FormatFloat(limite.Seconds(), 'f', -1, 64))
+}
 
 // limiteMontagem começa com LimiteMontagemPadrao; só os testes encurtam.
 var limiteMontagem = LimiteMontagemPadrao

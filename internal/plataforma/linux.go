@@ -66,7 +66,7 @@ func VerificarWinfsp() InfoWinfsp {
 	}
 	return InfoWinfsp{
 		Instalado:   false,
-		Motivo:      "FUSE não encontrado. Instale com: sudo apt install fuse3",
+		Motivo:      "FUSE não encontrado. Instale o pacote fuse3 pelo gerenciador do seu sistema.",
 		UrlDownload: "https://github.com/libfuse/libfuse",
 	}
 }

@@ -34,7 +34,7 @@ func TestAvisoVerificarDriver(t *testing.T) {
 	}{
 		{"windows", AvisoDriver{Titulo: TituloDriverAusente, Texto: "Não montou: falta instalar o WinFsp.", Tipo: MsgAviso, Botao: "Baixar WinFsp", Url: "https://winfsp.dev/rel/"}},
 		{"darwin", AvisoDriver{Titulo: TituloDriverAusente, Texto: "Não montou: falta instalar o macFUSE.", Tipo: MsgAviso, Botao: "Baixar macFUSE", Url: "https://macfuse.github.io/"}},
-		{"linux", AvisoDriver{Titulo: TituloDriverAusente, Texto: "Não montou: falta instalar o FUSE.\n\nInstale com: sudo apt install fuse3", Tipo: MsgAviso}},
+		{"linux", AvisoDriver{Titulo: TituloDriverAusente, Texto: "Não montou: falta instalar o FUSE.\n\nInstale o pacote fuse3 pelo gerenciador do seu sistema.", Tipo: MsgAviso}},
 	}
 	for _, c := range casos {
 		if got := AvisoVerificarDriver(false, c.goos); got != c.quer {

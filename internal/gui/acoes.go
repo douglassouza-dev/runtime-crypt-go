@@ -314,7 +314,7 @@ const (
 	TituloDriverOk      = "WinFsp/FUSE"
 	TextoDriverOk       = "WinFsp/FUSE está instalado e funcionando."
 	TituloDriverAusente = "WinFsp/FUSE Ausente"
-	DicaFuseLinux       = "Instale com: sudo apt install fuse3"
+	DicaFuseLinux       = "Instale o pacote fuse3 pelo gerenciador do seu sistema."
 )
 
 // AvisoDriver é o diálogo de "Verificar WinFsp/FUSE". Sem o driver, o texto
