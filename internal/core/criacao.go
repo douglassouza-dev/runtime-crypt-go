@@ -41,6 +41,23 @@ type CriacaoCofre struct {
 	concluida bool
 }
 
+// ErroNomeNoRclone: o nome (ou `<nome>_base`) já existe no rclone.conf. Tipo
+// próprio para a tela trocar o texto sem a palavra "remoto" (018).
+type ErroNomeNoRclone struct{ Nome string }
+
+func (e *ErroNomeNoRclone) Error() string {
+	return fmt.Sprintf("Ja existe um remoto '%s' no rclone. Escolha outro nome para o cofre.", e.Nome)
+}
+
+// ErroConferirRclone: não deu para listar o rclone.conf antes de criar.
+type ErroConferirRclone struct{ Err error }
+
+func (e *ErroConferirRclone) Error() string {
+	return fmt.Sprintf("Nao foi possivel conferir os remotos do rclone: %v", e.Err)
+}
+
+func (e *ErroConferirRclone) Unwrap() error { return e.Err }
+
 // IniciarCriacaoCofre valida o nome e confere, antes de qualquer `config
 // create`, que nem `<nome>` nem `<nome>_base` existem em vaults.json ou no
 // rclone.conf.
@@ -59,7 +76,7 @@ func (g *GerenciadorRClone) IniciarCriacaoCofre(nome string) (*CriacaoCofre, err
 	}
 	remotos, err := g.listarTodosRemotos()
 	if err != nil {
-		return nil, fmt.Errorf("Nao foi possivel conferir os remotos do rclone: %v", err)
+		return nil, &ErroConferirRclone{Err: err}
 	}
 	for _, r := range remotos {
 		r = strings.TrimSuffix(r, ":")
@@ -67,7 +84,7 @@ func (g *GerenciadorRClone) IniciarCriacaoCofre(nome string) (*CriacaoCofre, err
 			// Sem diferenciar maiúsculas: no Windows dois nomes que só mudam
 			// na caixa confundem quem lê o rclone.conf.
 			if strings.EqualFold(r, n) {
-				return nil, fmt.Errorf("Ja existe um remoto '%s' no rclone. Escolha outro nome para o cofre.", r)
+				return nil, &ErroNomeNoRclone{Nome: r}
 			}
 		}
 	}

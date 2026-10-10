@@ -32,6 +32,10 @@ type InfoMontagem struct {
 
 	// rc fala com o controle remoto deste rclone (demanda 025).
 	rc *clienteRC
+
+	// cacheVfs é a pasta de cache deste rclone: depois de uma queda, é lá
+	// que se conta o que não subiu (demanda 026).
+	cacheVfs string
 }
 
 // controleMontagem guarda as marcas da demanda 010 de uma montagem.
@@ -413,6 +417,7 @@ func (g *GerenciadorMontagem) montar(remoto string, letra string, senha string, 
 		fim:      make(chan struct{}),
 		controle: &controleMontagem{},
 		rc:       rc,
+		cacheVfs: pastaCacheRclone(args, env),
 	}
 	go g.acompanhar(info)
 
@@ -684,7 +689,7 @@ func (g *GerenciadorMontagem) esperarEnvio(info *InfoMontagem) error {
 			return fmt.Errorf("não deu para conferir o envio dos arquivos (%v)", err)
 		}
 		if n := e.DiskCache.ErroredFiles; n > 0 {
-			return fmt.Errorf("o envio de %d arquivo(s) falhou", n)
+			return fmt.Errorf("o envio de %s falhou", Arquivos(n))
 		}
 		pendente := e.pendentes()
 		if pendente == 0 {
@@ -698,7 +703,7 @@ func (g *GerenciadorMontagem) esperarEnvio(info *InfoMontagem) error {
 			ultimoAvanco = time.Now()
 		}
 		if time.Since(ultimoAvanco) > g.esperaSemEnvio {
-			return fmt.Errorf("o envio de %d arquivo(s) parou por %s", pendente, g.esperaSemEnvio)
+			return fmt.Errorf("o envio de %s parou por %s", Arquivos(pendente), g.esperaSemEnvio)
 		}
 		time.Sleep(g.intervaloEnvio)
 	}

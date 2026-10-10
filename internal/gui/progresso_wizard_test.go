@@ -51,3 +51,40 @@ func TestMensagemDeErroDizOPasso(t *testing.T) {
 
 // Acoes implementa a interface do core.
 var _ core.Interacao = (*Acoes)(nil)
+
+// 018: erros do core que diriam "remoto" chegam à tela com outro texto.
+func TestErrosDoCoreSemRemoto(t *testing.T) {
+	casos := map[string]error{
+		"O nome 'docs_base' já está em uso no rclone. Escolha outro nome para o cofre.":                      &core.ErroNomeNoRclone{Nome: "docs_base"},
+		"Não deu para conferir a configuração do rclone: sem rclone.conf":                                    &core.ErroConferirRclone{Err: errors.New("sem rclone.conf")},
+		"Não deu para gravar o cofre: O nome 'x' já está em uso no rclone. Escolha outro nome para o cofre.": &core.ErroPasso{Passo: core.PassoGravando, Err: &core.ErroNomeNoRclone{Nome: "x"}},
+	}
+	for quer, err := range casos {
+		got := mensagemErroPasso(err, "Google Drive")
+		if got != quer {
+			t.Errorf("mensagem = %q, quer %q", got, quer)
+		}
+		if strings.Contains(strings.ToLower(got), "remoto") {
+			t.Errorf("a tela não pode dizer remoto: %q", got)
+		}
+	}
+}
+
+// 018: o diálogo de sucesso mostra nome do cofre, provedor e pasta, sem "Remoto".
+func TestDialogoDeSucessoSemRemoto(t *testing.T) {
+	casos := []struct{ titulo, remotoBase, pasta string }{
+		{TextoCofreCriado, "docs_base:", "Pasta: /\n"},
+		{TextoCofreImportado, "docs_base:Backup/cofre", "Pasta: /Backup/cofre\n"},
+	}
+	for _, c := range casos {
+		got := TextoCofrePronto(c.titulo, "docs", "Google Drive", c.remotoBase)
+		for _, parte := range []string{c.titulo, "Nome do cofre: docs\n", "Provedor: Google Drive\n", c.pasta} {
+			if !strings.Contains(got, parte) {
+				t.Errorf("faltou %q em %q", parte, got)
+			}
+		}
+		if strings.Contains(strings.ToLower(got), "remoto") || strings.Contains(got, "_base") {
+			t.Errorf("diálogo mostra o remoto: %q", got)
+		}
+	}
+}

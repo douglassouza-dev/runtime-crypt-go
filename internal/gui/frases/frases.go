@@ -16,7 +16,8 @@ const (
 	Trancado     = "Trancado"
 	Destrancando = "Destrancando…"
 	// Enviando: o Trancar espera a VFS enviar os arquivos (demanda 025).
-	Enviando      = "Enviando %d arquivos…"
+	// %s é core.Arquivos: "1 arquivo", "3 arquivos".
+	Enviando      = "Enviando %s…"
 	DestrancadoEm = "Destrancado • %s"
 	// NaoDestrancou: a montagem nunca subiu.
 	NaoDestrancou = "Não destrancou: %s"
@@ -26,14 +27,16 @@ const (
 	// Motivos de queda, já na língua da tela.
 	MotivoRcloneParou = "o rclone parou"
 	// %s é core.RotuloPonto: "a unidade V:\" ou "a pasta ~/RuntimeCrypto/x".
-	MotivoPontoSumiu   = "%s sumiu"
-	MotivoSemResposta  = "%s não respondeu"
-	TextoTentarDeNovo  = "Tentar de novo"
-	TextoDestrancar    = "Destrancar"
-	TextoTrancar       = "Trancar"
-	tituloBandeja      = "RuntimeCrypto"
-	tooltipSemCofres   = "RuntimeCrypto — nenhum cofre"
-	limiteTooltipUTF16 = 127 // NOTIFYICONDATA.szTip tem 128 posições
+	MotivoPontoSumiu  = "%s sumiu"
+	MotivoSemResposta = "%s não respondeu"
+	TextoTentarDeNovo = "Tentar de novo"
+	// TextoDestrancarDeNovo é o botão do cofre que caiu (demanda 026).
+	TextoDestrancarDeNovo = "Destrancar de novo"
+	TextoDestrancar       = "Destrancar"
+	TextoTrancar          = "Trancar"
+	tituloBandeja         = "RuntimeCrypto"
+	tooltipSemCofres      = "RuntimeCrypto — nenhum cofre"
+	limiteTooltipUTF16    = 127 // NOTIFYICONDATA.szTip tem 128 posições
 )
 
 // Ponto é o ponto de montagem como a tela escreve: `V:\` no Windows,
@@ -81,7 +84,7 @@ func DoCofre(c core.CofreStatus) string {
 		return Destrancando
 	case core.EstadoMontado:
 		if c.Enviando > 0 {
-			return fmt.Sprintf(Enviando, c.Enviando)
+			return fmt.Sprintf(Enviando, core.Arquivos(c.Enviando))
 		}
 		if p := Ponto(c); p != "" {
 			return fmt.Sprintf(DestrancadoEm, p)
@@ -102,9 +105,18 @@ func Botao(c core.CofreStatus) string {
 	case core.EstadoMontado:
 		return TextoTrancar
 	case core.EstadoFalhou:
+		if c.Caiu {
+			return TextoDestrancarDeNovo
+		}
 		return TextoTentarDeNovo
 	}
 	return TextoDestrancar
+}
+
+// BotaoTrancar diz se o card tem também o botão Trancar ao lado do
+// principal: só no cofre que caiu (demanda 026).
+func BotaoTrancar(c core.CofreStatus) bool {
+	return c.Estado == core.EstadoFalhou && c.Caiu
 }
 
 // Tooltip resume quantos cofres há em cada estado, com as frases do card.

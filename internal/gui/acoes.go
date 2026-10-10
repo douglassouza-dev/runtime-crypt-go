@@ -57,8 +57,9 @@ func (a *Acoes) EscolherPasta(remotoBase, tituloProvedor string) (string, bool) 
 }
 
 // Cofre age conforme o estado do cofre no core (demanda 018): tranca o
-// destrancado; destranca o trancado ou o que não subiu/caiu ("Tentar de
-// novo"); ignora o que está destrancando.
+// destrancado; destranca o trancado, o que não subiu ("Tentar de novo") e o
+// que caiu ("Destrancar de novo", 026: o rclone retoma os envios que ficaram
+// no cache); ignora o que está destrancando.
 func (a *Acoes) Cofre(nome string) {
 	e := a.g.EstadoDoCofre(nome)
 	switch e.Estado {
@@ -72,6 +73,18 @@ func (a *Acoes) Cofre(nome string) {
 	default:
 		a.jp.LimparFalhaTrancar(nome)
 		a.destrancar(nome)
+	}
+}
+
+// Trancar é o botão Trancar do cofre que caiu (demanda 026). Também serve
+// para o montado, como o clique no botão principal.
+func (a *Acoes) Trancar(nome string) {
+	e := a.g.EstadoDoCofre(nome)
+	switch {
+	case e.Estado == core.EstadoFalhou && e.Caiu:
+		a.trancar(nome)
+	case e.Estado == core.EstadoMontado && e.Enviando == 0:
+		a.trancar(nome)
 	}
 }
 
@@ -118,6 +131,28 @@ func (a *Acoes) trancar(nome string) {
 	a.jp.ForcarAtualizacao()
 }
 
+// Diálogo de sucesso dos wizards, com as palavras do wizard: nome do cofre,
+// provedor e pasta. Sem "remoto" (018).
+const (
+	TextoCofreCriado    = "Cofre criado com sucesso!"
+	TextoCofreImportado = "Cofre importado com sucesso!"
+	textoCofrePronto    = "%s\n\nNome do cofre: %s\nProvedor: %s\nPasta: %s\n\nUse o botão 'Destrancar' para montar."
+)
+
+// TextoCofrePronto monta o diálogo de sucesso. A pasta vem de remotoBase
+// ("x_base:Docs/cofre" → "/Docs/cofre"), escrita como o seletor de pasta
+// escreve; sem pasta escolhida é a raiz, "/".
+func TextoCofrePronto(titulo, nome, provedor, remotoBase string) string {
+	pasta := remotoBase
+	if i := strings.Index(pasta, ":"); i >= 0 {
+		pasta = pasta[i+1:]
+	}
+	if !strings.HasPrefix(pasta, "/") {
+		pasta = "/" + pasta
+	}
+	return fmt.Sprintf(textoCofrePronto, titulo, nome, provedor, pasta)
+}
+
 // NovoCofre roda o wizard e o caso de uso CriarCofre.
 func (a *Acoes) NovoCofre() {
 	a.jp.Mostrar()
@@ -136,7 +171,7 @@ func (a *Acoes) NovoCofre() {
 		return
 	}
 	DialogoMensagem(a.jp.Janela(), "Sucesso",
-		fmt.Sprintf("Cofre '%s' criado com sucesso!\n\nProvedor: %s\nRemoto base: %s\n\nUse o botão 'Destrancar' para montar.", r.Dados.Nome, r.Dados.Provedor.Nome, remotoBase),
+		TextoCofrePronto(TextoCofreCriado, r.Dados.Nome, r.Dados.Provedor.Nome, remotoBase),
 		MsgInfo)
 	a.jp.ForcarAtualizacao()
 }
@@ -159,7 +194,7 @@ func (a *Acoes) ImportarCofre() {
 		return
 	}
 	DialogoMensagem(a.jp.Janela(), "Sucesso",
-		fmt.Sprintf("Cofre '%s' importado com sucesso!\n\nProvedor: %s\nRemoto: %s\n\nUse o botão 'Destrancar' para montar.", r.Dados.Nome, r.Dados.Provedor.Nome, remotoBase),
+		TextoCofrePronto(TextoCofreImportado, r.Dados.Nome, r.Dados.Provedor.Nome, remotoBase),
 		MsgInfo)
 	a.jp.ForcarAtualizacao()
 }

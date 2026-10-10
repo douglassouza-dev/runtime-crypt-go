@@ -28,7 +28,9 @@ type JanelaPrincipal struct {
 	// terminou (demanda 022). O card mostra "Não trancou: {motivo}".
 	falhasTrancar map[string]string
 
-	CallbackCofre         func(core.CofreStatus)
+	CallbackCofre func(core.CofreStatus)
+	// CallbackTrancar é o botão Trancar do cofre que caiu (demanda 026).
+	CallbackTrancar       func(core.CofreStatus)
 	CallbackNovoCofre     func()
 	CallbackImportarCofre func()
 	CallbackConfigVfs     func()
@@ -192,6 +194,10 @@ func (jp *JanelaPrincipal) atualizarCofres() {
 				if jp.CallbackCofre != nil {
 					jp.CallbackCofre(c)
 				}
+			}, func() {
+				if jp.CallbackTrancar != nil {
+					jp.CallbackTrancar(c)
+				}
 			})
 			jp.containerCofres.Add(card)
 		}
@@ -292,8 +298,9 @@ func (jp *JanelaPrincipal) Janela() fyne.Window {
 const TextoNaoTrancou = "Não trancou: %s"
 
 // criarCardCofre cria um widget de card para um cofre. falhaTrancar, quando
-// não é vazio, é o motivo do último Trancar que não terminou.
-func criarCardCofre(cofre core.CofreStatus, falhaTrancar string, aoClicar func()) fyne.CanvasObject {
+// não é vazio, é o motivo do último Trancar que não terminou. aoTrancar é o
+// segundo botão, Trancar, que só o cofre que caiu tem (demanda 026).
+func criarCardCofre(cofre core.CofreStatus, falhaTrancar string, aoClicar, aoTrancar func()) fyne.CanvasObject {
 	// Indicador de cor do provedor
 	corProv := ObterCorProvedor(cofre.ProvedorId)
 	indicador := canvas.NewRectangle(corProv)
@@ -337,13 +344,22 @@ func criarCardCofre(cofre core.CofreStatus, falhaTrancar string, aoClicar func()
 		btnAcao.Disable()
 	}
 
+	// Demanda 026: no cofre que caiu, o principal é "Destrancar de novo" e
+	// Trancar fica ao lado.
+	var botoes fyne.CanvasObject = btnAcao
+	if frases.BotaoTrancar(cofre) {
+		btnTrancar := widget.NewButton(frases.TextoTrancar, aoTrancar)
+		btnTrancar.Importance = widget.MediumImportance
+		botoes = container.NewHBox(btnAcao, btnTrancar)
+	}
+
 	// Layout do card
 	cardConteudo := container.NewHBox(
 		indicador,
 		layout.NewSpacer(),
 		infoContainer,
 		layout.NewSpacer(),
-		btnAcao,
+		botoes,
 	)
 
 	cardBg := canvas.NewRectangle(CorCard)

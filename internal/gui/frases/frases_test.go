@@ -35,9 +35,9 @@ func TestFrasesDoCofre(t *testing.T) {
 		{cofre(core.EstadoMontando), "Destrancando…", "Destrancar"},
 		{montado, `Destrancado • V:\`, "Trancar"},
 		{naoSubiu, "Não destrancou: CRITICAL: cannot find winfsp", "Tentar de novo"},
-		{parou, "Caiu: o rclone parou", "Tentar de novo"},
-		{sumiu, `Caiu: a unidade W:\ sumiu`, "Tentar de novo"},
-		{semResposta, `Caiu: a unidade X:\ não respondeu`, "Tentar de novo"},
+		{parou, "Caiu: o rclone parou", "Destrancar de novo"},
+		{sumiu, `Caiu: a unidade W:\ sumiu`, "Destrancar de novo"},
+		{semResposta, `Caiu: a unidade X:\ não respondeu`, "Destrancar de novo"},
 	}
 	for _, c := range casos {
 		if got := DoCofre(c.c); got != c.frase {
@@ -161,8 +161,22 @@ func TestFraseEnviando(t *testing.T) {
 	if tip := Tooltip([]core.CofreStatus{c}); !strings.Contains(tip, "Enviando 3 arquivos…") {
 		t.Errorf("tooltip = %q", tip)
 	}
+	c.Enviando = 1
+	if got := DoCofre(c); got != "Enviando 1 arquivo…" {
+		t.Errorf("singular: %q", got)
+	}
 	c.Enviando = 0
 	if got := DoCofre(c); got != `Destrancado • V:\` {
 		t.Errorf("sem envio: %q", got)
+	}
+}
+
+// Demanda 026: só o cofre que caiu tem Trancar ao lado de "Destrancar de novo".
+func TestBotaoTrancarSoNoCofreQueCaiu(t *testing.T) {
+	caiu := core.CofreStatus{Estado: core.EstadoFalhou, Caiu: true}
+	naoSubiu := core.CofreStatus{Estado: core.EstadoFalhou}
+	montado := core.CofreStatus{Estado: core.EstadoMontado}
+	if !BotaoTrancar(caiu) || BotaoTrancar(naoSubiu) || BotaoTrancar(montado) {
+		t.Error("Trancar extra só no cofre que caiu")
 	}
 }

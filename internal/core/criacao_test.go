@@ -2,6 +2,7 @@ package core
 
 import (
 	"bytes"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -44,6 +45,10 @@ func TestCriarCofreComNomeDeRemotoExistenteNaoTocaNoConf(t *testing.T) {
 			}
 			if !strings.Contains(err.Error(), existente) {
 				t.Errorf("a mensagem deveria citar o remoto existente: %v", err)
+			}
+			var e *ErroNomeNoRclone
+			if !errors.As(err, &e) || e.Nome != existente {
+				t.Errorf("a tela precisa do tipo ErroNomeNoRclone: %#v", err)
 			}
 			depois, _ := os.ReadFile(conf)
 			if !bytes.Equal(depois, []byte(conteudo)) {
@@ -182,6 +187,9 @@ func TestIniciarCriacaoSemConseguirListarRemotosRecusa(t *testing.T) {
 
 	if _, err := g.IniciarCriacaoCofre("teste"); err == nil {
 		t.Fatal("sem conseguir conferir os remotos, a criação não pode seguir")
+	}
+	if _, err := g.IniciarCriacaoCofre("teste"); !errors.As(err, new(*ErroConferirRclone)) {
+		t.Errorf("a tela precisa do tipo ErroConferirRclone: %#v", err)
 	}
 	if houveConfigCreate(f) {
 		t.Error("nenhum `config create` deveria ter rodado")
