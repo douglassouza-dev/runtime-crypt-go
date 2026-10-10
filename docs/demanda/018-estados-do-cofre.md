@@ -41,7 +41,15 @@ Se os dois acontecem, a tela mostra só `o rclone parou`. As strings de motivo d
 
 Os nomes `desmontado`, `montando`, `montado` e `falhou` não aparecem na tela.
 - Janela de cofres: cada card mostra o estado e o botão certo para ele. `montando` desabilita o botão. `falhou` mostra o motivo e oferece "Tentar de novo".
-- Wizards novo cofre e conectar existente: mostram em que passo estão (autorizando, criando remoto, gravando) e o erro do passo que falhou.
+- Wizards novo cofre e conectar existente: mostram em que passo estão e o erro do passo que falhou. A palavra "remoto" não aparece na tela.
+
+| Passo no `core` | Frase na tela | Erro na tela |
+|---|---|---|
+| `autorizando` | `Autorizando no navegador…` | `Não deu para autorizar no navegador: {motivo}` |
+| `criando remoto` | `Configurando o {provedor}…` | `Não deu para configurar o {provedor}: {motivo}` |
+| `gravando` | `Gravando o cofre…` | `Não deu para gravar o cofre: {motivo}` |
+
+- No Windows, o motivo de queda "ponto de montagem não respondeu" aparece como `a unidade X:\ não respondeu`.
 - Bandeja: o tooltip resume quantos cofres há em cada estado e é atualizado a cada mudança.
 
 ## O que fica de fora
@@ -57,6 +65,6 @@ Os nomes `desmontado`, `montando`, `montado` e `falhou` não aparecem na tela.
 - [ ] Matar o `rclone.exe` pelo Gerenciador de Tarefas com o cofre destrancado: em até 5 s o card e o tooltip da bandeja mostram `Caiu: o rclone parou`.
 - [ ] Destrancar sem o WinFsp (ou com outra falha que impede a unidade de subir): o card mostra `Não destrancou: {motivo}` e o botão `Tentar de novo`.
 - [ ] Teste: `falhou` de uma montagem que nunca subiu vira `Não destrancou: {motivo}`; de uma que caiu vira `Caiu: o rclone parou` ou `Caiu: a unidade X:\ sumiu`; com processo morto e unidade sumida, só `Caiu: o rclone parou`.
-- [ ] Wizard novo cofre com OAuth cancelado no navegador: o wizard mostra o passo "autorizando" e depois o erro.
+- [ ] Wizard novo cofre com OAuth cancelado no navegador: o wizard mostra `Autorizando no navegador…` e depois `Não deu para autorizar no navegador: {motivo}`.
 - [ ] Tooltip da bandeja usa as mesmas frases do card e muda quando um cofre passa de `Trancado` para `Destrancado • X:\`.
 - [ ] `rg -n "desmontado|montando|\"montado\"|falhou" internal/gui internal/tray` não encontra texto exibido ao usuário.

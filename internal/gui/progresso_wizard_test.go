@@ -10,33 +10,41 @@ import (
 	"github.com/eufrauzino/runtime-crypt-go/internal/core"
 )
 
-// Demanda 018: o wizard mostra o passo e, no erro, o passo em que parou.
+// Demanda 018: o wizard mostra o passo e, no erro, o passo que não deu certo.
 func TestProgressoMostraOPasso(t *testing.T) {
 	a := test.NewTempApp(t)
 	w := a.NewWindow("x")
-	p := novoProgressoWizard(w, "Novo cofre")
+	p := novoProgressoWizard(w, "Novo cofre", "Google Drive")
 
-	p.passo(core.PassoAutorizando)
-
-	if p.lbl.Text != "Autorizando no navegador…" {
-		t.Errorf("passo = %q", p.lbl.Text)
-	}
-	p.passo(core.PassoGravando)
-	if p.lbl.Text != "Gravando o cofre…" {
-		t.Errorf("passo = %q", p.lbl.Text)
+	for passo, quer := range map[core.Passo]string{
+		core.PassoAutorizando:   "Autorizando no navegador…",
+		core.PassoCriandoRemoto: "Configurando o Google Drive…",
+		core.PassoGravando:      "Gravando o cofre…",
+	} {
+		p.passo(passo)
+		if p.lbl.Text != quer {
+			t.Errorf("passo %s = %q, quer %q", passo, p.lbl.Text, quer)
+		}
+		if strings.Contains(strings.ToLower(p.lbl.Text), "remoto") {
+			t.Errorf("a tela não fala em remoto: %q", p.lbl.Text)
+		}
 	}
 	p.esconder()
 }
 
 func TestMensagemDeErroDizOPasso(t *testing.T) {
-	err := &core.ErroPasso{Passo: core.PassoAutorizando, Err: errors.New("o rclone authorize terminou sem token: access_denied")}
-
-	msg := mensagemErroPasso(err)
-
-	if !strings.Contains(msg, "Autorizando no navegador…") || !strings.Contains(msg, "access_denied") {
-		t.Errorf("mensagem = %q", msg)
+	casos := map[core.Passo]string{
+		core.PassoAutorizando:   "Não deu para autorizar no navegador: x",
+		core.PassoCriandoRemoto: "Não deu para configurar o Dropbox: x",
+		core.PassoGravando:      "Não deu para gravar o cofre: x",
 	}
-	if mensagemErroPasso(errors.New("x")) != "x" {
+	for passo, quer := range casos {
+		err := &core.ErroPasso{Passo: passo, Err: errors.New("x")}
+		if got := mensagemErroPasso(err, "Dropbox"); got != quer {
+			t.Errorf("%s: %q, quer %q", passo, got, quer)
+		}
+	}
+	if mensagemErroPasso(errors.New("x"), "Dropbox") != "x" {
 		t.Error("erro sem passo vai como está")
 	}
 }
