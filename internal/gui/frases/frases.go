@@ -184,7 +184,7 @@ func Pendencia(p core.PendenciaCofre) string {
 // AvisoAoSair é o texto do diálogo (aprovado pela UI): uma linha por cofre,
 // com um cofre ou vários, e no fim "Eles sobem quando você destrancar de
 // novo." Só quando há um arquivo ao todo (um cofre, 1 arquivo) o fim vai para
-// o singular, "Ele sobe…", pela regra de singular da 026/028.
+// o singular, "Ele sobe…" (aprovado), pela regra de singular da 026/028.
 func AvisoAoSair(ps []core.PendenciaCofre) string {
 	linhas := make([]string, 0, len(ps)+1)
 	for _, p := range ps {

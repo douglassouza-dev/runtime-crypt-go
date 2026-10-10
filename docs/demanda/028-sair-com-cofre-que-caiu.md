@@ -14,7 +14,7 @@ Sair do app (bandeja ou menu) chama `Encerrar`, que desmonta tudo. Um cofre que 
 - Antes de sair, o app conta os arquivos que não subiram em cada cofre que caiu com o rclone parado, usando a mesma contagem da 026 (`vfsMeta` com `"Dirty": true`). Se algum tiver arquivo pendente, abre um diálogo:
   - cópia aprovada pela UI: título `Arquivos que ainda não subiram`; um diálogo só para todos os cofres, com uma linha por cofre (`{n} arquivos de {cofre}`, no singular `1 arquivo de {cofre}`) e, no fim, `Eles sobem quando você destrancar de novo.`;
   - com um cofre, o mesmo formato (uma linha e a frase do fim);
-  - singular: só quando há um arquivo ao todo (um cofre com 1 arquivo) a frase do fim é `Ele sobe quando você destrancar de novo.`, pela regra de singular da 026. Com mais de um cofre há sempre mais de um arquivo, então `Eles` vale.
+  - singular (aprovado pela UI): só quando há um arquivo ao todo (um cofre com 1 arquivo) a frase do fim é `Ele sobe quando você destrancar de novo.`, pela regra de singular da 026. Com mais de um cofre há sempre mais de um arquivo, então `Eles` vale.
 - Botões:
   - `Enviar agora` (principal, aprovado): vale para todos os cofres da lista; destranca de novo cada um, espera o envio (025), tranca e sai. Se algum falhar, o diálogo mostra a frase da 022/025 (`Não destrancou: …` ou `Não trancou: …`, com o nome do cofre) e o app não sai.
   - `Sair` (aprovado): sai e deixa o cache como está.
