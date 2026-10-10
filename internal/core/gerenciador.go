@@ -41,7 +41,7 @@ func NovoGerenciadorEm(diretorioApp string, executavel string) *GerenciadorRClon
 		DiretorioApp: diretorioApp,
 		Senhas:       NovoCacheSenhas(),
 		OAuth:        NovoGerenciadorOAuth(),
-		Vfs:          NovoConfigVfs(),
+		Vfs:          NovoConfigVfsEm(diretorioApp),
 	}
 
 	g.Executavel = executavel

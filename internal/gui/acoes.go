@@ -3,6 +3,7 @@ package gui
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/eufrauzino/runtime-crypt-go/internal/core"
 	"github.com/eufrauzino/runtime-crypt-go/internal/plataforma"
@@ -202,9 +203,14 @@ func (a *Acoes) Sobre() {
 		core.Versao), MsgInfo)
 }
 
-// AvisosDaAbertura mostra o erro de vaults.json, se houver (demanda 007).
+// AvisosDaAbertura mostra o erro de vaults.json (demanda 007) e os avisos de
+// vfs.json (demanda 012), se houver.
 func (a *Acoes) AvisosDaAbertura() {
 	if a.g.ErroCofres != nil {
 		DialogoMensagem(a.jp.Janela(), "Erro ao ler os cofres", a.g.ErroCofres.Error(), MsgErro)
+	}
+	if avisos := a.g.Vfs.Avisos(); len(avisos) > 0 {
+		// Demanda 012: valor inválido em vfs.json volta ao padrão com aviso.
+		DialogoMensagem(a.jp.Janela(), "Configurações VFS", strings.Join(avisos, "\n"), MsgAviso)
 	}
 }
