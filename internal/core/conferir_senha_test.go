@@ -127,9 +127,10 @@ func TestDestrancarComSenhaVaziaNaoChamaORclone(t *testing.T) {
 	}
 }
 
-func TestDestrancarSemComoConferirNaoMonta(t *testing.T) {
+func TestDestrancarComConfiguracaoIncompletaNaoMonta(t *testing.T) {
 	casos := map[string]string{
 		"remoto inexistente": `{"outro":{"type":"crypt","password":"x"}}`,
+		"rclone.conf vazio":  `{}`,
 		"crypt sem password": `{"cofre":{"type":"crypt","remote":"cofre_base:"}}`,
 		"password ilegível":  `{"cofre":{"type":"crypt","remote":"cofre_base:","password":"obs(senha certa)"}}`,
 		"não é crypt":        `{"cofre":{"type":"drive"}}`,
@@ -138,38 +139,66 @@ func TestDestrancarSemComoConferirNaoMonta(t *testing.T) {
 		t.Run(nome, func(t *testing.T) {
 			g, f := novoGerenciadorFalso(t)
 			f.escrever("dump.json", dump)
+			if ok, msg := g.Cofres.Adicionar("cofre", "drive", "Google Drive", "cofre_base:"); !ok {
+				t.Fatal(msg)
+			}
 
 			_, err := g.Destrancar("cofre", func() (string, bool) { return "senha certa", true })
 
 			var e *ErroConferirSenha
-			if !errors.As(err, &e) {
-				t.Fatalf("erro = %v, quer *ErroConferirSenha", err)
+			if !errors.As(err, &e) || e.Motivo != ConfigIncompleta {
+				t.Fatalf("erro = %#v, quer *ErroConferirSenha com ConfigIncompleta", err)
 			}
-			if err.Error() != TextoNaoConferiuSenha {
+			if err.Error() != "Não destrancou: a configuração deste cofre está incompleta. Conecte o cofre de novo." {
 				t.Errorf("frase = %q", err.Error())
 			}
-			if len(chamadasMount(f)) != 0 {
-				t.Error("não deveria montar")
-			}
-			if g.Senhas.Existe("cofre") {
-				t.Error("a senha não pode ficar na sessão")
-			}
+			naoDestrancou(t, g, f)
 		})
 	}
 }
 
-func TestDestrancarComConfigDumpFalhandoNaoMonta(t *testing.T) {
-	g, f := cofreComSenha(t)
-	f.falhar()
-
-	_, err := g.Destrancar("cofre", func() (string, bool) { return "senha certa", true })
-
-	var e *ErroConferirSenha
-	if !errors.As(err, &e) {
-		t.Fatalf("erro = %v, quer *ErroConferirSenha", err)
+// naoDestrancou confere que nada subiu: sem mount, sem processo vivo, cofre
+// desmontado sem motivo (Trancado) e sem senha na sessão.
+func naoDestrancou(t *testing.T, g *GerenciadorRClone, f *rcloneFalso) {
+	t.Helper()
+	if n := len(chamadasMount(f)); n != 0 {
+		t.Errorf("houve %d mount", n)
 	}
-	if len(chamadasMount(f)) != 0 {
-		t.Error("não deveria montar")
+	for _, c := range f.chamadas() {
+		if processoVivoNoSO(c.Pid) {
+			t.Errorf("rclone %v ficou vivo", c.Args)
+		}
+	}
+	if e := g.EstadoDoCofre("cofre"); e.Estado != EstadoDesmontado || e.Motivo != "" {
+		t.Errorf("estado = %+v, quer desmontado sem motivo (Trancado)", e)
+	}
+	if g.Senhas.Existe("cofre") {
+		t.Error("a senha não pode ficar na sessão")
+	}
+}
+
+func TestDestrancarSemLerAConfiguracaoNaoMonta(t *testing.T) {
+	casos := map[string]func(*GerenciadorRClone, *rcloneFalso){
+		"config dump falha":    func(_ *GerenciadorRClone, f *rcloneFalso) { f.falhar() },
+		"config dump ilegível": func(_ *GerenciadorRClone, f *rcloneFalso) { f.escrever("dump.json", "não é json") },
+		"rclone indisponível":  func(g *GerenciadorRClone, _ *rcloneFalso) { g.Executavel = "" },
+	}
+	for nome, preparar := range casos {
+		t.Run(nome, func(t *testing.T) {
+			g, f := cofreComSenha(t)
+			preparar(g, f)
+
+			_, err := g.Destrancar("cofre", func() (string, bool) { return "senha certa", true })
+
+			var e *ErroConferirSenha
+			if !errors.As(err, &e) || e.Motivo != NaoLeuConfiguracao {
+				t.Fatalf("erro = %#v, quer *ErroConferirSenha com NaoLeuConfiguracao", err)
+			}
+			if err.Error() != "Não destrancou: não deu para ler a configuração do rclone." {
+				t.Errorf("frase = %q", err.Error())
+			}
+			naoDestrancou(t, g, f)
+		})
 	}
 }
 

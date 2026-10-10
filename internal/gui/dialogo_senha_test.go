@@ -29,6 +29,20 @@ func (f telaTeste) rodar(t *testing.T) {
 	}
 }
 
+// fraseEmbaixoDoCampo confere que a frase entrou no layout logo abaixo do
+// campo (sem o Refresh do contêiner ela ficava no topo do diálogo, por cima
+// do ícone).
+func fraseEmbaixoDoCampo(t *testing.T, d *dialogoSenha) {
+	t.Helper()
+	campo, frase := d.entrySenha, d.lblErro
+	if frase.Position().Y < campo.Position().Y+campo.Size().Height {
+		t.Errorf("a frase (y=%v) não está embaixo do campo (y=%v, altura %v)", frase.Position().Y, campo.Position().Y, campo.Size().Height)
+	}
+	if frase.Size().Height <= 0 || frase.Size().Width <= 0 {
+		t.Errorf("a frase não tem tamanho: %v", frase.Size())
+	}
+}
+
 func novoDialogoSenhaTeste(t *testing.T, conferir func(string) error) (*dialogoSenha, fyne.Window, chan string, telaTeste) {
 	t.Helper()
 	a := test.NewTempApp(t)
@@ -65,6 +79,7 @@ func TestDialogoSenhaErradaFicaAbertoComAFrase(t *testing.T) {
 	if !d.lblErro.Visible() || d.lblErro.Text != "Senha errada." {
 		t.Errorf("frase = %q (visível %v)", d.lblErro.Text, d.lblErro.Visible())
 	}
+	fraseEmbaixoDoCampo(t, d)
 	if !d.popup.Visible() {
 		t.Error("o diálogo deveria continuar aberto")
 	}
@@ -110,10 +125,50 @@ func TestDialogoSenhaErradaFicaAbertoComAFrase(t *testing.T) {
 	}
 }
 
+// As duas frases de configuração ficam embaixo do campo, como "Senha
+// errada.", e o diálogo continua aberto.
+func TestDialogoSenhaSemConferirMostraAFraseEFicaAberto(t *testing.T) {
+	casos := map[string]*core.ErroConferirSenha{
+		"Não destrancou: não deu para ler a configuração do rclone.":                           {Motivo: core.NaoLeuConfiguracao, Err: errors.New("exit status 1")},
+		"Não destrancou: a configuração deste cofre está incompleta. Conecte o cofre de novo.": {Motivo: core.ConfigIncompleta, Err: errors.New("sem password")},
+	}
+	for quer, erro := range casos {
+		t.Run(quer, func(t *testing.T) {
+			d, w, saida, tela := novoDialogoSenhaTeste(t, func(string) error { return erro })
+			test.Type(d.entrySenha, "qualquer")
+			test.Tap(d.btnConfirmar)
+			tela.rodar(t)
+
+			if !d.lblErro.Visible() || d.lblErro.Text != quer {
+				t.Errorf("frase = %q (visível %v)", d.lblErro.Text, d.lblErro.Visible())
+			}
+			fraseEmbaixoDoCampo(t, d)
+			if !d.popup.Visible() {
+				t.Error("o diálogo deveria continuar aberto")
+			}
+			if w.Canvas().Focused() != d.entrySenha {
+				t.Error("o campo de senha deveria estar com o foco")
+			}
+			if got := d.entrySenha.SelectedText(); got != "qualquer" {
+				t.Errorf("texto selecionado = %q", got)
+			}
+			select {
+			case s := <-saida:
+				t.Fatalf("o diálogo devolveu %q", s)
+			default:
+			}
+			test.Tap(d.btnCancelar)
+			if s := <-saida; s != "" {
+				t.Errorf("cancelar devolveu %q", s)
+			}
+		})
+	}
+}
+
+// Um erro que não é de conferência fecha o diálogo e devolve a senha:
+// Destrancar confere de novo e devolve o erro.
 func TestDialogoSenhaOutroErroFechaEDevolveASenha(t *testing.T) {
-	d, _, saida, tela := novoDialogoSenhaTeste(t, func(string) error {
-		return &core.ErroConferirSenha{Err: errors.New("sem rclone.conf")}
-	})
+	d, _, saida, tela := novoDialogoSenhaTeste(t, func(string) error { return errors.New("outro") })
 	test.Type(d.entrySenha, "qualquer")
 	test.Tap(d.btnConfirmar)
 	tela.rodar(t)
@@ -126,7 +181,26 @@ func TestDialogoSenhaOutroErroFechaEDevolveASenha(t *testing.T) {
 		t.Fatal("outro erro deveria fechar o diálogo")
 	}
 	if d.lblErro.Visible() {
-		t.Error("outro erro não mostra 'Senha errada.'")
+		t.Error("outro erro não mostra frase embaixo do campo")
+	}
+}
+
+func TestTextoFalhaSenha(t *testing.T) {
+	casos := []struct {
+		err  error
+		quer string
+		ok   bool
+	}{
+		{core.ErrSenhaErrada, "Senha errada.", true},
+		{&core.ErroConferirSenha{Motivo: core.NaoLeuConfiguracao}, "Não destrancou: não deu para ler a configuração do rclone.", true},
+		{&core.ErroConferirSenha{Motivo: core.ConfigIncompleta}, "Não destrancou: a configuração deste cofre está incompleta. Conecte o cofre de novo.", true},
+		{errors.New("x"), "", false},
+		{nil, "", false},
+	}
+	for _, c := range casos {
+		if got, ok := TextoFalhaSenha(c.err); got != c.quer || ok != c.ok {
+			t.Errorf("TextoFalhaSenha(%v) = %q, %v", c.err, got, ok)
+		}
 	}
 }
 

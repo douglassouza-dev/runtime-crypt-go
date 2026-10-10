@@ -16,14 +16,29 @@ import (
 // (demanda 030, aprovado pela UI).
 const TextoSenhaErrada = "Senha errada."
 
+// TextoFalhaSenha é a frase embaixo do campo de senha para o erro de
+// conferir (demanda 030, aprovadas pela UI). ok=false: o erro não é de
+// conferência e o diálogo fecha.
+func TextoFalhaSenha(err error) (string, bool) {
+	if errors.Is(err, core.ErrSenhaErrada) {
+		return TextoSenhaErrada, true
+	}
+	var e *core.ErroConferirSenha
+	if errors.As(err, &e) {
+		return e.Error(), true
+	}
+	return "", false
+}
+
 // DialogoSenha exibe um diálogo modal para entrada de senha de cofre e
 // devolve a senha ("" se cancelado).
 //
 // Demanda 030: com conferir, a senha é conferida antes de o diálogo fechar.
-// Se conferir volta core.ErrSenhaErrada, o diálogo fica aberto com
-// TextoSenhaErrada embaixo do campo, o campo focado e o texto selecionado.
-// Sem limite de tentativas. Outro erro de conferir fecha o diálogo e devolve
-// a senha: quem chama (core.Destrancar) confere de novo e mostra o erro.
+// Se a senha não confere (core.ErrSenhaErrada) ou não dá para conferir
+// (*core.ErroConferirSenha), o diálogo fica aberto com a frase embaixo do
+// campo (TextoFalhaSenha), o campo focado e o texto selecionado; o cofre
+// continua trancado. Sem limite de tentativas. Qualquer outro erro fecha o
+// diálogo e devolve a senha: core.Destrancar confere de novo e devolve o erro.
 func DialogoSenha(janelaPai fyne.Window, nomeCofre string, acao string, conferir func(string) error) string {
 	resultado := make(chan string, 1)
 	d := novoDialogoSenha(janelaPai, nomeCofre, acao, conferir, func(senha string) { resultado <- senha })
@@ -36,10 +51,11 @@ func DialogoSenha(janelaPai fyne.Window, nomeCofre string, acao string, conferir
 type dialogoSenha struct {
 	janela       fyne.Window
 	entrySenha   *widget.Entry
-	lblErro      *canvas.Text
+	lblErro      *widget.Label
 	btnCancelar  *widget.Button
 	btnConfirmar *widget.Button
 	popup        *widget.PopUp
+	conteudo     *fyne.Container
 	conferir     func(string) error
 	fim          func(string)
 	encerrado    bool
@@ -76,8 +92,10 @@ func novoDialogoSenha(janelaPai fyne.Window, nomeCofre string, acao string, conf
 	lblCampo.TextSize = 12
 
 	// Demanda 030: embaixo do campo, escondido até a senha não conferir.
-	d.lblErro = canvas.NewText("", CorErro)
-	d.lblErro.TextSize = 12
+	// As frases de configuração passam de uma linha: o rótulo quebra.
+	d.lblErro = widget.NewLabel("")
+	d.lblErro.Importance = widget.DangerImportance
+	d.lblErro.Wrapping = fyne.TextWrapWord
 	d.lblErro.Hide()
 
 	d.btnCancelar = widget.NewButton("Cancelar", func() { d.encerrar("") })
@@ -85,7 +103,7 @@ func novoDialogoSenha(janelaPai fyne.Window, nomeCofre string, acao string, conf
 	d.btnConfirmar.Importance = widget.HighImportance
 	d.entrySenha.OnSubmitted = func(string) { d.confirmar() }
 
-	conteudo := container.NewVBox(
+	d.conteudo = container.NewVBox(
 		lblIcone,
 		lblTitulo,
 		lblNome,
@@ -97,11 +115,11 @@ func novoDialogoSenha(janelaPai fyne.Window, nomeCofre string, acao string, conf
 		container.NewHBox(d.btnCancelar, layout.NewSpacer(), d.btnConfirmar),
 	)
 
-	padded := container.NewPadded(conteudo)
-	padded.Resize(fyne.NewSize(400, 300))
+	padded := container.NewPadded(d.conteudo)
+	padded.Resize(fyne.NewSize(400, 330))
 
 	d.popup = widget.NewModalPopUp(padded, janelaPai.Canvas())
-	d.popup.Resize(fyne.NewSize(400, 300))
+	d.popup.Resize(fyne.NewSize(400, 330))
 	return d
 }
 
@@ -143,10 +161,10 @@ func (d *dialogoSenha) confirmar() {
 func (d *dialogoSenha) depoisDeConferir(senha string, err error) {
 	d.btnConfirmar.Enable()
 	d.btnCancelar.Enable()
-	if errors.Is(err, core.ErrSenhaErrada) {
-		d.lblErro.Text = TextoSenhaErrada
+	if texto, ok := TextoFalhaSenha(err); ok {
+		d.lblErro.SetText(texto)
 		d.lblErro.Show()
-		d.lblErro.Refresh()
+		d.conteudo.Refresh() // a frase entra no layout embaixo do campo
 		d.janela.Canvas().Focus(d.entrySenha)
 		d.entrySenha.TypedShortcut(&fyne.ShortcutSelectAll{})
 		return

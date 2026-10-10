@@ -18,23 +18,44 @@ import (
 // ErrSenhaErrada: a senha digitada não é a do cofre.
 var ErrSenhaErrada = errors.New("senha errada")
 
-// TextoNaoConferiuSenha é a frase da tela quando não deu para comparar
-// (proposta, aguarda aprovação da UI).
-const TextoNaoConferiuSenha = "não deu para conferir a senha"
+// Frases da tela quando não deu para comparar a senha (demanda 030,
+// aprovadas pela UI). Aparecem embaixo do campo de senha.
+const (
+	TextoNaoLeuConfiguracao = "Não destrancou: não deu para ler a configuração do rclone."
+	TextoConfigIncompleta   = "Não destrancou: a configuração deste cofre está incompleta. Conecte o cofre de novo."
+)
 
-// ErroConferirSenha: não deu para comparar a senha (remoto sumiu do
-// rclone.conf, sem `password`, valor que não se revela, `config dump` falhou).
-// O cofre não destranca. Error() é a frase da tela; Err vai para o log.
+// MotivoNaoConferiu diz por que a senha não pôde ser comparada.
+type MotivoNaoConferiu int
+
+const (
+	// NaoLeuConfiguracao: `rclone config dump` falhou (rclone ausente,
+	// tempo esgotado, rclone.conf ilegível).
+	NaoLeuConfiguracao MotivoNaoConferiu = iota
+	// ConfigIncompleta: o rclone.conf foi lido, mas o remoto do cofre não
+	// está lá, não é crypt, não tem `password` ou o valor não se revela.
+	// Conectar o cofre de novo grava o remoto inteiro.
+	ConfigIncompleta
+)
+
+// ErroConferirSenha: não deu para comparar a senha. O cofre não destranca.
+// Error() é a frase da tela; Err vai para o log.
 type ErroConferirSenha struct {
-	Err error
+	Motivo MotivoNaoConferiu
+	Err    error
 }
 
-func (e *ErroConferirSenha) Error() string { return TextoNaoConferiuSenha }
+func (e *ErroConferirSenha) Error() string {
+	if e.Motivo == ConfigIncompleta {
+		return TextoConfigIncompleta
+	}
+	return TextoNaoLeuConfiguracao
+}
 func (e *ErroConferirSenha) Unwrap() error { return e.Err }
 
-func naoConferiu(nome string, err error) error {
+func naoConferiu(nome string, motivo MotivoNaoConferiu, err error) error {
 	log.Printf("conferir senha de %s: %v", nome, err)
-	return &ErroConferirSenha{Err: err}
+	return &ErroConferirSenha{Motivo: motivo, Err: err}
 }
 
 // ConferirSenha compara senha com o `password` do remoto crypt nome. Volta
@@ -45,19 +66,22 @@ func (g *GerenciadorRClone) ConferirSenha(nome, senha string) error {
 		return ErrSenhaErrada
 	}
 	cfg, err := g.ObterConfigRemoto(nome)
+	if errors.Is(err, ErrRemotoNaoEncontrado) {
+		return naoConferiu(nome, ConfigIncompleta, err)
+	}
 	if err != nil {
-		return naoConferiu(nome, err)
+		return naoConferiu(nome, NaoLeuConfiguracao, err)
 	}
 	if tipo, _ := cfg["type"].(string); tipo != "crypt" {
-		return naoConferiu(nome, fmt.Errorf("remoto do tipo %q, não crypt", tipo))
+		return naoConferiu(nome, ConfigIncompleta, fmt.Errorf("remoto do tipo %q, não crypt", tipo))
 	}
 	obscura, _ := cfg["password"].(string)
 	if obscura == "" {
-		return naoConferiu(nome, errors.New("remoto crypt sem password"))
+		return naoConferiu(nome, ConfigIncompleta, errors.New("remoto crypt sem password"))
 	}
 	gravada, err := revelarObscuro(obscura)
 	if err != nil {
-		return naoConferiu(nome, err)
+		return naoConferiu(nome, ConfigIncompleta, err)
 	}
 	if subtle.ConstantTimeCompare([]byte(gravada), []byte(senha)) != 1 {
 		return ErrSenhaErrada
