@@ -29,6 +29,8 @@ const (
 	RotuloNovoCofre     = "Novo Cofre…"
 	RotuloConfiguracoes = "Configurações"
 	RotuloConfigVfs     = "Configurações VFS…"
+	// RotuloAutoIniciar é o mesmo em todos os sistemas.
+	RotuloAutoIniciar = "Abrir ao ligar o computador"
 )
 
 // AcaoTray é uma ação emitida pelo tray para processamento pela main loop.
@@ -81,7 +83,7 @@ func (g *GerenciadorTray) aoIniciar() {
 	systray.AddSeparator()
 
 	mConfig := systray.AddMenuItem(RotuloConfiguracoes, "")
-	mAutoIniciar := mConfig.AddSubMenuItem("Auto-iniciar com Windows", "")
+	mAutoIniciar := mConfig.AddSubMenuItem(RotuloAutoIniciar, "")
 	mConfigVfs := mConfig.AddSubMenuItem(RotuloConfigVfs, "")
 	mVerificarFuse := mConfig.AddSubMenuItem("Verificar WinFsp/FUSE", "")
 	// Demanda 031: sem pasta de configuração, o que grava fica desabilitado.

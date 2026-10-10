@@ -193,3 +193,20 @@ func TestSeletorErroDoRcloneSemIngles(t *testing.T) {
 		t.Errorf("lista = %q", ts)
 	}
 }
+
+// Demanda 031 (cópia aprovada): enquanto lista, "Carregando pastas…", sem
+// emoji e com reticências de um caractere.
+func TestSeletorCarregandoPastas(t *testing.T) {
+	soltar := make(chan struct{})
+	r := &listagemRoteirizada{respostas: []func() ([]string, error){
+		func() ([]string, error) { <-soltar; return []string{"a"}, nil },
+	}}
+	l, pronta := novaListaDeTeste(t, r)
+	l.carregar()
+	ts, _ := textos(l.lista.Objects)
+	close(soltar)
+	esperarCarga(t, pronta)
+	if len(ts) != 1 || ts[0] != "Carregando pastas…" || TextoCarregandoPastas != "Carregando pastas…" {
+		t.Errorf("durante a carga: %q", ts)
+	}
+}

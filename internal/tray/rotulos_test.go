@@ -11,6 +11,7 @@ func TestRotulosDoMenu(t *testing.T) {
 		RotuloNovoCofre:     "Novo Cofre…",
 		RotuloConfiguracoes: "Configurações",
 		RotuloConfigVfs:     "Configurações VFS…",
+		RotuloAutoIniciar:   "Abrir ao ligar o computador",
 	}
 	for got, quer := range casos {
 		if got != quer {
