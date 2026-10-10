@@ -23,13 +23,17 @@ type JanelaPrincipal struct {
 	estadoAnterior  map[string]string
 	mu              sync.Mutex
 
-	CallbackCofre          func(core.CofreStatus)
-	CallbackNovoCofre      func()
-	CallbackImportarCofre  func()
-	CallbackConfigVfs      func()
-	CallbackVerificarFuse  func()
-	CallbackSobre          func()
-	CallbackSair           func()
+	// falhasTrancar guarda, por cofre, o motivo do último Trancar que não
+	// terminou (demanda 022). O card mostra "Não trancou: {motivo}".
+	falhasTrancar map[string]string
+
+	CallbackCofre         func(core.CofreStatus)
+	CallbackNovoCofre     func()
+	CallbackImportarCofre func()
+	CallbackConfigVfs     func()
+	CallbackVerificarFuse func()
+	CallbackSobre         func()
+	CallbackSair          func()
 }
 
 // NovaJanelaPrincipal cria e configura a janela principal.
@@ -41,6 +45,7 @@ func NovaJanelaPrincipal(app fyne.App, gerenciador *core.GerenciadorRClone) *Jan
 		janela:         janela,
 		gerenciador:    gerenciador,
 		estadoAnterior: make(map[string]string),
+		falhasTrancar:  make(map[string]string),
 	}
 
 	jp.construirInterface()
@@ -155,7 +160,7 @@ func (jp *JanelaPrincipal) atualizarCofres() {
 	// Gerar estado para comparação
 	estadoNovo := make(map[string]string)
 	for _, c := range cofres {
-		chave := fmt.Sprintf("%s_%v_%s", c.Nome, c.Montado, c.Letra)
+		chave := fmt.Sprintf("%s_%v_%s_%s", c.Nome, c.Montado, c.Letra, jp.falhasTrancar[c.Nome])
 		estadoNovo[c.Nome] = chave
 	}
 
@@ -182,7 +187,7 @@ func (jp *JanelaPrincipal) atualizarCofres() {
 	} else {
 		for _, cofre := range cofres {
 			c := cofre // captura para closure
-			card := criarCardCofre(c, func() {
+			card := criarCardCofre(c, jp.falhasTrancar[c.Nome], func() {
 				if jp.CallbackCofre != nil {
 					jp.CallbackCofre(c)
 				}
@@ -226,13 +231,37 @@ func (jp *JanelaPrincipal) ForcarAtualizacao() {
 	jp.atualizarCofres()
 }
 
+// MostrarFalhaTrancar põe "Não trancou: {motivo}" no card do cofre
+// (demanda 022).
+func (jp *JanelaPrincipal) MostrarFalhaTrancar(nome, motivo string) {
+	jp.mu.Lock()
+	jp.falhasTrancar[nome] = motivo
+	jp.mu.Unlock()
+	jp.ForcarAtualizacao()
+}
+
+// LimparFalhaTrancar tira a linha "Não trancou" do card do cofre.
+func (jp *JanelaPrincipal) LimparFalhaTrancar(nome string) {
+	jp.mu.Lock()
+	_, havia := jp.falhasTrancar[nome]
+	delete(jp.falhasTrancar, nome)
+	jp.mu.Unlock()
+	if havia {
+		jp.ForcarAtualizacao()
+	}
+}
+
 // Janela retorna a referência à fyne.Window.
 func (jp *JanelaPrincipal) Janela() fyne.Window {
 	return jp.janela
 }
 
-// criarCardCofre cria um widget de card para um cofre.
-func criarCardCofre(cofre core.CofreStatus, aoClicar func()) fyne.CanvasObject {
+// TextoNaoTrancou é a linha do card quando o Trancar não terminou (demanda 022).
+const TextoNaoTrancou = "Não trancou: %s"
+
+// criarCardCofre cria um widget de card para um cofre. falhaTrancar, quando
+// não é vazio, é o motivo do último Trancar que não terminou.
+func criarCardCofre(cofre core.CofreStatus, falhaTrancar string, aoClicar func()) fyne.CanvasObject {
 	// Indicador de cor do provedor
 	corProv := ObterCorProvedor(cofre.ProvedorId)
 	indicador := canvas.NewRectangle(corProv)
@@ -292,5 +321,15 @@ func criarCardCofre(cofre core.CofreStatus, aoClicar func()) fyne.CanvasObject {
 	cardBg.CornerRadius = 10
 	cardBg.SetMinSize(fyne.NewSize(0, 76))
 
-	return container.NewStack(cardBg, container.NewPadded(cardConteudo))
+	// A linha "Não trancou" fica embaixo, com a largura toda do card, para o
+	// motivo quebrar em linhas.
+	var corpo fyne.CanvasObject = cardConteudo
+	if falhaTrancar != "" {
+		lblFalha := widget.NewLabel(fmt.Sprintf(TextoNaoTrancou, falhaTrancar))
+		lblFalha.Wrapping = fyne.TextWrapWord
+		lblFalha.Importance = widget.DangerImportance
+		corpo = container.NewVBox(cardConteudo, lblFalha)
+	}
+
+	return container.NewStack(cardBg, container.NewPadded(corpo))
 }

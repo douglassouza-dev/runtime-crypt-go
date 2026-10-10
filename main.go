@@ -129,8 +129,9 @@ func acaoCofre(gerenciador *core.GerenciadorRClone, jp *gui.JanelaPrincipal, cof
 	_, montado := montagens[cofre.Nome]
 
 	if montado {
-		travarCofre(gerenciador, jp, cofre.Nome)
+		_ = travarCofre(gerenciador, jp, cofre.Nome) // o erro já está no card
 	} else {
+		jp.LimparFalhaTrancar(cofre.Nome)
 		destravarCofre(gerenciador, jp, cofre.Nome)
 	}
 }
@@ -170,25 +171,19 @@ func destravarCofre(gerenciador *core.GerenciadorRClone, jp *gui.JanelaPrincipal
 	jp.ForcarAtualizacao()
 }
 
-// travarCofre desmonta o cofre e limpa a senha.
-func travarCofre(gerenciador *core.GerenciadorRClone, jp *gui.JanelaPrincipal, nome string) {
-	letra := gerenciador.Montagens.ObterLetraPorRemoto(nome)
-	sucesso := false
-	msg := fmt.Sprintf("'%s' nao esta montado.", nome)
-	if letra != "" {
-		sucesso, msg = gerenciador.Montagens.DesmontarUnidade(letra)
+// travarCofre desmonta o cofre (demanda 022). Se a desmontagem não terminou,
+// o card continua destrancado com "Não trancou: {motivo}" e a senha da
+// sessão fica; ela só sai quando o cofre chega a "Trancado" (core.Trancar).
+func travarCofre(gerenciador *core.GerenciadorRClone, jp *gui.JanelaPrincipal, nome string) error {
+	if err := gerenciador.Trancar(nome); err != nil {
+		jp.MostrarFalhaTrancar(nome, err.Error())
+		jp.Mostrar()
+		return err
 	}
-
-	gerenciador.Senhas.Limpar(nome)
-
-	tipo := gui.MsgInfo
-	titulo := "Cofre Trancado"
-	if !sucesso {
-		tipo = gui.MsgErro
-		titulo = "Erro"
-	}
-	gui.DialogoMensagem(jp.Janela(), titulo, msg, tipo)
+	jp.LimparFalhaTrancar(nome)
+	gui.DialogoMensagem(jp.Janela(), "Cofre Trancado", fmt.Sprintf("'%s' trancado.", nome), gui.MsgInfo)
 	jp.ForcarAtualizacao()
+	return nil
 }
 
 // acaoNovoCofre executa o fluxo de criação de novo cofre.
