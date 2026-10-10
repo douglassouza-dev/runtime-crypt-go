@@ -19,6 +19,8 @@ Seus arquivos são **criptografados localmente antes de enviados** à nuvem e **
 
 📚 Documentação técnica, demandas e ADRs: [docs/](docs/README.md)
 
+🧪 Roteiro de testes em tela: [docs/testes/](docs/testes/README.md)
+
 ## ✨ Funcionalidades
 
 - 🔐 **Criptografia ponta-a-ponta** — AES-256 via RClone Crypt
