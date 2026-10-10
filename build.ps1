@@ -45,6 +45,10 @@ if (-not (Get-Command "gcc" -ErrorAction SilentlyContinue)) {
 # 1. Sincronizar módulos
 Write-Host "[1/3] Sincronizando dependências (go mod tidy)..." -ForegroundColor Gray
 go mod tidy
+if ($LASTEXITCODE -ne 0) {
+    Write-Error "[ERRO] Falha ao sincronizar as dependências."
+    exit 1
+}
 
 # 2. Incorporação do ícone via windres se disponível
 $GerouSyso = $false

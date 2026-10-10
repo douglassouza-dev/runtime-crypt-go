@@ -118,10 +118,18 @@ A pasta não é configurável por cofre (demanda 013).
   .\build.ps1 -ModoConsole
   ```
 
-- **Linux / macOS (Makefile):**
+- **Makefile (Windows, Linux ou macOS):** `make` compila para o sistema atual.
   ```bash
   make
+  # Ou escolha o alvo:
+  make windows          # sem console (-H windowsgui)
+  make windows-console  # com console visível
+  make linux
+  make macos
+  make testes
+  make limpar
   ```
+  Cada alvo compila no próprio sistema (não é compilação cruzada). Para gerar de outro sistema, veja Cross-Compilation abaixo.
 
 ### Manual
 
