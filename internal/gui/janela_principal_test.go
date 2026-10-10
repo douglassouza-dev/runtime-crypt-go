@@ -1,6 +1,7 @@
 package gui
 
 import (
+	"runtime"
 	"strings"
 	"testing"
 
@@ -10,6 +11,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/eufrauzino/runtime-crypt-go/internal/core"
+	"github.com/eufrauzino/runtime-crypt-go/internal/gui/frases"
 )
 
 // textosDoCard junta os textos visíveis de um card.
@@ -185,5 +187,52 @@ func TestCardQueNaoSubiuSoTemTentarDeNovo(t *testing.T) {
 	junto := strings.Join(textosDoCard(criarCardCofre(c, "", func() {}, func() {})), "|")
 	if !strings.Contains(junto, "[Tentar de novo]") || strings.Contains(junto, "[Trancar]") {
 		t.Errorf("card = %q", junto)
+	}
+}
+
+// Demanda 027: sem o driver, o card diz qual falta e, no Windows e no macOS,
+// tem o botão que abre o site oficial. No Linux, só o texto.
+func TestCardSemDriver(t *testing.T) {
+	test.NewTempApp(t)
+	var abriu []string
+	antes := abrirSiteDriver
+	abrirSiteDriver = func(url string) error { abriu = append(abriu, url); return nil }
+	t.Cleanup(func() { abrirSiteDriver = antes })
+
+	c := core.CofreStatus{Cofre: core.Cofre{Nome: "d"}, Estado: core.EstadoFalhou, Motivo: "falta instalar o FUSE",
+		Rclone: &core.ErroRclone{Falha: core.FalhaDriver}}
+	card := criarCardCofre(c, "", func() {}, func() {})
+	junto := strings.Join(textosDoCard(card), "|")
+	if !strings.Contains(junto, frases.TextoDriverAusente(runtime.GOOS)) {
+		t.Errorf("faltou a frase; o card mostra %q", junto)
+	}
+
+	var bs []*widget.Button
+	var achar func(o fyne.CanvasObject)
+	achar = func(o fyne.CanvasObject) {
+		switch v := o.(type) {
+		case *widget.Button:
+			bs = append(bs, v)
+		case *fyne.Container:
+			for _, f := range v.Objects {
+				achar(f)
+			}
+		}
+	}
+	achar(card)
+
+	rotulo, url := frases.BotaoBaixarDriver(c)
+	if url == "" {
+		if len(bs) != 1 || runtime.GOOS != "linux" {
+			t.Errorf("%s: esperava só Tentar de novo; o card mostra %q", runtime.GOOS, junto)
+		}
+		return
+	}
+	if len(bs) != 2 || bs[1].Text != rotulo {
+		t.Fatalf("esperava [Tentar de novo] e [%s]; o card mostra %q", rotulo, junto)
+	}
+	test.Tap(bs[1])
+	if len(abriu) != 1 || abriu[0] != url {
+		t.Errorf("abriu %v, quer %s", abriu, url)
 	}
 }

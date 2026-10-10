@@ -3,6 +3,7 @@ package gui
 import (
 	"errors"
 	"fmt"
+	"runtime"
 	"strings"
 	"sync/atomic"
 
@@ -173,6 +174,9 @@ func (a *Acoes) destrancar(nome string) {
 	switch {
 	case errors.Is(err, core.ErrCancelado):
 		return
+	case errDriver(err):
+		// Demanda 027: a mesma frase do card.
+		DialogoMensagem(a.jp.Janela(), "Erro ao Destrancar", frases.TextoDriverAusente(runtime.GOOS), MsgErro)
 	case err != nil:
 		DialogoMensagem(a.jp.Janela(), "Erro ao Destrancar",
 			fmt.Sprintf("Falha ao montar '%s':\n%s", nome, TextoErro(err, a.provedorDe(nome))), MsgErro)
@@ -331,4 +335,10 @@ func (a *Acoes) AvisosDaAbertura() {
 		// Demanda 012: valor inválido em vfs.json volta ao padrão com aviso.
 		DialogoMensagem(a.jp.Janela(), "Configurações VFS", strings.Join(avisos, "\n"), MsgAviso)
 	}
+}
+
+// errDriver diz se err é a falta do driver de montagem (demanda 027).
+func errDriver(err error) bool {
+	var rc *core.ErroRclone
+	return errors.As(err, &rc) && rc.Falha == core.FalhaDriver
 }

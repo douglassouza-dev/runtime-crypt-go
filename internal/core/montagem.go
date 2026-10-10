@@ -156,6 +156,11 @@ type GerenciadorMontagem struct {
 	// processo terminar (fusermount -u / umount). Os testes trocam.
 	desmontarPonto func(caminho string) error
 
+	// DriverInstalado, se não for nil, é consultado antes de iniciar o
+	// rclone mount (demanda 027): false recusa a montagem com FalhaDriver,
+	// sem esperar o rclone falhar. main liga em plataforma.VerificarWinfsp.
+	DriverInstalado func() bool
+
 	// enviando guarda, por letra/pasta, quantos arquivos faltam subir
 	// enquanto DesmontarUnidade espera o envio (demanda 025).
 	enviando map[string]int
@@ -315,6 +320,11 @@ func (g *GerenciadorMontagem) MontarUnidade(remoto string, letra string, senha s
 func (g *GerenciadorMontagem) montar(remoto string, letra string, senha string, configVfsOverride map[string]string) (ok bool, msg string, letraMontada string, motivo string, erroRc *ErroRclone) {
 	if g.executavel == "" {
 		return false, "RClone nao disponivel.", "", "o rclone não está disponível", nil
+	}
+	if g.DriverInstalado != nil && !g.DriverInstalado() {
+		e := &ErroRclone{Falha: FalhaDriver}
+		log.Printf("montagem: driver de montagem não encontrado antes de montar %s", remoto)
+		return false, "Falha ao montar: " + e.Error(), "", e.Error(), e
 	}
 
 	// Demanda 010: uma montagem que falhou continua no mapa até alguém agir.

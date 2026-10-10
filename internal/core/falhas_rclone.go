@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 	"log"
+	"runtime"
 	"strings"
 )
 
@@ -19,6 +20,8 @@ const (
 	FalhaConexao
 	FalhaAutorizacao
 	FalhaPastaNaoExiste
+	// FalhaDriver: falta o driver de montagem (WinFsp, FUSE, macFUSE).
+	FalhaDriver
 )
 
 // padroesFalhaRclone é a tabela de ClassificarSaidaRclone, na ordem em que é
@@ -28,6 +31,16 @@ var padroesFalhaRclone = []struct {
 	falha   FalhaRclone
 	trechos []string
 }{
+	// O driver vem primeiro: sem ele a montagem nem começa, e a mensagem
+	// pode trazer outras palavras da tabela.
+	{FalhaDriver, []string{
+		"cannot find winfsp",
+		"cannot find fuse",
+		"fuse device not found",
+		`"fusermount3": executable file not found`,
+		`"fusermount": executable file not found`,
+		"/dev/fuse: no such file",
+	}},
 	{FalhaSenha, []string{
 		"most likely wrong password",
 		"bad password",
@@ -88,6 +101,9 @@ func TextoFalhaRclone(f FalhaRclone, provedor string) string {
 		return "autorização expirou"
 	case FalhaPastaNaoExiste:
 		return fmt.Sprintf("a pasta não existe no %s", provedor)
+	case FalhaDriver:
+		nome, _ := DriverDeMontagem(runtime.GOOS)
+		return fmt.Sprintf("falta instalar o %s", nome)
 	}
 	return "o rclone falhou, detalhes no log"
 }
@@ -109,4 +125,17 @@ func novoErroRclone(contexto, saida string, err error) *ErroRclone {
 	saida = strings.TrimSpace(saida)
 	log.Printf("rclone %s: %s", contexto, saida)
 	return &ErroRclone{Falha: ClassificarSaidaRclone(saida), Saida: saida, err: err}
+}
+
+// DriverDeMontagem é o driver que o rclone mount precisa no sistema goos e o
+// endereço oficial para baixar ("" quando não há um óbvio: no Linux o FUSE
+// vem do gerenciador de pacotes).
+func DriverDeMontagem(goos string) (nome, url string) {
+	switch goos {
+	case "windows":
+		return "WinFsp", "https://winfsp.dev/rel/"
+	case "darwin":
+		return "macFUSE", "https://macfuse.github.io/"
+	}
+	return "FUSE", ""
 }

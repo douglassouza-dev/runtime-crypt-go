@@ -8,6 +8,7 @@ import (
 
 	"github.com/eufrauzino/runtime-crypt-go/internal/core"
 	"github.com/eufrauzino/runtime-crypt-go/internal/gui"
+	"github.com/eufrauzino/runtime-crypt-go/internal/plataforma"
 	"github.com/eufrauzino/runtime-crypt-go/internal/tray"
 )
 
@@ -23,6 +24,8 @@ func main() {
 	if registro, err := core.AbrirLog(gerenciador.DiretorioApp); err == nil {
 		defer registro.Close()
 	}
+	// Demanda 027: sem o driver de montagem, o card diz qual falta.
+	gerenciador.Montagens.DriverInstalado = func() bool { return plataforma.VerificarWinfsp().Instalado }
 	canalAcoes := make(chan tray.AcaoTray, 32)
 
 	aplicacao := app.NewWithID("com.eufrauzino.runtime-crypto")

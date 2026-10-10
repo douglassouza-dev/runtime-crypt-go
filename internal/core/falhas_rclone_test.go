@@ -44,6 +44,14 @@ func TestClassificarSaidaRclone(t *testing.T) {
 		saida  string
 		quer   FalhaRclone
 	}{
+		// Falta o driver de montagem. As de Linux são do rclone v1.75.2 (o
+		// box não tem mais o 1.60), capturadas em 2026-10-10.
+		{"real: Linux sem fusermount3 no PATH", `2026/10/10 10:30:14 CRITICAL: Fatal error: failed to mount FUSE fs: fusermount: exec: "fusermount3": executable file not found in $PATH`, FalhaDriver},
+		{"real: Linux sem /dev/fuse", "2026/10/10 10:30:26 NOTICE: mount helper error: fusermount3: fuse device not found, try 'modprobe fuse' first\n2026/10/10 10:30:26 CRITICAL: Fatal error: failed to mount FUSE fs: fusermount: exit status 1", FalhaDriver},
+		{"suposta: Linux, rclone antigo sem fusermount", `Fatal error: failed to mount FUSE fs: fusermount: exec: "fusermount": executable file not found in $PATH`, FalhaDriver},
+		{"suposta: Windows sem WinFsp", "2026/10/09 10:00:00 CRITICAL: Fatal error: cannot find winfsp", FalhaDriver},
+		{"suposta: macOS sem macFUSE", "2026/10/09 10:00:00 CRITICAL: Fatal error: failed to mount FUSE fs: cannot find FUSE", FalhaDriver},
+
 		// Pasta que não existe.
 		{"real: lsjson numa pasta local que não existe", "2026/10/10 09:27:55 ERROR : : error listing: directory not found\n2026/10/10 09:27:55 Failed to lsjson with 2 errors: last error was: error in ListJSON: directory not found", FalhaPastaNaoExiste},
 		{"real: lsjson num crypt sobre pasta que não existe", "2026/10/10 09:27:55 Failed to lsjson with 2 errors: last error was: error in ListJSON: directory not found", FalhaPastaNaoExiste},
@@ -69,7 +77,6 @@ func TestClassificarSaidaRclone(t *testing.T) {
 		// O resto.
 		{"real: crypt com senha errada num arquivo pequeno (não dá para saber)", "2026/10/10 09:32:25 ERROR : s.txt: Failed to send to output: unexpected EOF\n2026/10/10 09:32:25 Failed to cat: unexpected EOF", FalhaOutra},
 		{"real: aviso do mount webdav", "2026/10/10 09:31:54 NOTICE: webdav root '': --vfs-cache-mode writes or full is recommended for this remote as it can't stream", FalhaOutra},
-		{"suposta: WinFsp ausente", "2026/10/09 10:00:00 CRITICAL: Fatal error: cannot find winfsp", FalhaOutra},
 		{"suposta: remoto sem seção", `Failed to create file system for "x:": didn't find section in config file`, FalhaOutra},
 		{"vazia", "", FalhaOutra},
 	}
