@@ -31,6 +31,7 @@ A ordem segue o risco à estabilidade e aos segredos. A migração para Wails (0
 | [023](023-seletor-atualiza-tela-fora-da-thread.md) | O seletor de pasta mexe na tela a partir de uma goroutine | Médio · estabilidade | 021 | Aberta |
 | [024](024-copias-corrompido-acumulam.md) | Cópias `.corrompido` se acumulam | Baixo · uso | 007 | Aberta |
 | [025](025-trancar-espera-envio.md) | Trancar logo depois de gravar não espera o envio | Alto · dados | 013, 018, 022 | Aberta |
+| [026](026-cofre-que-caiu.md) | Cofre que caiu: destrancar de novo e trancar sem perder envio | Alto · dados, segredos | 018, 022, 025 | Aberta |
 
 ## Ordem sugerida de execução
 
@@ -74,4 +75,7 @@ flowchart LR
     d013 --> d025["025 trancar espera envio"]
     d018 --> d025
     d022 --> d025
+    d018 --> d026["026 cofre que caiu"]
+    d022 --> d026
+    d025 --> d026
 ```
