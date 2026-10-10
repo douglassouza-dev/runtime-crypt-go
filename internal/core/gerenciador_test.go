@@ -163,7 +163,7 @@ func TestCriarRemoto(t *testing.T) {
 		t.Fatalf("ok=%v msg=%q", ok, msg)
 	}
 	args := f.chamadas()[0].Args
-	if !argsContem(args, "config", "create", "meudrive", "drive") || !argsContem(args, "token", "{}") {
+	if !argsContem(args, "config", "create", "--", "meudrive", "drive") || !argsContem(args, "token", "{}") {
 		t.Errorf("args = %v", args)
 	}
 	for _, a := range args {
@@ -203,7 +203,7 @@ func TestCriarCrypt(t *testing.T) {
 	}
 	args := cs[1].Args
 	for _, par := range [][]string{
-		{"config", "create", "cofre", "crypt"},
+		{"config", "create", "--", "cofre", "crypt"},
 		{"remote", "gdrive:pasta"},
 		{"password", "obs(s1)"},
 		{"password2", "obs(s1)"}, // sem senha2, repete a primeira
@@ -258,7 +258,7 @@ func TestImportarCryptFazOMesmoQueCriarCrypt(t *testing.T) {
 		t.Fatal("esperava sucesso")
 	}
 	cs := f.chamadas()
-	if !argsContem(cs[len(cs)-1].Args, "config", "create", "antigo", "crypt") {
+	if !argsContem(cs[len(cs)-1].Args, "config", "create", "--", "antigo", "crypt") {
 		t.Errorf("args = %v", cs[len(cs)-1].Args)
 	}
 }
