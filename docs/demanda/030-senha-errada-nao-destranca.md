@@ -19,8 +19,9 @@ Por que um número novo e não um pedaço da 004: o "Pronto quando" da 004 pede 
 - Novo `core.ConferirSenha(nome, senha)`: lê o remoto crypt `nome` com `rclone config dump`, revela o `password` ofuscado e compara com a senha digitada em tempo constante. Volta:
   - `nil` se a senha confere;
   - `core.ErrSenhaErrada` se não confere ou está vazia;
-  - `*core.ErroConferirSenha` se não deu para comparar. O cofre não destranca (falha fechada). Há dois motivos:
-    - `NaoLeuConfiguracao`: o `rclone config dump` falhou (rclone ausente, tempo esgotado, erro do rclone, saída ilegível);
+  - `*core.ErroConferirSenha` se não deu para comparar. O cofre não destranca (falha fechada). Há três motivos:
+    - `RcloneAusente`: o binário do rclone não existe. É detectado pelo erro, não pelo texto: nenhum rclone achado na abertura (`ErrRcloneIndisponivel`), nome fora do PATH (`exec.ErrNotFound`) ou arquivo que não existe no caminho do rclone (`os.ErrNotExist`). Um rclone que existe e sai com erro não entra aqui;
+    - `NaoLeuConfiguracao`: o `rclone config dump` rodou e falhou (tempo esgotado, erro do rclone, saída ilegível);
     - `ConfigIncompleta`: o `rclone.conf` foi lido, mas o remoto do cofre não está nele, não é `crypt`, não tem `password` ou o valor não se revela. Remoto ausente entra aqui, e não em "não deu para ler": a leitura funcionou, e o que falta é a configuração do cofre, que "Conectar cofre" grava de novo.
 - O valor ofuscado é revelado em Go (`core.revelarObscuro`), com o mesmo algoritmo do `rclone reveal` (AES-CTR com a chave pública do rclone, `fs/config/obscure`). O motivo para não chamar `rclone reveal`:
   - o valor ofuscado iria nos argumentos do processo, que no Linux outros usuários da máquina leem em `/proc` (demanda 005);
@@ -30,6 +31,7 @@ Por que um número novo e não um pedaço da 004: o "Pronto quando" da 004 pede 
 - Na tela (tudo aprovado pela UI):
   - a frase aparece embaixo do campo de senha, no próprio diálogo, e não num diálogo de erro separado:
     - senha errada: `Senha errada.`;
+    - `RcloneAusente`: `Não destrancou: o rclone não está instalado.`;
     - `NaoLeuConfiguracao`: `Não destrancou: não deu para ler a configuração do rclone.`;
     - `ConfigIncompleta`: `Não destrancou: a configuração deste cofre está incompleta. Conecte o cofre de novo.`;
   - o diálogo continua aberto, com o campo focado e o texto selecionado;
@@ -53,7 +55,8 @@ Por que um número novo e não um pedaço da 004: o "Pronto quando" da 004 pede 
 
 - [ ] Teste com o rclone falso (`NovoGerenciadorEm`): senha certa destranca (há `mount` em `chamadas.log`); senha errada volta `ErrSenhaErrada`, nenhum `mount` foi chamado, nenhum processo ficou vivo, o estado é `desmontado` sem motivo e a senha não está na sessão; senha vazia volta `ErrCancelado` sem chamar o rclone.
 - [ ] Teste: remoto inexistente, `rclone.conf` vazio, crypt sem `password`, `password` ilegível e remoto que não é crypt voltam `ConfigIncompleta` com a frase dela e não montam.
-- [ ] Teste: `config dump` falhando, saída ilegível e rclone ausente voltam `NaoLeuConfiguracao` com a frase dela e não montam.
+- [ ] Teste: `config dump` falhando e saída ilegível voltam `NaoLeuConfiguracao` com a frase dela e não montam.
+- [ ] Teste: caminho do rclone para um arquivo que não existe, numa pasta que não existe, nome fora do PATH e nenhum rclone na abertura voltam `RcloneAusente` com a frase dela e não montam; um rclone que existe e falha não volta `RcloneAusente`.
 - [ ] Teste: `revelarObscuro` devolve a senha certa para valores gerados pelo rclone real (incluindo um que começa com `-`).
-- [ ] Teste da tela (driver de teste do Fyne): para cada uma das três frases, ela aparece embaixo do campo, o diálogo continua aberto, o campo tem o foco e o texto está todo selecionado. A senha certa fecha o diálogo e devolve a senha.
+- [ ] Teste da tela (driver de teste do Fyne): para cada uma das quatro frases, ela aparece embaixo do campo, o diálogo continua aberto, o campo tem o foco e o texto está todo selecionado. A senha certa fecha o diálogo e devolve a senha.
 - [ ] No Windows: destrancar com senha errada mostra `Senha errada.` embaixo do campo e não monta letra nenhuma; com a senha certa monta e lista os arquivos.
