@@ -147,12 +147,47 @@ Não existe a opção "só do provedor", que apagaria os arquivos e manteria o c
 O motivo está em como os cofres são criados hoje. `CriarCofre` grava `remoto_base` como `<nome>_base:`, sem pasta (`casos_de_uso.go:CriarCofre`). O crypt fica na **raiz da conta**, misturado com os outros arquivos do usuário. A doc do crypt chama isso de "not recommended" ([rclone crypt, --crypt-remote](https://rclone.org/crypt/#crypt-remote)).
 
 - **`purge` apagaria a conta inteira.** A doc diz que `purge` remove "the path and all of its contents" e "does not obey include/exclude filters - everything will be removed" ([rclone purge](https://rclone.org/commands/rclone_purge/)). No crypt, o `Purge` repassa para o remoto de baixo o caminho cifrado (`do(ctx, f.cipher.EncryptDirName(dir))`, em [backend/crypt/crypt.go](https://github.com/rclone/rclone/blob/master/backend/crypt/crypt.go)). Na raiz, esse caminho é vazio, então o rclone apagaria a raiz de `<nome>_base:`, isto é, todo o Drive do usuário. O mesmo vale para `purge` ou `delete` direto no base.
-- **`delete` pelo crypt só vê o que é do cofre.** O crypt pula nomes que não consegue decifrar ("By default, rclone will just log a NOTICE and continue as normal", [--crypt-strict-names](https://rclone.org/crypt/#crypt-strict-names)), e os cofres do app usam `filename_encryption = standard` e `directory_name_encryption = true` (`constantes.go:ConfiguracoesCryptPadrao`). Os arquivos do usuário que não são do cofre não aparecem para o crypt e não são tocados.
+- **`delete` pelo crypt vê quase só o que é do cofre.** O crypt pula nomes que não consegue decifrar ("By default, rclone will just log a NOTICE and continue as normal", [--crypt-strict-names](https://rclone.org/crypt/#crypt-strict-names)), e os cofres do app usam `filename_encryption = standard` e `directory_name_encryption = true` (`constantes.go:ConfiguracoesCryptPadrao`). "Quase" porque alguns nomes que não são do cofre passam pela decifragem (ver "Cofre na raiz" e a condição 3 abaixo). Por isso a exclusão no provedor é bloqueada para cofres na raiz e quando outros arquivos dividem a pasta do cofre.
 - `delete` "only deletes files but leaves the directory structure alone"; com `--rmdirs` ele "removes empty directories but leaves root intact" ([rclone delete](https://rclone.org/commands/rclone_delete/)). A raiz do crypt (a raiz da conta, ou a pasta do cofre importado) nunca é apagada por esse comando.
 - Cofre importado (`remoto_base` = `<nome>_base:<pasta>`): depois do `delete`, roda `rclone rmdir <nome>_base:<pasta>`, que só apaga a pasta se ela estiver vazia. Isso nunca roda quando `<pasta>` é vazio (raiz).
 - `--dry-run` não é usado: o resumo antes vem do `rclone size`.
 
-Risco que fica: dois cofres com a mesma senha e a mesma senha 2 no mesmo lugar da mesma conta decifram os nomes um do outro. O `delete` de um apagaria os arquivos do outro. Por isso existe o bloqueio abaixo.
+Risco que fica: dois cofres com a mesma senha e a mesma senha 2 no mesmo lugar da mesma conta decifram os nomes um do outro. O `delete` de um apagaria os arquivos do outro. Por isso existe o bloqueio por arquivos em comum, mais abaixo.
+
+#### Cofre na raiz, ou com outros arquivos na pasta (aprovado pela UI)
+
+A exclusão no provedor é **sempre bloqueada** quando o caminho do cofre é a raiz da conta (o que vem depois de `:` no `remoto_base` é vazio), com ou sem outros cofres. Hoje isso inclui todo cofre criado pelo app (`CriarCofre`). A opção `Deste computador e do {provedor}` aparece desabilitada com:
+
+`Não dá para excluir do {provedor}: este cofre está na raiz junto com outros arquivos. Remova só deste computador e apague pelo site do {provedor}.`
+
+`Só deste computador` continua disponível. Os cofres novos deixam de cair na raiz com a demanda 035 (uma pasta própria por cofre).
+
+**Por quê: os nomes do próprio usuário, conferido no código.** Na raiz, os arquivos do cofre ficam junto com os arquivos comuns do usuário, sem cifra. O que o crypt faz com um nome desses (`DecryptFileName` e `decryptFileName` em `backend/crypt/cipher.go`):
+
+- **`standard` com `filename_encoding = base32`** (o padrão do app): cada parte do caminho passa por `caseInsensitiveBase32Encoding.DecodeString`, que põe em maiúsculas e decodifica com `base32.HexEncoding` (alfabeto `0-9` e `A-V`). Depois, `decryptSegment` exige que o resultado tenha um número de bytes múltiplo de 16 (`nameCipherBlockSize`, o bloco do AES), diferente de zero e até 2048. Só então vem a conferência do preenchimento PKCS#7.
+  - Um nome como `Foto 2024.jpg` é **recusado logo na decodificação**: espaço e `.` não estão no alfabeto. O mesmo vale para qualquer nome com ponto (extensão), espaço, hífen, sublinhado, acento ou as letras `w`, `x`, `y`, `z`.
+  - Para chegar ao preenchimento, o nome precisa ter **só `0-9` e `a-v`** (maiúsculas ou minúsculas), **sem extensão**, e **exatamente 26, 52, 78…** caracteres (16, 32, 48… bytes).
+  - Desses, cerca de 1 em 256 passa (o último byte vale `0x01`; `0x02 0x02` e maiores somam bem menos), vira um nome sem sentido e seria apagado.
+  - Taxa real para arquivos comuns: perto de zero, porque quase todo nome tem extensão ou espaço. Não é zero para nomes gerados por máquina sem extensão, como IDs e hashes em hexadecimal de 26, 52… caracteres. Pastas passam pela mesma conta, com `directory_name_encryption = true`; se uma pasta passa, o crypt entra nela e cada nome lá dentro passa de novo pela mesma conta.
+- **`standard` com `base64`:** alfabeto `A-Z`, `a-z`, `0-9`, `-` e `_`, sem ponto nem espaço; precisa de 22, 43, 64… caracteres. A mesma ordem de grandeza.
+- **`standard` com `base32768`:** usa um conjunto próprio de caracteres Unicode; nomes comuns em letras latinas são recusados na decodificação.
+- **`obfuscate`:** `deobfuscateSegment` aceita qualquer nome no formato `<número>.<resto>`, ou `!.<resto>`, sem conferir nada. `2024.relatorio.pdf`, `1.jpg` e `01.mp3` passam e seriam apagados. É muito pior que `standard`.
+- **`off`:** todo arquivo que termina no sufixo (`.bin`, ou qualquer arquivo com `suffix = none`) passa e seria apagado.
+
+Por isso a raiz bloqueia sempre, sem tentar estimar caso a caso.
+
+**Pasta com outros arquivos (cofre importado).** Fora da raiz, o app confere antes de liberar, junto com o resumo e no mesmo tempo limite:
+
+- `rclone lsf --max-depth 1 <nome>_base:<pasta>` (o que existe na pasta) e `rclone lsf --max-depth 1 <remoto>:` (o que o crypt decifra);
+- se o primeiro tem mais entradas que o segundo, há nomes que o crypt não decifra, isto é, arquivos que não são do cofre. Bloqueia com a mesma frase aprovada;
+- erro ou tempo esgotado em qualquer das duas: bloqueia (na dúvida, bloqueia).
+
+São duas listagens de uma pasta só, sem entrar nas subpastas, então é barato. Limites:
+
+- olha só o primeiro nível; arquivos comuns colocados dentro das pastas cifradas do cofre não são vistos;
+- um nome comum que passe pela decifragem (a conta acima) conta como do cofre e não é percebido.
+
+Os dois casos são raros e ficam nos riscos.
 
 #### Bloqueio por arquivos em comum com outro cofre (aprovado pela UI)
 
@@ -175,7 +210,7 @@ Quando outro cofre do `vaults.json` pode usar os mesmos arquivos no provedor, a 
 
 **Por que não dá para separar as contas com certeza.** Dois remotos do Google Drive com tokens diferentes podem ser a mesma conta ou não, e nada na configuração diz qual. O rclone tem `rclone config userinfo`, que "prints the details of the person logged in to the cloud storage system" ([rclone config userinfo](https://rclone.org/commands/rclone_config_userinfo/)). Mas os backends `drive` e `dropbox` não implementam essa função: não há `UserInfo` em `backend/drive/drive.go` nem em `backend/dropbox/dropbox.go`. O ID real da pasta raiz do Drive o rclone só descobre por chamada à API, sem comando documentado para mostrar. Decisão: **bloquear de forma conservadora**. O app não faz chamada extra ao provedor para tentar separar as contas; usa só o que está no `rclone.conf`, e na dúvida conta como a mesma conta.
 
-**Consequência que precisa ficar clara.** Os cofres criados pelo app ficam na raiz da conta (caminho vazio), e a raiz está "dentro" de qualquer caminho. Então, com dois cofres do Google Drive criados pelo app, nenhum dos dois pode ser excluído do provedor enquanto o outro existir, mesmo que sejam contas diferentes. O usuário pode remover o outro `Só deste computador` primeiro, ou excluir pelo site do provedor. Pôr os cofres novos numa pasta própria (pergunta 3) diminui esse efeito.
+**Consequência.** A raiz está "dentro" de qualquer caminho. Um cofre importado em `Cofres/A` fica bloqueado por um cofre do mesmo tipo de conta que esteja na raiz, mesmo em outra conta. (O próprio cofre na raiz já é sempre bloqueado, ver "Cofre na raiz".) A demanda 035, com uma pasta por cofre, diminui esse efeito.
 
 **Condição 3: o crypt de um cofre enxerga os arquivos do outro (aprovado, com um achado abaixo).** Comparada só com o `rclone.conf`, sem chamada ao provedor, revelando os valores ofuscados em Go como a 030 faz (`revelarObscuro`). Nenhum valor revelado vai para o log, para a tela ou para mensagem de erro; só o resultado (bloqueia ou não) e o nome do outro cofre.
 
@@ -203,9 +238,9 @@ Por isso, a regra fica assim:
 1. `rclone.conf` sem a seção do crypt de algum dos dois, valor que não se revela, ou `filename_encryption` desconhecido: **bloqueia** (na dúvida, bloqueia).
 2. Algum dos dois em `off` ou `obfuscate`: **bloqueia**.
 3. Os dois em `standard`, com `password`, `password2`, `directory_name_encryption` e `filename_encoding` iguais: **bloqueia** (um enxerga tudo do outro).
-4. Os dois em `standard`, com algum desses parâmetros diferente: pela regra aprovada, liberaria. **Pelo achado acima, esta demanda mantém o bloqueio também aqui até Douglas confirmar** (pergunta 2). Liberar significa aceitar que cerca de 1 em 256 arquivos do outro cofre seja apagado. Não existe forma barata de evitar: conferir o conteúdo de cada arquivo exigiria baixar um bloco de cada um.
+4. Os dois em `standard`, com algum desses parâmetros diferente: **bloqueia. É o padrão recomendado pela UI e pelo time**, pelo achado acima; falta Douglas confirmar (pergunta 2). Liberar significa aceitar que cerca de 1 em 256 arquivos do outro cofre seja apagado. Não existe forma barata de evitar: conferir o conteúdo de cada arquivo exigiria baixar um bloco de cada um.
 
-Na prática, enquanto a pergunta 2 não for respondida, a condição 3 não libera nenhum caso: ela só documenta por que senhas diferentes não protegem. Se Douglas decidir liberar o item 4, os testes já cobrem a comparação.
+Na prática, com o item 4 bloqueando, a condição 3 não libera nenhum caso: ela documenta por que senhas diferentes não protegem. Se Douglas decidir liberar o item 4, os testes já cobrem a comparação.
 
 **Onde roda.** Ao abrir o diálogo de remover, e de novo no core, logo antes do `delete`. O `vaults.json` pode ter mudado no meio.
 
@@ -220,7 +255,7 @@ Na prática, enquanto a pergunta 2 não for respondida, a condição 3 não libe
 - Texto (**proposta**):
   - `Vai apagar {n} arquivos ({tamanho}) em {provedor}: {caminho}.`
   - sem números: `Vai apagar os arquivos deste cofre em {provedor}: {caminho}.`
-  - `{caminho}` é a pasta do cofre no provedor, ou `pasta raiz` quando o cofre está na raiz.
+  - `{caminho}` é a pasta do cofre no provedor. Cofre na raiz nunca chega aqui (é bloqueado antes).
   - seguido da linha de lixeira, conforme o provedor (abaixo).
 
 #### Lixeira, por provedor
@@ -297,7 +332,9 @@ Por que apagar os remotos do `rclone.conf`, e não só tirar da lista:
 
 ## Riscos
 
-- **Apagar a conta inteira.** Os cofres criados pelo app ficam na raiz da conta. Um `purge`, ou qualquer comando de apagar no remoto base, apagaria todos os arquivos do usuário no provedor, não só os do cofre. A regra "só `delete` pelo crypt" é a proteção, e tem teste próprio. Mover os cofres novos para uma pasta própria pode virar outra demanda.
+- **Apagar a conta inteira.** Os cofres criados pelo app ficam na raiz da conta. Um `purge`, ou qualquer comando de apagar no remoto base, apagaria todos os arquivos do usuário no provedor, não só os do cofre. A regra "só `delete` pelo crypt" é a proteção, e tem teste próprio.
+- **Arquivos do próprio usuário na raiz.** Mesmo pelo crypt, alguns nomes comuns passam pela decifragem: em `standard`/base32, só nomes sem extensão, com `0-9`/`a-v` e 26, 52… caracteres, e desses cerca de 1 em 256; em `obfuscate`, qualquer `<número>.<resto>`; em `off`, todo `.bin`. Por isso a raiz é sempre bloqueada. Enquanto a 035 não existir, nenhum cofre criado pelo app pode ser excluído do provedor pelo app.
+- **Pasta com outros arquivos, detecção parcial.** A conferência olha só o primeiro nível, e um nome comum que passe pela decifragem não é percebido.
 - **Cofres irmãos.** Dois cofres na mesma conta e no mesmo lugar, com a mesma senha e a mesma senha 2, decifram os nomes um do outro. O `delete` de um apagaria os arquivos do outro. O bloqueio por arquivos em comum cobre os cofres do `vaults.json`. Não cobre um cofre que só existe em outro computador ou fora do app.
 - **Bloqueio demais.** Como o bloqueio é conservador, dois cofres do Drive na raiz bloqueiam um ao outro mesmo em contas diferentes (ver acima).
 - **Senha diferente não é proteção.** No modo `standard`, cerca de 1 em 256 nomes de um cofre com outra senha passa pela decifragem do crypt e seria apagado. Em `off` e `obfuscate`, todos. Se o item 4 da condição 3 for liberado, esse risco passa a valer.
@@ -322,12 +359,12 @@ Por que apagar os remotos do `rclone.conf`, e não só tirar da lista:
 ## Perguntas em aberto
 
 1. **Renomear (Douglas):** a decisão aqui é mudar só o nome visto, sem tocar no `rclone.conf` nem no cache. Serve, ou o nome do remoto também deve mudar, com os riscos descritos acima?
-2. **Confirmar (Douglas):** bloquear quando a conta e o caminho se cruzam e o crypt de um enxerga o outro. Inclui confirmar o item 4 da condição 3: com os dois em `standard` e senhas diferentes, o bloqueio continua (recomendado, pelo achado de 1 em 256), ou libera?
+2. **Confirmar (Douglas):** bloquear quando a conta e o caminho se cruzam e o crypt de um enxerga o outro, incluindo o item 4 da condição 3 (os dois em `standard`, senhas diferentes). Bloquear é o padrão recomendado pela UI e pelo time.
 3. **Raiz da conta (Douglas):** os cofres novos devem passar a ficar numa pasta própria no provedor? Isso diminuiria o risco do apagamento e do "not recommended" do rclone. Seria outra demanda.
 4. **Números do apagamento (Douglas):** os 2 min do resumo e os 5 min sem progresso são propostas.
 5. **Frases marcadas como proposta (UI):** placeholder do secret, botões, `Cofre reconectado.`, título, corpo, campo e botão `Remover` do diálogo, a linha da Pasta Local, o resumo e as linhas de lixeira, o progresso e `Parar`, a falha parcial e o card de exclusão incompleta, o nome em uso e o cache ilegível.
 
-Já decididas pela UI: o bloqueio por arquivos em comum e a frase `Não dá para excluir: o cofre {outro} usa os mesmos arquivos no {provedor}.`; `Editar` também em `Não destrancou`, com `Reconectar` em destaque; duas opções, com `Só deste computador` marcada; o botão `Excluir do {provedor}`; sem pedir a senha de novo; a frase de bloqueio com `Destranque o cofre...`.
+Já decididas pela UI: o bloqueio sempre que o cofre está na raiz, ou com outros arquivos na pasta, e a frase `Não dá para excluir do {provedor}: este cofre está na raiz junto com outros arquivos. Remova só deste computador e apague pelo site do {provedor}.`; o bloqueio por arquivos em comum e a frase `Não dá para excluir: o cofre {outro} usa os mesmos arquivos no {provedor}.`; `Editar` também em `Não destrancou`, com `Reconectar` em destaque; duas opções, com `Só deste computador` marcada; o botão `Excluir do {provedor}`; sem pedir a senha de novo; a frase de bloqueio com `Destranque o cofre...`.
 
 ## Pronto quando
 
@@ -356,7 +393,10 @@ Já decididas pela UI: o bloqueio por arquivos em comum e a frase `Não dá para
   - seção do crypt ausente, `password` que não se revela e `filename_encryption` desconhecido → bloqueia.
 - [ ] Teste: nenhum valor de `password`/`password2`, revelado ou ofuscado, aparece em `runtimecrypto.log`, nas mensagens de erro ou na tela durante a comparação.
 - [ ] Teste: a comparação não chama o rclone além do `config dump` (nenhum comando que fale com o provedor em `chamadas.log`).
+- [ ] Teste: cofre com `remoto_base` na raiz (`<nome>_base:`, `<nome>_base:/`) tem `Deste computador e do {provedor}` desabilitada com a frase aprovada, mesmo sem nenhum outro cofre; `Só deste computador` funciona; o core recusa o `delete`, e nenhum `size`, `lsf` ou `delete` aparece em `chamadas.log`.
+- [ ] Teste: cofre importado numa pasta, com o `lsf` do base mostrando uma entrada a mais que o `lsf` do crypt → bloqueia com a mesma frase; contagens iguais → libera; `lsf` com erro ou tempo esgotado → bloqueia.
+- [ ] Teste com o crypt do rclone (nomes de exemplo, sem provedor): `Foto 2024.jpg`, `relatorio.pdf` e `notas` são recusados na decodificação em `standard`/base32; um nome de 26 caracteres só com `0-9a-v` chega à conferência do preenchimento; em `obfuscate`, `2024.relatorio.pdf` decodifica; em `off`, `x.bin` decodifica. O teste registra o comportamento em que a regra se apoia.
 - [ ] Teste: a linha de lixeira segue o provedor e a seção do base (`use_trash = false` e `hard_delete = true` mostram `Não dá para desfazer.`).
 - [ ] Teste da tela: o diálogo abre com `Só deste computador` marcada e `Os arquivos no {provedor} continuam lá.` abaixo da pergunta; ao marcar a outra opção, a linha some, o resumo aparece e o botão vira `Excluir do {provedor}`; nas duas, o botão só habilita com o nome digitado; não há campo de senha.
-- [ ] Na tela, no Windows, com uma conta do Google Drive de teste que tenha também arquivos fora do cofre: `Deste computador e do Google Drive` apaga só os arquivos do cofre; os outros continuam; os do cofre aparecem na lixeira do Drive; o cofre sai do app.
+- [ ] Na tela, no Windows, com uma conta do Google Drive de teste: um cofre criado pelo app (na raiz) mostra a opção do provedor desabilitada com a frase da raiz. Um cofre importado numa pasta só dele: `Deste computador e do Google Drive` apaga os arquivos do cofre; os arquivos fora da pasta continuam; os do cofre aparecem na lixeira do Drive; o cofre sai do app. A mesma pasta com um arquivo comum a mais: bloqueia.
 - [ ] Na tela, no Windows: `Reconectar` num cofre do Google Drive; trocar para o app próprio; renomear e destrancar; `Só deste computador` e conferir que os arquivos continuam no Drive e que `Importar Cofre Existente` abre de novo com a senha.
