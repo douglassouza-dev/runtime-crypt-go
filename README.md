@@ -7,7 +7,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go 1.22+">
   <img src="https://img.shields.io/badge/Plataforma-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey?style=flat-square" alt="Multiplataforma">
-  <img src="https://img.shields.io/badge/Licen%C3%A7a-AGPL--3.0-red?style=flat-square" alt="AGPL-3.0">
+  <img src="https://img.shields.io/badge/Licen%C3%A7a-GPL--3.0-blue?style=flat-square" alt="GPL-3.0">
   <img src="https://img.shields.io/badge/RClone-Crypt-green?style=flat-square" alt="RClone Crypt">
 </p>
 
@@ -158,4 +158,6 @@ set GOOS=linux&& set GOARCH=amd64&& go build -o runtime-crypt-go .
 
 ## 📄 Licença
 
-[GNU Affero General Public License v3.0 (AGPL-3.0)](LICENSE) — Douglas Eufrauzino de Souza
+Copyright (C) 2026 Douglas Eufrauzino de Souza
+
+O RuntimeCrypto é licenciado sob a GPLv3 ([GNU General Public License v3.0](LICENSE)), somente a versão 3 (SPDX: `GPL-3.0-only`). O texto completo está em [LICENSE](LICENSE).
