@@ -1,6 +1,7 @@
 package core
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -17,6 +18,8 @@ func novoMontadorFalso(t *testing.T) (*GerenciadorMontagem, *rcloneFalso) {
 	g := NovoGerenciadorMontagem(f.exe, NovoConfigVfs())
 	g.pontoExiste = pontoPeloFalso(f)
 	g.raizPontos = t.TempDir()
+	// Sem fusermount/umount de verdade nos testes.
+	g.desmontarPonto = func(string) error { return errors.New("sem FUSE no teste") }
 	return g, f
 }
 
@@ -196,7 +199,7 @@ func TestDesmontarUnidade(t *testing.T) {
 
 func TestDesmontarUnidadeInexistente(t *testing.T) {
 	g, _ := novoMontadorFalso(t)
-	if ok, msg := g.DesmontarUnidade("Q"); ok || !strings.Contains(msg, "Q:") {
+	if ok, msg := g.DesmontarUnidade("Q"); ok || !strings.Contains(msg, "Nenhuma montagem ativa em Q") {
 		t.Errorf("ok=%v msg=%q", ok, msg)
 	}
 }
