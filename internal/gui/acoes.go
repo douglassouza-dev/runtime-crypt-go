@@ -236,6 +236,9 @@ func TextoCofrePronto(titulo, nome, provedor, remotoBase string) string {
 // NovoCofre roda o wizard e o caso de uso CriarCofre.
 func (a *Acoes) NovoCofre() {
 	a.jp.Mostrar()
+	if a.g.SomenteLeitura() {
+		return // 031: o botão está desabilitado; a bandeja também
+	}
 	r := DialogoNovoCofre(a.jp.Janela())
 	if !r.Sucesso {
 		return
@@ -259,6 +262,9 @@ func (a *Acoes) NovoCofre() {
 // ImportarCofre roda o wizard e o caso de uso ConectarCofre.
 func (a *Acoes) ImportarCofre() {
 	a.jp.Mostrar()
+	if a.g.SomenteLeitura() {
+		return // 031
+	}
 	r := DialogoImportarCofre(a.jp.Janela())
 	if !r.Sucesso {
 		return

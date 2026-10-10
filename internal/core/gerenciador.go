@@ -13,42 +13,77 @@ import (
 
 // GerenciadorRClone é a struct principal que coordena todas as operações.
 type GerenciadorRClone struct {
-	Executavel   string
+	Executavel string
+	// DiretorioApp é a pasta do executável: o rclone é procurado nela.
 	DiretorioApp string
-	Cofres       *GerenciadorCofres
-	Montagens    *GerenciadorMontagem
-	Senhas       *CacheSenhas
-	OAuth        *GerenciadorOAuth
-	Vfs          *ConfigVfs
+	// DiretorioConfig é onde ficam vaults.json, vfs.json e o log (031).
+	DiretorioConfig string
+	// ErroPastaConfig (*ErroPastaConfig) vem preenchido quando a pasta de
+	// configuração não pode ser usada: nada é gravado e a tela avisa (031).
+	ErroPastaConfig error
+	// RegistroPastaConfig são as linhas do log sobre a pasta e a cópia dos
+	// arquivos antigos; main grava depois de abrir o log.
+	RegistroPastaConfig []string
+	Cofres              *GerenciadorCofres
+	Montagens           *GerenciadorMontagem
+	Senhas              *CacheSenhas
+	OAuth               *GerenciadorOAuth
+	Vfs                 *ConfigVfs
 
 	// ErroCofres vem preenchido quando vaults.json existe mas não pôde ser
 	// lido. A tela mostra este erro na abertura (demanda 007).
 	ErroCofres error
 }
 
-// NovoGerenciador cria e inicializa o gerenciador principal.
-// Usa o diretório do executável do programa e procura o rclone nele e no PATH.
+// NovoGerenciador cria e inicializa o gerenciador principal. Procura o rclone
+// na pasta do executável e no PATH; vaults.json e vfs.json ficam na pasta de
+// configuração do usuário, copiados uma vez da pasta do executável (031).
 func NovoGerenciador() *GerenciadorRClone {
-	return NovoGerenciadorEm(obterDiretorioApp(), "")
+	return novoGerenciadorPadrao(obterDiretorioApp(), "")
+}
+
+// novoGerenciadorPadrao é NovoGerenciador com a pasta do executável e o rclone
+// escolhidos (testes).
+func novoGerenciadorPadrao(dirApp, executavel string) *GerenciadorRClone {
+	p := PrepararPastaConfig(dirApp)
+	g := novoGerenciador(dirApp, p.Leitura[ArquivoCofres], p.Leitura[ArquivoVfs], executavel, p.Err)
+	g.DiretorioConfig = p.Dir
+	g.RegistroPastaConfig = p.Registro
+	g.ErroPastaConfig = p.Err
+	return g
 }
 
 // NovoGerenciadorEm cria o gerenciador com o diretório do app e o executável
 // do rclone escolhidos por quem chama. Com executavel vazio, o rclone é
 // procurado como em NovoGerenciador. É o ponto de troca usado pelos testes
 // para apontar para um rclone falso.
+//
+// Aqui a mesma pasta serve para o rclone, vaults.json, vfs.json e o log, sem
+// cópia de arquivos antigos (031 fica em NovoGerenciador).
 func NovoGerenciadorEm(diretorioApp string, executavel string) *GerenciadorRClone {
+	g := novoGerenciador(diretorioApp, diretorioApp, diretorioApp, executavel, nil)
+	g.DiretorioConfig = diretorioApp
+	return g
+}
+
+// novoGerenciador lê vaults.json de dirCofres e vfs.json de dirVfs. Com
+// bloqueio, nada é gravado em lugar nenhum (nem a cópia .corrompido).
+func novoGerenciador(dirApp, dirCofres, dirVfs, executavel string, bloqueio error) *GerenciadorRClone {
 	g := &GerenciadorRClone{
-		DiretorioApp: diretorioApp,
+		DiretorioApp: dirApp,
 		Senhas:       NovoCacheSenhas(),
 		OAuth:        NovoGerenciadorOAuth(),
-		Vfs:          NovoConfigVfsEm(diretorioApp),
+		Vfs:          NovoConfigVfsEm(dirVfs),
 	}
 
 	g.Executavel = executavel
 	if g.Executavel == "" {
 		g.Executavel = g.localizarRclone()
 	}
-	g.Cofres, g.ErroCofres = NovoGerenciadorCofres(diretorioApp)
+	g.Cofres, g.ErroCofres = novoGerenciadorCofres(dirCofres, bloqueio)
+	if bloqueio != nil {
+		g.Vfs.BloquearGravacao(bloqueio)
+	}
 	g.Montagens = NovoGerenciadorMontagem(g.Executavel, g.Vfs)
 
 	return g
@@ -389,3 +424,8 @@ func (g *GerenciadorRClone) Encerrar() {
 	g.Senhas.LimparTodas()
 	g.OAuth.Abortar()
 }
+
+// SomenteLeitura diz que a pasta de configuração não pode ser usada (031):
+// destrancar e trancar cofres que já existem funcionam; criar ou importar
+// cofre e mudar a VFS ficam bloqueados.
+func (g *GerenciadorRClone) SomenteLeitura() bool { return g.ErroPastaConfig != nil }

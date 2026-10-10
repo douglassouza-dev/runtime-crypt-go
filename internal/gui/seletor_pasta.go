@@ -95,12 +95,16 @@ func (l *listaPastas) voltar() {
 	l.carregar()
 }
 
+// TextoCarregandoPastas aparece na lista enquanto o rclone lista a pasta
+// (aprovado na 031).
+const TextoCarregandoPastas = "Carregando pastas…"
+
 // carregar lista l.caminho numa goroutine e troca o conteúdo da lista pelo
 // resultado.
 func (l *listaPastas) carregar() {
 	l.lista.RemoveAll()
 
-	lblCarregando := canvas.NewText("🔄 Carregando pastas...", CorTextoSec)
+	lblCarregando := canvas.NewText(TextoCarregandoPastas, CorTextoSec)
 	lblCarregando.TextSize = 12
 	l.lista.Add(lblCarregando)
 	l.lista.Refresh()

@@ -44,7 +44,7 @@ stateDiagram-v2
 |---|---|---|
 | Janela de cofres | "● Trancado" em vermelho ou "● Destrancado • X:\\" em verde. Botão "Destrancar" ou "Trancar" | `gui/janela_principal.go:criarCardCofre` |
 | Wizard novo cofre | Nenhum estado. Depois de "Criar Cofre", nada aparece durante o OAuth até o diálogo "Autorização" ou um erro | `gui/wizards.go:DialogoNovoCofre`, `main.go:acaoNovoCofre` |
-| Wizard conectar existente | Nenhum estado. O seletor mostra "🔄 Carregando pastas..." durante o `lsd` | `gui/seletor_pasta.go` |
+| Wizard conectar existente | Nenhum estado. O seletor mostra "Carregando pastas…" durante o `lsd` | `gui/seletor_pasta.go` |
 | Ícone da bandeja | Nenhum estado. Tooltip fixo "RuntimeCrypto — Cofre Criptografado na Nuvem" | `tray/tray.go:aoIniciar` |
 
 | Regra | Hoje |

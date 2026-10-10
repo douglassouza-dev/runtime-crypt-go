@@ -11,7 +11,7 @@ Ator único: o usuário do computador. Atores externos: o binário `rclone`, o p
 | Wizard novo cofre | `internal/gui/wizards.go:DialogoNovoCofre` | Aba "1. Provedor": Google Drive, Microsoft OneDrive, Dropbox, Amazon S3 / MinIO. Aba "2. Senha": senha, confirmar senha, nome do cofre, "Cancelar", "Criar Cofre" |
 | Wizard conectar existente | `internal/gui/wizards.go:DialogoImportarCofre` e `internal/gui/seletor_pasta.go:DialogoSeletorPastaRemota` | Aba "1. Provedor": os quatro acima mais Pasta Local. Aba "2. Senhas": password, password2, nome, "Cancelar", "Avançar →". Depois, o seletor de pasta: entrar em pasta, "⬆ Voltar", "Cancelar", "✓ Selecionar esta pasta" |
 | Configurações VFS | `internal/gui/config_vfs.go:DialogoConfigVfs` | 13 campos de texto, "Restaurar Padrões", "Cancelar", "Salvar" |
-| Ícone da bandeja | `internal/tray/tray.go:aoIniciar` | "Abrir RuntimeCrypto", "Novo Cofre...", "Configuracoes" > "Auto-iniciar com Windows", "Configuracoes VFS...", "Verificar WinFsp/FUSE"; "Sobre"; "Sair" |
+| Ícone da bandeja | `internal/tray/tray.go:aoIniciar` | "Abrir RuntimeCrypto", "Novo Cofre…", "Configurações" > "Abrir ao ligar o computador", "Configurações VFS…", "Verificar WinFsp/FUSE"; "Sobre"; "Sair" |
 | Mensagem | `internal/gui/dialogos.go:DialogoMensagem` | "OK" |
 
 A bandeja não lista cofres. O tipo `AcaoCofre` existe e `main.go` sabe tratá-lo, mas nenhum item de menu o envia. O tooltip é fixo, porque `AtualizarTooltip` nunca é chamado.
@@ -105,7 +105,7 @@ Diagrama de estados alvo e diagrama do comportamento atual: [07-fluxogramas.md](
 
 ### UC-08 Auto-iniciar com o sistema
 
-- **Tela:** bandeja, "Auto-iniciar com Windows". O texto é o mesmo em Linux e macOS. O item não mostra se a opção está ligada. Erros são descartados.
+- **Tela:** bandeja, "Abrir ao ligar o computador" (031). O texto é o mesmo em todos os sistemas. O item não mostra se a opção está ligada. Erros são descartados.
 
 ### UC-09 Sair
 

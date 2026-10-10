@@ -62,6 +62,10 @@ func (e *ErroConferirRclone) Unwrap() error { return e.Err }
 // create`, que nem `<nome>` nem `<nome>_base` existem em vaults.json ou no
 // rclone.conf.
 func (g *GerenciadorRClone) IniciarCriacaoCofre(nome string) (*CriacaoCofre, error) {
+	// Demanda 031: sem pasta de configuração, nem o rclone.conf é tocado.
+	if g.SomenteLeitura() {
+		return nil, g.ErroPastaConfig
+	}
 	if err := ValidarNomeCofre(nome); err != nil {
 		return nil, err
 	}

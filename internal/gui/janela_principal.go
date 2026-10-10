@@ -1,6 +1,7 @@
 package gui
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"sync"
@@ -22,8 +23,10 @@ type JanelaPrincipal struct {
 	gerenciador     *core.GerenciadorRClone
 	containerCofres *fyne.Container
 	lblVazio        *widget.Label
-	estadoAnterior  map[string]string
-	mu              sync.Mutex
+	// montou diz que a lista já foi montada uma vez.
+	montou         bool
+	estadoAnterior map[string]string
+	mu             sync.Mutex
 
 	// falhasTrancar guarda, por cofre, o motivo do último Trancar que não
 	// terminou (demanda 022). O card mostra "Não trancou: {motivo}".
@@ -38,6 +41,10 @@ type JanelaPrincipal struct {
 	CallbackVerificarFuse func()
 	CallbackSobre         func()
 	CallbackSair          func()
+
+	// Demanda 031: guardados para os testes conferirem o modo só leitura.
+	btnNovo, btnImportar, btnConfig *widget.Button
+	faixa                           fyne.CanvasObject
 }
 
 // NovaJanelaPrincipal cria e configura a janela principal.
@@ -89,7 +96,7 @@ func (jp *JanelaPrincipal) construirInterface() {
 	header := container.NewStack(headerBg, container.NewPadded(headerConteudo))
 
 	// === ÁREA CENTRAL ===
-	jp.lblVazio = widget.NewLabel("Nenhum cofre configurado.\n\nClique em '＋ Adicionar Cofre' para começar.")
+	jp.lblVazio = widget.NewLabel(textoVazio(jp.gerenciador.SomenteLeitura()))
 	jp.lblVazio.Alignment = fyne.TextAlignCenter
 
 	jp.containerCofres = container.NewVBox()
@@ -109,6 +116,7 @@ func (jp *JanelaPrincipal) construirInterface() {
 		}
 	})
 	btnImportar.Importance = widget.LowImportance
+	jp.btnNovo, jp.btnImportar = btnNovo, btnImportar
 
 	areaCentral := container.NewVBox(
 		jp.containerCofres,
@@ -124,6 +132,7 @@ func (jp *JanelaPrincipal) construirInterface() {
 		}
 	})
 	btnConfig.Importance = widget.LowImportance
+	jp.btnConfig = btnConfig
 
 	btnSobre := widget.NewButton("ℹ  Sobre", func() {
 		if jp.CallbackSobre != nil {
@@ -147,11 +156,49 @@ func (jp *JanelaPrincipal) construirInterface() {
 	footer := container.NewStack(footerBg, container.NewPadded(footerConteudo))
 
 	// === LAYOUT FINAL ===
-	conteudo := container.NewBorder(header, footer, nil, nil, scrollCentral)
+	// Demanda 031: sem pasta de configuração, faixa fixa no topo e o que
+	// grava fica desabilitado. Destrancar e trancar seguem normais.
+	var topo fyne.CanvasObject = header
+	if jp.gerenciador.SomenteLeitura() {
+		jp.faixa = faixaSomenteLeitura(pastaDoErro(jp.gerenciador.ErroPastaConfig))
+		topo = container.NewVBox(header, jp.faixa)
+		btnNovo.Disable()
+		btnImportar.Disable()
+		btnConfig.Disable()
+	}
+	conteudo := container.NewBorder(topo, footer, nil, nil, scrollCentral)
 	jp.janela.SetContent(conteudo)
 
 	// Primeira renderização
 	jp.atualizarCofres()
+}
+
+// textoVazio é o texto da janela sem cofres. No modo só leitura (031) não
+// há a dica de Adicionar Cofre, que está desabilitado.
+func textoVazio(somenteLeitura bool) string {
+	if somenteLeitura {
+		return "Nenhum cofre ainda."
+	}
+	return "Nenhum cofre configurado.\n\nClique em '＋ Adicionar Cofre' para começar."
+}
+
+// pastaDoErro é a pasta que não pôde ser usada, "" se não se sabe.
+func pastaDoErro(err error) string {
+	var e *core.ErroPastaConfig
+	if errors.As(err, &e) {
+		return e.Pasta
+	}
+	return ""
+}
+
+// faixaSomenteLeitura é a faixa fixa do topo quando a pasta de configuração
+// não pode ser usada (031), sem título.
+func faixaSomenteLeitura(pasta string) fyne.CanvasObject {
+	texto := widget.NewLabel(frases.SomenteLeitura(pasta))
+	texto.Wrapping = fyne.TextWrapWord
+	texto.TextStyle = fyne.TextStyle{Bold: true}
+	fundo := canvas.NewRectangle(CorAviso)
+	return container.NewStack(fundo, container.NewPadded(texto))
 }
 
 // atualizarCofres reconstroi os cards dos cofres.
@@ -168,8 +215,9 @@ func (jp *JanelaPrincipal) atualizarCofres() {
 		estadoNovo[c.Nome] = chave
 	}
 
-	// Se não mudou, não reconstroi
-	if len(estadoNovo) == len(jp.estadoAnterior) {
+	// Se não mudou, não reconstroi. A primeira vez sempre monta: sem cofres,
+	// os dois mapas vazios pareciam iguais e o texto de vazio nunca aparecia.
+	if jp.montou && len(estadoNovo) == len(jp.estadoAnterior) {
 		igual := true
 		for k, v := range estadoNovo {
 			if jp.estadoAnterior[k] != v {
@@ -182,6 +230,7 @@ func (jp *JanelaPrincipal) atualizarCofres() {
 		}
 	}
 	jp.estadoAnterior = estadoNovo
+	jp.montou = true
 
 	// Limpar
 	jp.containerCofres.RemoveAll()

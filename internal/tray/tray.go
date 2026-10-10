@@ -23,6 +23,16 @@ const (
 	AcaoAutoIniciar   TipoAcaoTray = "auto_iniciar"
 )
 
+// Rótulos do menu da bandeja com acento e reticências de um caractere
+// (demanda 031, aprovado pela UI).
+const (
+	RotuloNovoCofre     = "Novo Cofre…"
+	RotuloConfiguracoes = "Configurações"
+	RotuloConfigVfs     = "Configurações VFS…"
+	// RotuloAutoIniciar é o mesmo em todos os sistemas.
+	RotuloAutoIniciar = "Abrir ao ligar o computador"
+)
+
 // AcaoTray é uma ação emitida pelo tray para processamento pela main loop.
 type AcaoTray struct {
 	Tipo  TipoAcaoTray
@@ -69,13 +79,18 @@ func (g *GerenciadorTray) aoIniciar() {
 	mAbrir := systray.AddMenuItem("Abrir RuntimeCrypto", "Abrir janela principal")
 	systray.AddSeparator()
 
-	mNovo := systray.AddMenuItem("Novo Cofre...", "Criar novo cofre")
+	mNovo := systray.AddMenuItem(RotuloNovoCofre, "Criar novo cofre")
 	systray.AddSeparator()
 
-	mConfig := systray.AddMenuItem("Configuracoes", "")
-	mAutoIniciar := mConfig.AddSubMenuItem("Auto-iniciar com Windows", "")
-	mConfigVfs := mConfig.AddSubMenuItem("Configuracoes VFS...", "")
+	mConfig := systray.AddMenuItem(RotuloConfiguracoes, "")
+	mAutoIniciar := mConfig.AddSubMenuItem(RotuloAutoIniciar, "")
+	mConfigVfs := mConfig.AddSubMenuItem(RotuloConfigVfs, "")
 	mVerificarFuse := mConfig.AddSubMenuItem("Verificar WinFsp/FUSE", "")
+	// Demanda 031: sem pasta de configuração, o que grava fica desabilitado.
+	if g.gerenciador.SomenteLeitura() {
+		mNovo.Disable()
+		mConfigVfs.Disable()
+	}
 
 	systray.AddSeparator()
 	mSobre := systray.AddMenuItem("Sobre", "Sobre o RuntimeCrypto")

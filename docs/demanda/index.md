@@ -36,6 +36,7 @@ A ordem segue o risco à estabilidade e aos segredos. A migração para Wails (0
 | [028](028-sair-com-cofre-que-caiu.md) | Sair com cofre que caiu e arquivos que não subiram | Alto · dados | 022, 025, 026 | Aberta |
 | [029](029-config-create-valor-com-hifen.md) | Criar cofre falha quando a senha ofuscada começa com hífen | Alto · uso | — | Aberta |
 | [030](030-senha-errada-nao-destranca.md) | Senha errada não destranca | Alto · segredos | 027 | Aberta |
+| [031](031-pasta-de-configuracao.md) | vaults.json e log na pasta de configuração do usuário | Alto · dados | 007, 012, 027 | Aberta |
 
 ## Ordem sugerida de execução
 
@@ -90,4 +91,7 @@ flowchart LR
     d029["029 hífen no config create"]
     d027 --> d030["030 senha errada"]
     d030 -.-> d004
+    d007 --> d031["031 pasta de configuração"]
+    d012 --> d031
+    d027 --> d031
 ```

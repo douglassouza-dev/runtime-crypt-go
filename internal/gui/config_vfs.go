@@ -106,6 +106,9 @@ func (f *formVfs) salvar() bool {
 
 // DialogoConfigVfs exibe o painel de configurações VFS.
 func DialogoConfigVfs(janelaPai fyne.Window, gerenciador *core.GerenciadorRClone) {
+	if gerenciador.SomenteLeitura() {
+		return // 031: Configurações está desabilitado
+	}
 	resultado := make(chan struct{}, 1)
 
 	form := novoFormVfs(gerenciador.Vfs)
