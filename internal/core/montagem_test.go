@@ -123,17 +123,21 @@ func TestMontarUnidadeSemLetraForaDoWindows(t *testing.T) {
 }
 
 func TestMontarUnidadeProcessoQueSaiFalhaRapido(t *testing.T) {
-	t.Skip("defeito conhecido: só desiste aos 45 s e sem o motivo do rclone — demanda 003")
 	g, f := novoMontadorFalso(t)
 	g.pontoExiste = func(string) bool { return false }
 	f.falhar()
+	t.Setenv(envFalsoStderr, "CRITICAL: teste")
 
 	inicio := time.Now()
 	ok, msg, _ := g.MontarUnidade("cofre", "V", "", nil)
 
-	if ok || time.Since(inicio) > 2*time.Second || !strings.Contains(msg, "CRITICAL") {
+	if ok || time.Since(inicio) > 2*time.Second || !strings.Contains(msg, "CRITICAL: teste") {
 		t.Errorf("ok=%v em %v msg=%q", ok, time.Since(inicio), msg)
 	}
+	if !strings.Contains(msg, "codigo 1") {
+		t.Errorf("a mensagem deveria trazer o código de saída: %q", msg)
+	}
+	semMontagemNemProcesso(t, g, f)
 }
 
 func TestDesmontarUnidade(t *testing.T) {
