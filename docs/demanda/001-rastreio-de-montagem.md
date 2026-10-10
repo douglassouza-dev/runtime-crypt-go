@@ -1,6 +1,6 @@
 # 001 — O programa perde o processo do rclone logo depois de montar
 
-- Estado: Aberta
+- Estado: Feita (bc37337)
 - Risco: Alto — estabilidade
 - Onde: `internal/core/montagem.go:processoAtivo`, `Status`, `MontarUnidade`
 - Depende de: —

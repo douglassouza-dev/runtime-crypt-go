@@ -1,6 +1,6 @@
 # 031 — vaults.json e log na pasta de configuração do usuário
 
-- Estado: Aberta
+- Estado: Feita (f3df0a4)
 - Risco: Alto · dados
 - Onde: `internal/core/gerenciador.go:NovoGerenciador`; `internal/core/pasta_config.go` (novo); `internal/core/cofres.go`; `internal/core/vfs.go`; `main.go`; `internal/core/criacao.go:IniciarCriacaoCofre`; `internal/gui/janela_principal.go` (faixa); `internal/gui/acoes.go`, `internal/gui/config_vfs.go`, `internal/tray/tray.go` (ações desabilitadas).
 - Depende de: 007, 012, 027

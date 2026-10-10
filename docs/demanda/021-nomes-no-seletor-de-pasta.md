@@ -1,6 +1,6 @@
 # 021 — O seletor de pasta mostra "-1 alfa" no lugar de "alfa"
 
-- Estado: Aberta
+- Estado: Feita (c431ba8)
 - Risco: Médio — uso, dados
 - Onde: `internal/core/gerenciador.go:ListarDiretoriosRemoto`; `internal/gui/seletor_pasta.go:DialogoSeletorPastaRemota`
 - Depende de: 016

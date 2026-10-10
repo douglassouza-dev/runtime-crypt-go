@@ -103,7 +103,7 @@ func ValidarConectarCofre(d DadosConectarCofre) error {
 
 // ErrCancelado é devolvido quando o usuário desiste no meio (ex.: fecha o
 // seletor de pasta).
-var ErrCancelado = errors.New("cancelado pelo usuario")
+var ErrCancelado = errors.New("cancelado pelo usuário")
 
 // Esperas do OAuth. Variáveis só para os testes encurtarem.
 var (

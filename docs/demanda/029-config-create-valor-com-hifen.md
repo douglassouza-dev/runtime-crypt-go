@@ -1,6 +1,6 @@
 # 029 — Criar cofre falha quando a senha ofuscada começa com hífen
 
-- Estado: Aberta
+- Estado: Feita (a12d09e)
 - Risco: Alto · uso
 - Onde: `internal/core/criar_remoto.go:criarRemoto`
 - Depende de: —

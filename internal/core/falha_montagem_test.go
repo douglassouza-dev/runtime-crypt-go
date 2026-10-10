@@ -43,7 +43,7 @@ func TestMontarUnidadeTempoEsgotadoNaoDeixaProcesso(t *testing.T) {
 
 	ok, msg, _ := g.MontarUnidade("cofre", "V", "", nil)
 
-	if ok || !strings.Contains(msg, "Timeout") {
+	if ok || msg != "Não montou: a unidade não ficou pronta em 0.5 s." {
 		t.Errorf("ok=%v msg=%q", ok, msg)
 	}
 	semMontagemNemProcesso(t, g, f)
@@ -71,5 +71,11 @@ func TestUltimasLinhasGuardaSoAsFinais(t *testing.T) {
 
 	if got := u.Texto(); got != "tres\nquatro\ncinco" {
 		t.Errorf("Texto = %q", got)
+	}
+}
+
+func TestMotivoUnidadeNaoFicouPronta(t *testing.T) {
+	if got := MotivoUnidadeNaoFicouPronta(LimiteMontagemPadrao); got != "a unidade não ficou pronta em 45 s" {
+		t.Errorf("%q", got)
 	}
 }

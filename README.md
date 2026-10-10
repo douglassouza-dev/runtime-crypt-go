@@ -7,7 +7,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go 1.22+">
   <img src="https://img.shields.io/badge/Plataforma-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey?style=flat-square" alt="Multiplataforma">
-  <img src="https://img.shields.io/badge/Licen%C3%A7a-AGPL--3.0-red?style=flat-square" alt="AGPL-3.0">
+  <img src="https://img.shields.io/badge/Licen%C3%A7a-GPL--3.0-blue?style=flat-square" alt="GPL-3.0">
   <img src="https://img.shields.io/badge/RClone-Crypt-green?style=flat-square" alt="RClone Crypt">
 </p>
 
@@ -25,13 +25,13 @@ Seus arquivos são **criptografados localmente antes de enviados** à nuvem e **
 
 - 🔐 **Criptografia ponta-a-ponta** — AES-256 via RClone Crypt
 - 🖥️ **Unidades virtuais** — Monta como drive normal (ex: `V:\`) via WinFsp/FUSE
-- ☁️ **Multi-nuvem** — Google Drive, OneDrive, Dropbox, Amazon S3, Pasta Local
+- ☁️ **Multi-nuvem** — Google Drive, Microsoft OneDrive, Dropbox
 - 🔑 **OAuth nativo** — Autenticação segura sem copiar tokens manualmente
 - 🎨 **Interface gráfica** — GUI escura e moderna com Fyne
 - 📌 **System Tray** — Roda em segundo plano com menu no ícone da bandeja
 - ⚡ **Binário único** — Sem Python, sem pip, sem virtualenv (~15 MB)
 - 🖱️ **Um clique** — Destrancar cofre = montar + abrir Explorer
-- 🔄 **Auto-montar** — Cofres favoritos montam ao iniciar o programa
+- 🔄 **Auto-montar** — Ainda não funciona: nenhum cofre monta sozinho ao iniciar (demanda 015)
 - ⚙️ **VFS configurável** — Cache, chunking, polling, write-back
 
 ## 🏗️ Arquitetura
@@ -166,10 +166,13 @@ set GOOS=linux&& set GOARCH=amd64&& go build -o runtime-crypt-go .
 
 ### Fluxo Básico
 
-1. **Adicionar Cofre** → Escolher provedor → Autorizar (OAuth) → Definir senha
-2. **Destrancar** → Digitar senha → Unidade montada automaticamente → Explorer abre
-3. **Trancar** → Um clique → Unidade desmontada → Senha limpa da memória
-4. **Sair** → Todas as unidades são desmontadas automaticamente
+1. **Adicionar Cofre** → Escolher o provedor (Google Drive, Microsoft OneDrive ou Dropbox) → Senha, Confirmar senha e Nome do cofre → **Criar Cofre** → Autorizar no navegador (OAuth) → O cofre é criado na raiz da conta → Sucesso
+2. **Importar Cofre Existente** → Escolher o provedor → Senha do cofre, Senha 2 (se houver) e Nome → **Avançar** → Autorizar no navegador (OAuth) → Escolher a pasta onde o cofre está → Sucesso
+3. **Destrancar** → Digitar a senha → Unidade montada → O explorador de arquivos abre
+4. **Trancar** → Um clique → Espera o envio terminar → Unidade desmontada → Senha limpa da memória
+5. **Sair** → Todas as unidades são desmontadas. Se um cofre caiu com arquivos que não subiram, o programa avisa antes
+
+Amazon S3 / MinIO e Pasta Local não aparecem nos assistentes até funcionarem (demanda 014). Um cofre desses que já está em `vaults.json` continua aparecendo e funcionando.
 
 ## 🔒 Segurança
 
@@ -181,4 +184,6 @@ set GOOS=linux&& set GOARCH=amd64&& go build -o runtime-crypt-go .
 
 ## 📄 Licença
 
-[GNU Affero General Public License v3.0 (AGPL-3.0)](LICENSE) — Douglas Eufrauzino de Souza
+Copyright (C) 2026 Douglas Eufrauzino de Souza
+
+O RuntimeCrypto é licenciado sob a GPLv3 ou qualquer versão posterior ([GNU General Public License v3.0](LICENSE) ou posterior; SPDX: `GPL-3.0-or-later`). O texto completo está em [LICENSE](LICENSE).

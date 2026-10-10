@@ -186,6 +186,13 @@ const (
 
 // DialogoMensagem exibe um diálogo modal de mensagem (info/erro/aviso).
 func DialogoMensagem(janelaPai fyne.Window, titulo string, mensagem string, tipo TipoMensagem) {
+	DialogoMensagemComBotao(janelaPai, titulo, mensagem, tipo, "", nil)
+}
+
+// DialogoMensagemComBotao é DialogoMensagem com um botão a mais ao lado do
+// OK (ex.: "Baixar WinFsp"). O botão roda acao e não fecha o diálogo. Sem
+// rotulo, é o DialogoMensagem de sempre.
+func DialogoMensagemComBotao(janelaPai fyne.Window, titulo string, mensagem string, tipo TipoMensagem, rotulo string, acao func()) {
 	resultado := make(chan struct{}, 1)
 
 	icones := map[TipoMensagem]string{
@@ -236,7 +243,7 @@ func DialogoMensagem(janelaPai fyne.Window, titulo string, mensagem string, tipo
 		widget.NewSeparator(),
 		lblMensagem,
 		layout.NewSpacer(),
-		container.NewCenter(btnOk),
+		container.NewCenter(botoesMensagem(btnOk, rotulo, acao)),
 	)
 
 	padded := container.NewPadded(conteudo)
@@ -290,4 +297,14 @@ func DialogoSairComPendencias(janelaPai fyne.Window, texto string) bool {
 		dialogo.Show()
 	})
 	return <-escolha
+}
+
+// botoesMensagem é o OK e, com rotulo, o botão extra à esquerda dele.
+func botoesMensagem(btnOk *widget.Button, rotulo string, acao func()) fyne.CanvasObject {
+	if rotulo == "" || acao == nil {
+		return btnOk
+	}
+	extra := widget.NewButton(rotulo, acao)
+	extra.Importance = widget.MediumImportance
+	return container.NewHBox(extra, btnOk)
 }

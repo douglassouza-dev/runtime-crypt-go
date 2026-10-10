@@ -1,6 +1,6 @@
 # 006 — Criar cofre pode sobrescrever um remoto existente e deixa remotos órfãos
 
-- Estado: Aberta
+- Estado: Feita (a474807)
 - Risco: Alto — dados
 - Onde: `main.go:acaoNovoCofre`, `acaoImportarCofre`; `internal/core/cofres.go:Adicionar`; `internal/core/gerenciador.go:CriarRemoto`
 - Depende de: —

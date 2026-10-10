@@ -60,7 +60,7 @@ func main() {
 
 	bandeja := tray.NovoGerenciadorTray(gerenciador, canalAcoes, iconeBytes)
 	go bandeja.Iniciar(nil, nil)
-	go atenderBandeja(canalAcoes, janela, acoes, gerenciador, sair)
+	go atenderBandeja(canalAcoes, janela, acoes, gerenciador, bandeja, sair)
 
 	go func() {
 		time.Sleep(1500 * time.Millisecond)
@@ -73,7 +73,7 @@ func main() {
 }
 
 // atenderBandeja traduz cada clique da bandeja numa ação.
-func atenderBandeja(canal <-chan tray.AcaoTray, janela *gui.JanelaPrincipal, acoes *gui.Acoes, gerenciador *core.GerenciadorRClone, sair func()) {
+func atenderBandeja(canal <-chan tray.AcaoTray, janela *gui.JanelaPrincipal, acoes *gui.Acoes, gerenciador *core.GerenciadorRClone, bandeja *tray.GerenciadorTray, sair func()) {
 	for acao := range canal {
 		switch acao.Tipo {
 		case tray.AcaoMostrarJanela:
@@ -92,7 +92,10 @@ func atenderBandeja(canal <-chan tray.AcaoTray, janela *gui.JanelaPrincipal, aco
 		case tray.AcaoSobre:
 			go acoes.Sobre()
 		case tray.AcaoAutoIniciar:
-			go acoes.AlternarAutoIniciar()
+			go func() {
+				acoes.AlternarAutoIniciar()
+				bandeja.AtualizarAutoIniciar() // a marca segue o estado real
+			}()
 		case tray.AcaoSair:
 			sair()
 		}

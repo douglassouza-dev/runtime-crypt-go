@@ -54,12 +54,12 @@ func NovoConfigVfsEm(diretorio string) *ConfigVfs {
 		return c
 	}
 	if err != nil {
-		c.avisos = append(c.avisos, fmt.Sprintf("%s nao pode ser lido (%v); usando os valores padrao.", c.arquivo, err))
+		c.avisos = append(c.avisos, fmt.Sprintf("%s não pode ser lido (%v); usando os valores padrão.", c.arquivo, err))
 		return c
 	}
 	var salvo map[string]string
 	if err := json.Unmarshal(dados, &salvo); err != nil {
-		c.avisos = append(c.avisos, fmt.Sprintf("%s esta corrompido (%v); usando os valores padrao.", c.arquivo, err))
+		c.avisos = append(c.avisos, fmt.Sprintf("%s está corrompido (%v); usando os valores padrão.", c.arquivo, err))
 		return c
 	}
 
@@ -105,7 +105,7 @@ func (c *ConfigVfs) gravar(cfg map[string]string) error {
 		return err
 	}
 	if err := gravarAtomico(c.arquivo, dados); err != nil {
-		return fmt.Errorf("nao foi possivel gravar %s: %w", c.arquivo, err)
+		return fmt.Errorf("não foi possível gravar %s: %w", c.arquivo, err)
 	}
 	return nil
 }

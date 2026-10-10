@@ -18,13 +18,13 @@ var reNomeCofre = regexp.MustCompile(`^[\p{L}\p{N}_.+@][\p{L}\p{N}_.+@ -]*$`)
 // ValidarNomeCofre confere o nome antes de qualquer chamada ao rclone.
 func ValidarNomeCofre(nome string) error {
 	if nome == "" {
-		return errors.New("O nome do cofre nao pode ficar vazio.")
+		return errors.New("O nome do cofre não pode ficar vazio.")
 	}
 	if strings.TrimSpace(nome) != nome {
-		return errors.New("O nome do cofre nao pode comecar nem terminar com espaco.")
+		return errors.New("O nome do cofre não pode começar nem terminar com espaço.")
 	}
 	if !reNomeCofre.MatchString(nome) {
-		return fmt.Errorf("Nome '%s' invalido: use letras, numeros, espaco e _ . + @ -, sem comecar por hifen.", nome)
+		return fmt.Errorf("Nome '%s' inválido: use letras, números, espaço e _ . + @ -, sem começar por hífen.", nome)
 	}
 	return nil
 }
@@ -46,14 +46,14 @@ type CriacaoCofre struct {
 type ErroNomeNoRclone struct{ Nome string }
 
 func (e *ErroNomeNoRclone) Error() string {
-	return fmt.Sprintf("Ja existe um remoto '%s' no rclone. Escolha outro nome para o cofre.", e.Nome)
+	return fmt.Sprintf("Já existe um remoto '%s' no rclone. Escolha outro nome para o cofre.", e.Nome)
 }
 
 // ErroConferirRclone: não deu para listar o rclone.conf antes de criar.
 type ErroConferirRclone struct{ Err error }
 
 func (e *ErroConferirRclone) Error() string {
-	return fmt.Sprintf("Nao foi possivel conferir os remotos do rclone: %v", e.Err)
+	return fmt.Sprintf("Não foi possível conferir os remotos do rclone: %v", e.Err)
 }
 
 func (e *ErroConferirRclone) Unwrap() error { return e.Err }
@@ -70,12 +70,12 @@ func (g *GerenciadorRClone) IniciarCriacaoCofre(nome string) (*CriacaoCofre, err
 		return nil, err
 	}
 	if !g.EstaDisponivel() {
-		return nil, errors.New("RClone nao disponivel.")
+		return nil, errors.New(TextoRcloneNaoInstalado)
 	}
 	base := NomeRemotoBase(nome)
 	for _, n := range []string{nome, base} {
 		if g.Cofres.Obter(n) != nil {
-			return nil, fmt.Errorf("Ja existe um cofre com o nome '%s'.", n)
+			return nil, fmt.Errorf("Já existe um cofre com o nome '%s'.", n)
 		}
 	}
 	remotos, err := g.listarTodosRemotos()
@@ -104,7 +104,7 @@ func (c *CriacaoCofre) Nome() string { return c.nome }
 // Devolve *ErroRclone quando o rclone recusou (demanda 027).
 func (c *CriacaoCofre) CriarRemoto(nomeRemoto, tipo string, params map[string]string) error {
 	if nomeRemoto != c.nome && nomeRemoto != NomeRemotoBase(c.nome) {
-		return fmt.Errorf("Remoto '%s' nao pertence ao cofre '%s'.", nomeRemoto, c.nome)
+		return fmt.Errorf("Remoto '%s' não pertence ao cofre '%s'.", nomeRemoto, c.nome)
 	}
 	c.lembrar(nomeRemoto)
 	return c.g.criarRemoto(nomeRemoto, tipo, params)

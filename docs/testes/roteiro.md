@@ -99,7 +99,7 @@ Para fechar o app, use sempre a bandeja → `Sair` ou o botão `✕  Sair` da ja
 - Esperado:
   - Dica: `RuntimeCrypto` e, embaixo, `Trancado (N)`, com N igual ao número de cofres. Sem cofres, a dica é `RuntimeCrypto — nenhum cofre`.
   - Menu, nesta ordem: `Abrir RuntimeCrypto`, `Novo Cofre…`, `Configurações` (submenu), `Sobre`, `Sair`.
-  - Submenu: `Abrir ao ligar o computador`, `Configurações VFS…`, `Verificar WinFsp/FUSE`.
+  - Submenu: `Abrir ao ligar o computador` (com marca quando ligado), `Configurações VFS…`, `Verificar WinFsp/FUSE`.
   - `…` é um caractere só (não três pontos). `Configurações` tem cedilha e til.
   - `Abrir ao ligar o computador` só é testado no T-087, porque mexe no registro.
 - [ ] Passou
@@ -119,7 +119,7 @@ Para fechar o app, use sempre a bandeja → `Sair` ou o botão `✕  Sair` da ja
 - Demandas: —
 - Passos:
   1. Clique em `ℹ  Sobre`.
-- Esperado: diálogo `RuntimeCrypto`, com `Versão 3.0` e `Licença AGPL-3.0 — Copyright (c) Douglas Eufrauzino de Souza`.
+- Esperado: diálogo `RuntimeCrypto`, com `Versão 3.0` e `Licença GPL-3.0 ou posterior — Copyright (c) Douglas Eufrauzino de Souza`.
 - [ ] Passou
 - Resultado:
 
@@ -139,7 +139,7 @@ Para fechar o app, use sempre a bandeja → `Sair` ou o botão `✕  Sair` da ja
   6. Senha `senha-teste-x`, confirmação `outra-senha`. Clique em `Criar Cofre`.
   7. Clique em `Cancelar`.
 - Esperado:
-  - Passo 2: botões `Google Drive`, `Microsoft OneDrive`, `Dropbox` e `Amazon S3 / MinIO`. Não há `Pasta Local`.
+  - Passo 2: botões `Google Drive`, `Microsoft OneDrive` e `Dropbox`, só esses. Não há `Amazon S3 / MinIO` nem `Pasta Local`.
   - Aba `2. Senha`: rótulos `Senha:`, `Confirmar senha:` e `Nome do cofre:`, com os textos de exemplo `Mínimo 8 caracteres`, `Repita a senha` e `Ex: MeusDocumentos`.
   - Passos 3 a 6: um diálogo `Erro` com, nesta ordem:
     - `Selecione um provedor primeiro.`
@@ -202,10 +202,9 @@ Para fechar o app, use sempre a bandeja → `Sair` ou o botão `✕  Sair` da ja
 - Esperado:
   - O navegador não abre em nenhum dos três.
   - Diálogo `Erro` com:
-    1. `Ja existe um cofre com o nome 'teste-a'.`
+    1. `Já existe um cofre com o nome 'teste-a'.`
     2. `O nome 'teste-a_base' já está em uso no rclone. Escolha outro nome para o cofre.`
-    3. `Nome 'a:b' invalido: use letras, numeros, espaco e _ . + @ -, sem comecar por hifen.`
-  - As frases 1 e 3 estão sem acento na `master`. Isso é conhecido (ver "Diferenças de texto" no fim). O teste passa se o texto for esse.
+    3. `Nome 'a:b' inválido: use letras, números, espaço e _ . + @ -, sem começar por hífen.`
   - `rclone listremotes` continua igual ao do T-022.
 - [ ] Passou
 - Resultado:
@@ -226,7 +225,7 @@ Para fechar o app, use sempre a bandeja → `Sair` ou o botão `✕  Sair` da ja
   6. Clique em `⬆ Voltar`.
   7. Não feche o seletor: o T-031 continua nele.
 - Esperado:
-  - Passo 1: `Importar Cofre Existente` e `Onde está o cofre existente?`, com `Google Drive`, `Microsoft OneDrive`, `Dropbox`, `Amazon S3 / MinIO` e `Pasta Local`.
+  - Passo 1: `Importar Cofre Existente` e `Onde está o cofre existente?`, com `Google Drive`, `Microsoft OneDrive` e `Dropbox`, só esses. Não há `Amazon S3 / MinIO` nem `Pasta Local`.
   - Passo 2: rótulos `Senha do cofre (password):`, `Senha 2 / salt (password2):` e `Nome para o cofre:`. Textos de exemplo `Senha usada na criação do cofre` e `Deixe vazio se igual à senha`.
   - Passo 4:
     - Título `Selecionar Pasta do Cofre` e `Navegando em: Google Drive`.
@@ -712,7 +711,7 @@ if (Test-Path "$env:APPDATA\rclone\rclone.conf") { Copy-Item "$env:APPDATA\rclon
   3. `Cancelar`. Clique em `＋  Adicionar Cofre`, escolha `Google Drive`, senha `senha-teste-x` duas vezes, nome `teste-sem-rclone`, `Criar Cofre`.
 - Esperado:
   - Passo 2: embaixo do campo, `Não destrancou: o rclone não está instalado.`. O diálogo continua aberto e o card continua `Trancado`.
-  - Passo 3: diálogo `Erro` com `RClone nao disponivel.` (sem acento na `master`). O navegador não abre.
+  - Passo 3: diálogo `Erro` com `O rclone não está instalado.`. O navegador não abre.
 - Como desfazer: feche o app. Nada foi renomeado nem gravado.
 - Conferência: `abrir.ps1` e destrancar `teste-a` funcionam. Tranque e feche.
 - [ ] Passou
@@ -758,7 +757,7 @@ if (Test-Path "$env:APPDATA\rclone\rclone.conf") { Copy-Item "$env:APPDATA\rclon
   4. Feche o app. Repita `abrir.ps1` e feche mais duas vezes.
   5. Liste `appdata\RuntimeCrypto\`. Rode `Get-FileHash` no `vaults.json` de novo.
 - Esperado:
-  - Passo 3: diálogo `Erro ao ler os cofres` com `…\vaults.json esta corrompido (…); nada sera gravado por cima. Copia guardada em …\vaults.json.corrompido-…` (sem acento na `master`).
+  - Passo 3: diálogo `Erro ao ler os cofres` com `…\vaults.json está corrompido (…); nada será gravado por cima. Cópia guardada em …\vaults.json.corrompido-…`.
   - Passo 5: um arquivo `vaults.json.corrompido-…` só, mesmo depois de três aberturas. O SHA256 do `vaults.json` é o do passo 2: ele não foi regravado.
 - Como desfazer:
   1. Feche o app.
@@ -796,7 +795,7 @@ if (Test-Path "$env:APPDATA\rclone\rclone.conf") { Copy-Item "$env:APPDATA\rclon
 ### T-087 · Abrir ao ligar o computador
 
 - Demandas: 031
-- Este teste mexe no registro do seu usuário (`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, valor `RuntimeCrypto`). O item do menu não mostra marca de ligado ou desligado, então o estado só é visto no registro.
+- Este teste mexe no registro do seu usuário (`HKCU\Software\Microsoft\Windows\CurrentVersion\Run`, valor `RuntimeCrypto`). O item do menu mostra uma marca quando está ligado. O teste confere a marca contra o registro.
 - Preparação:
   1. Rode e guarde a saída:
 
@@ -806,12 +805,15 @@ if (Test-Path "$env:APPDATA\rclone\rclone.conf") { Copy-Item "$env:APPDATA\rclon
 
   2. Se o valor já existe (o seu RuntimeCrypto de verdade abre com o Windows), anote o caminho que aparece. O primeiro clique vai **tirar** esse valor.
 - Passos:
-  1. Rode `abrir.ps1`. Bandeja → `Configurações` → `Abrir ao ligar o computador`.
-  2. Rode o `reg query` de novo.
-  3. Clique no item de novo. Rode o `reg query` de novo.
+  1. Rode `abrir.ps1`. Bandeja → `Configurações`. Olhe o item `Abrir ao ligar o computador` sem clicar.
+  2. Clique em `Abrir ao ligar o computador`. Rode o `reg query` de novo. Abra o submenu de novo e olhe o item.
+  3. Clique no item de novo. Rode o `reg query` de novo. Abra o submenu de novo e olhe o item.
+  4. Feche o app e rode `abrir.ps1` de novo. Abra o submenu e olhe o item.
 - Esperado:
   - O nome do item é `Abrir ao ligar o computador`, e não `Auto-iniciar com Windows`.
-  - Cada clique troca o estado: o valor `RuntimeCrypto` aparece (com o caminho de `RuntimeCrypto-teste\app\runtime-crypt-go.exe`) ou some. Nenhum diálogo de erro.
+  - Passo 1: o item tem marca se, e só se, o `reg query` da preparação achou o valor `RuntimeCrypto`.
+  - Passos 2 e 3: cada clique troca o estado. O valor `RuntimeCrypto` aparece (com o caminho de `RuntimeCrypto-teste\app\runtime-crypt-go.exe`) ou some, e a marca acompanha: com o valor, marcado; sem o valor, sem marca. Nenhum diálogo de erro.
+  - Passo 4: a marca é a do último `reg query`.
 - Como desfazer: clique no item até o registro ficar como na preparação. Se o valor existia com o caminho do app de verdade, devolva-o com:
 
   ```powershell
@@ -834,7 +836,7 @@ if (Test-Path "$env:APPDATA\rclone\rclone.conf") { Copy-Item "$env:APPDATA\rclon
   3. `teste-a` → `Destrancar` → `senha-teste-a`.
   4. Clique no botão `Baixar WinFsp` do card.
 - Esperado:
-  - Passo 2: diálogo `WinFsp/FUSE Ausente` com `WinFsp nao encontrado. Necessario para montar unidades virtuais.` e `Baixe em: https://winfsp.dev/rel/` (sem acento na `master`).
+  - Passo 2: diálogo `WinFsp/FUSE Ausente` com `Não montou: falta instalar o WinFsp.` e dois botões, `Baixar WinFsp` e `OK`. `Baixar WinFsp` abre `https://winfsp.dev/rel/` no navegador e não fecha o diálogo.
   - Passo 3: diálogo `Erro ao Destrancar` com `Não montou: falta instalar o WinFsp.`. O card mostra a mesma frase em vermelho e dois botões: `Tentar de novo` e `Baixar WinFsp`. Nenhum `rclone.exe` fica aberto. Não aparece `cannot find winfsp`.
   - Passo 4: o navegador abre `https://winfsp.dev/rel/`.
 - Como desfazer:
@@ -894,7 +896,7 @@ Preparação para os testes da 032: um projeto no Google Cloud com a Drive API l
 - Passos:
   1. `＋  Adicionar Cofre` → `Google Drive` → clique em `Usar meu próprio app do Google`.
   2. Repita em `📥  Importar Cofre Existente` → `Google Drive`.
-  3. Nos dois wizards, escolha `Microsoft OneDrive`, `Dropbox`, `Amazon S3 / MinIO` e, no de importar, `Pasta Local`.
+  3. Nos dois wizards, escolha `Microsoft OneDrive` e `Dropbox`.
 - Esperado:
   - Passos 1 e 2: aparecem os campos `Client ID` e `Client secret` e um link para o guia do rclone (https://rclone.org/drive/#making-your-own-client-id). O `Client secret` esconde o texto, como um campo de senha.
   - Texto de ajuda: `Recomendado se você envia muitos arquivos. Evita os limites do app compartilhado.`. Nenhum número de velocidade.
@@ -1078,13 +1080,13 @@ Só entram as demandas com PR de código na `master`. As que ainda não têm có
 
 ## Diferenças de texto conhecidas
 
-Textos da `master` que aparecem na tela sem acento ou fora do padrão. Os testes esperam o texto como está hoje. Corrigir é outra demanda.
+Desde o PR "textos e assistente" (#49), as mensagens da `master` têm acento. Este roteiro espera os textos novos, aprovados pela UI. Mudaram além do acento:
 
-| Onde | Texto na `master` |
-|---|---|
-| Criar com nome repetido (T-023) | `Ja existe um cofre com o nome '…'.` |
-| Criar com nome inválido (T-023) | `Nome '…' invalido: use letras, numeros, espaco e _ . + @ -, sem comecar por hifen.` |
-| Criar sem rclone (T-082) | `RClone nao disponivel.` |
-| `vaults.json` corrompido (T-085) | `… esta corrompido (…); nada sera gravado por cima. Copia guardada em …` |
-| Verificar WinFsp sem WinFsp (T-088) | `WinFsp nao encontrado. Necessario para montar unidades virtuais.` |
-| Outras mensagens que o roteiro não provoca | `O nome do cofre nao pode ficar vazio.`, `Este cofre ja esta montado em …`, `Timeout: A unidade nao ficou pronta em …`, `O rclone (pid …) nao terminou …`, `O rclone terminou, mas … continua visivel. …` |
+| Onde | Antes | Agora |
+|---|---|---|
+| Criar sem rclone (T-082) | `RClone nao disponivel.` | `O rclone não está instalado.` |
+| Verificar WinFsp sem WinFsp (T-088) | `WinFsp nao encontrado. Necessario para montar unidades virtuais.` e `Baixe em: …` | `Não montou: falta instalar o WinFsp.` com o botão `Baixar WinFsp` |
+| Unidade que não fica pronta (o roteiro não provoca) | `Timeout: A unidade nao ficou pronta em …` | `Não montou: a unidade não ficou pronta em 45 s.` (no card, `Não destrancou: a unidade não ficou pronta em 45 s`) |
+| Verificar WinFsp/FUSE sem FUSE, no Linux (T-090 não provoca) | `FUSE nao encontrado. Instale com: sudo apt install fuse3` | `Não montou: falta instalar o FUSE.` e `Instale o pacote fuse3 pelo gerenciador do seu sistema.`, sem botão |
+
+Se um texto aparecer sem acento, anote em `Resultado:`: é um erro.

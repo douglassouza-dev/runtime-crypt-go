@@ -1,6 +1,6 @@
 # 007 — `vaults.json` corrompido é sobrescrito em silêncio
 
-- Estado: Aberta
+- Estado: Feita (488f93f)
 - Risco: Alto — dados
 - Onde: `internal/core/cofres.go:carregar`, `salvar`, `Atualizar`; `internal/core/gerenciador.go:obterDiretorioApp`
 - Depende de: —

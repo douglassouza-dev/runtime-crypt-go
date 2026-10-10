@@ -1,6 +1,6 @@
 # 030 — Senha errada não destranca
 
-- Estado: Aberta
+- Estado: Feita (9984f81)
 - Risco: Alto · segredos
 - Onde: `internal/core/casos_de_uso.go:Destrancar`; `internal/gui/dialogos.go:DialogoSenha`; `internal/gui/acoes.go:destrancar`
 - Depende de: 027

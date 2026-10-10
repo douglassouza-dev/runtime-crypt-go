@@ -1,6 +1,6 @@
 # 023 — O seletor de pasta mexe na tela a partir de uma goroutine
 
-- Estado: Aberta
+- Estado: Feita (1c0aa46)
 - Risco: Médio · estabilidade
 - Onde: `internal/gui/seletor_pasta.go:DialogoSeletorPastaRemota`
 - Depende de: 021

@@ -39,13 +39,13 @@ func TestCardComTrancarQueFalhouContinuaDestrancadoComMotivo(t *testing.T) {
 	test.NewTempApp(t)
 	cofre := core.CofreStatus{Cofre: core.Cofre{Nome: "fotos"}, Estado: core.EstadoMontado, Letra: "V"}
 
-	card := criarCardCofre(cofre, "o rclone nao terminou", func() {}, func() {})
+	card := criarCardCofre(cofre, "o rclone não terminou", func() {}, func() {})
 
 	junto := strings.Join(textosDoCard(card), "|")
 	if !strings.Contains(junto, "Destrancado") || !strings.Contains(junto, `V:\`) {
 		t.Errorf("o card deveria continuar destrancado em V:\\; mostra %q", junto)
 	}
-	if !strings.Contains(junto, "Não trancou: o rclone nao terminou") {
+	if !strings.Contains(junto, "Não trancou: o rclone não terminou") {
 		t.Errorf("falta a linha \"Não trancou\"; o card mostra %q", junto)
 	}
 	if !strings.Contains(junto, "[Trancar]") {

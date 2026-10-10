@@ -119,15 +119,15 @@ func (g *GerenciadorCofres) carregar() error {
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("nao foi possivel ler %s: %w", caminho, err)
+		return fmt.Errorf("não foi possível ler %s: %w", caminho, err)
 	}
 	var cofres []Cofre
 	if err := json.Unmarshal(dados, &cofres); err != nil {
 		if g.bloqueio != nil {
-			return fmt.Errorf("%s esta corrompido (%v); nada sera gravado por cima. Nenhuma copia guardada: a pasta de configuracao nao aceita gravacao", caminho, err)
+			return fmt.Errorf("%s está corrompido (%v); nada será gravado por cima. Nenhuma cópia guardada: a pasta de configuração não aceita gravação", caminho, err)
 		}
 		copia := g.preservarIlegivel(dados)
-		return fmt.Errorf("%s esta corrompido (%v); nada sera gravado por cima. Copia guardada em %s", caminho, err, copia)
+		return fmt.Errorf("%s está corrompido (%v); nada será gravado por cima. Cópia guardada em %s", caminho, err, copia)
 	}
 	if cofres == nil {
 		cofres = []Cofre{}
@@ -165,7 +165,7 @@ func (g *GerenciadorCofres) preservarIlegivel(dados []byte) string {
 			continue
 		}
 		if err != nil {
-			return "(nenhuma copia: " + err.Error() + ")"
+			return "(nenhuma cópia: " + err.Error() + ")"
 		}
 		_, errEscrita := f.Write(dados)
 		errFechar := f.Close()
@@ -174,7 +174,7 @@ func (g *GerenciadorCofres) preservarIlegivel(dados []byte) string {
 		}
 		if errEscrita != nil {
 			os.Remove(copia)
-			return "(nenhuma copia: " + errEscrita.Error() + ")"
+			return "(nenhuma cópia: " + errEscrita.Error() + ")"
 		}
 		return copia
 	}
@@ -185,7 +185,7 @@ func (g *GerenciadorCofres) preservarIlegivel(dados []byte) string {
 // pela metade.
 func (g *GerenciadorCofres) salvar() error {
 	if err := g.motivoBloqueio(); err != nil {
-		return fmt.Errorf("gravacao bloqueada: %w", err)
+		return fmt.Errorf("gravação bloqueada: %w", err)
 	}
 	dados, err := json.MarshalIndent(g.cofres, "", "  ")
 	if err != nil {
@@ -265,12 +265,12 @@ func (g *GerenciadorCofres) Adicionar(nome, provedorId, provedorNome, remotoBase
 	defer g.mu.Unlock()
 
 	if err := g.motivoBloqueio(); err != nil {
-		return false, "Erro ao salvar: gravacao bloqueada: " + err.Error()
+		return false, "Erro ao salvar: gravação bloqueada: " + err.Error()
 	}
 
 	for _, c := range g.cofres {
 		if c.Nome == nome {
-			return false, "Ja existe um cofre com o nome '" + nome + "'."
+			return false, "Já existe um cofre com o nome '" + nome + "'."
 		}
 	}
 
@@ -306,7 +306,7 @@ func (g *GerenciadorCofres) Remover(nome string) (bool, string) {
 			return true, "Cofre '" + nome + "' removido."
 		}
 	}
-	return false, "Cofre '" + nome + "' nao encontrado."
+	return false, "Cofre '" + nome + "' não encontrado."
 }
 
 // Atualizar modifica campos de um cofre existente e devolve o erro da
@@ -339,7 +339,7 @@ func (g *GerenciadorCofres) Atualizar(nome string, campos map[string]interface{}
 }
 
 // ErrCofreNaoEncontrado é devolvido por Atualizar quando o nome não existe.
-var ErrCofreNaoEncontrado = errors.New("cofre nao encontrado")
+var ErrCofreNaoEncontrado = errors.New("cofre não encontrado")
 
 // Obter retorna uma cópia do cofre pelo nome, ou nil se não encontrado.
 func (g *GerenciadorCofres) Obter(nome string) *Cofre {
