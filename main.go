@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"image/color"
+	"strings"
 	"time"
 
 	"fyne.io/fyne/v2"
@@ -119,6 +120,11 @@ func main() {
 		// Demanda 007: vaults.json ilegível não é sobrescrito; o usuário vê o motivo.
 		go gui.DialogoMensagem(janelaPrincipal.Janela(), "Erro ao ler os cofres",
 			gerenciador.ErroCofres.Error(), gui.MsgErro)
+	}
+	if avisos := gerenciador.Vfs.Avisos(); len(avisos) > 0 {
+		// Demanda 012: valor inválido em vfs.json volta ao padrão com aviso.
+		go gui.DialogoMensagem(janelaPrincipal.Janela(), "Configurações VFS",
+			strings.Join(avisos, "\n"), gui.MsgAviso)
 	}
 	aplicacao.Run()
 }

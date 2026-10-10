@@ -82,20 +82,22 @@ func (f *formVfs) salvar() bool {
 		return true
 	}
 
-	linhas := []string{"Nada foi salvo. Corrija:"}
 	var erros core.ErrosVfs
-	if errors.As(err, &erros) {
-		for _, chave := range ordemChaves {
-			if e := erros[chave]; e != nil {
-				desc := descricoesVfs[chave]
-				if desc == "" {
-					desc = chave
-				}
-				linhas = append(linhas, desc+": "+e.Error())
+	if !errors.As(err, &erros) {
+		// Falha ao gravar vfs.json (demanda 012).
+		f.lblErro.SetText("Nada foi salvo: " + err.Error())
+		f.lblErro.Show()
+		return false
+	}
+	linhas := []string{"Nada foi salvo. Corrija:"}
+	for _, chave := range ordemChaves {
+		if e := erros[chave]; e != nil {
+			desc := descricoesVfs[chave]
+			if desc == "" {
+				desc = chave
 			}
+			linhas = append(linhas, desc+": "+e.Error())
 		}
-	} else {
-		linhas = append(linhas, err.Error())
 	}
 	f.lblErro.SetText(strings.Join(linhas, "\n"))
 	f.lblErro.Show()

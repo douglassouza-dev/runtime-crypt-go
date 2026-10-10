@@ -1,9 +1,12 @@
 package core
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
@@ -14,15 +17,91 @@ import (
 type ConfigVfs struct {
 	config map[string]string
 	mu     sync.RWMutex
+
+	// arquivo é onde a configuração é gravada (demanda 012). Vazio: só em
+	// memória (NovoConfigVfs).
+	arquivo string
+	// avisos lista o que foi descartado na leitura do arquivo.
+	avisos []string
 }
 
-// NovoConfigVfs cria uma nova instância com as configurações padrão.
+// ArquivoVfs é o nome do arquivo da configuração VFS, ao lado de vaults.json.
+const ArquivoVfs = "vfs.json"
+
+// NovoConfigVfs cria uma nova instância com as configurações padrão, só em
+// memória.
 func NovoConfigVfs() *ConfigVfs {
 	cfg := make(map[string]string)
 	for k, v := range ConfiguracoesVfsPadrao {
 		cfg[k] = v
 	}
 	return &ConfigVfs{config: cfg}
+}
+
+// NovoConfigVfsEm lê a configuração VFS de diretorio/vfs.json e grava ali a
+// cada Atualizar ou Restaurar (demanda 012). Arquivo ausente: padrões, sem
+// aviso. Arquivo ilegível, chave desconhecida ou valor que não passa em
+// ValidarVfs: aquela parte fica no padrão e entra em Avisos().
+func NovoConfigVfsEm(diretorio string) *ConfigVfs {
+	c := NovoConfigVfs()
+	c.arquivo = filepath.Join(diretorio, ArquivoVfs)
+
+	dados, err := os.ReadFile(c.arquivo)
+	if errors.Is(err, fs.ErrNotExist) {
+		return c
+	}
+	if err != nil {
+		c.avisos = append(c.avisos, fmt.Sprintf("%s nao pode ser lido (%v); usando os valores padrao.", c.arquivo, err))
+		return c
+	}
+	var salvo map[string]string
+	if err := json.Unmarshal(dados, &salvo); err != nil {
+		c.avisos = append(c.avisos, fmt.Sprintf("%s esta corrompido (%v); usando os valores padrao.", c.arquivo, err))
+		return c
+	}
+
+	chaves := make([]string, 0, len(salvo))
+	for k := range salvo {
+		chaves = append(chaves, k)
+	}
+	sort.Strings(chaves)
+	for _, chave := range chaves {
+		valor := salvo[chave]
+		if err := ValidarVfs(chave, valor); err != nil {
+			padrao, conhecida := ConfiguracoesVfsPadrao[chave]
+			if !conhecida {
+				c.avisos = append(c.avisos, fmt.Sprintf("%s: chave %q ignorada (%v).", ArquivoVfs, chave, err))
+			} else {
+				c.avisos = append(c.avisos, fmt.Sprintf("%s: %s=%q descartado (%v); usando %q.", ArquivoVfs, chave, valor, err, padrao))
+			}
+			continue
+		}
+		c.config[chave] = valor
+	}
+	return c
+}
+
+// Avisos devolve o que foi descartado na leitura de vfs.json.
+func (c *ConfigVfs) Avisos() []string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return append([]string(nil), c.avisos...)
+}
+
+// gravar grava cfg no arquivo, com a escrita atômica de vaults.json (007).
+// Sem arquivo (só em memória), não faz nada.
+func (c *ConfigVfs) gravar(cfg map[string]string) error {
+	if c.arquivo == "" {
+		return nil
+	}
+	dados, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := gravarAtomico(c.arquivo, dados); err != nil {
+		return fmt.Errorf("nao foi possivel gravar %s: %w", c.arquivo, err)
+	}
+	return nil
 }
 
 // Obter retorna uma cópia das configurações VFS atuais.
@@ -49,11 +128,6 @@ func (c *ConfigVfs) Atualizar(novasConfig map[string]string) (map[string]string,
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	if len(erros) == 0 {
-		for chave, valor := range novasConfig {
-			c.config[chave] = valor
-		}
-	}
 	copia := make(map[string]string)
 	for k, v := range c.config {
 		copia[k] = v
@@ -61,22 +135,49 @@ func (c *ConfigVfs) Atualizar(novasConfig map[string]string) (map[string]string,
 	if len(erros) > 0 {
 		return copia, erros
 	}
-	return copia, nil
+
+	// Demanda 012: grava primeiro; só aplica em memória se a gravação deu
+	// certo, para memória e disco nunca divergirem.
+	nova := make(map[string]string, len(copia))
+	for k, v := range copia {
+		nova[k] = v
+	}
+	for chave, valor := range novasConfig {
+		nova[chave] = valor
+	}
+	if err := c.gravar(nova); err != nil {
+		return copia, err
+	}
+	c.config = nova
+	resultado := make(map[string]string, len(nova))
+	for k, v := range nova {
+		resultado[k] = v
+	}
+	return resultado, nil
 }
 
-// Restaurar reseta todas as configurações VFS para os valores padrão.
-func (c *ConfigVfs) Restaurar() map[string]string {
+// Restaurar reseta todas as configurações VFS para os valores padrão e grava
+// (demanda 012). Se a gravação falha, nada muda e o erro volta.
+func (c *ConfigVfs) Restaurar() (map[string]string, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.config = make(map[string]string)
+	nova := make(map[string]string)
 	for k, v := range ConfiguracoesVfsPadrao {
-		c.config[k] = v
+		nova[k] = v
 	}
+	if err := c.gravar(nova); err != nil {
+		copia := make(map[string]string)
+		for k, v := range c.config {
+			copia[k] = v
+		}
+		return copia, err
+	}
+	c.config = nova
 	copia := make(map[string]string)
 	for k, v := range c.config {
 		copia[k] = v
 	}
-	return copia
+	return copia, nil
 }
 
 // mapaFlagsVfs mapeia chaves de config para flags CLI do rclone.
