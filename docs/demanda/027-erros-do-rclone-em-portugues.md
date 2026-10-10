@@ -39,7 +39,7 @@ O app não grava log em arquivo. No Windows, com `-H windowsgui`, o que vai para
 - Falta do driver de montagem tem frase própria (aprovada pela UI), no lugar de `Não destrancou: …`:
   - Windows: `Não montou: falta instalar o WinFsp.` e o botão `Baixar WinFsp`, que abre https://winfsp.dev/rel/;
   - Linux: `Não montou: falta instalar o FUSE.` (só o texto);
-  - macOS: `Não montou: falta instalar o macFUSE.` e o botão `Baixar macFUSE`, que abre https://macfuse.github.io/.
+  - macOS: `Não montou: falta instalar o macFUSE.` e o botão `Baixar macFUSE` (aprovado pela UI), que abre https://macfuse.github.io/.
   - O diálogo de erro ao destrancar mostra a mesma frase.
   - Detecção em duas camadas: antes de iniciar o `rclone mount`, `plataforma.VerificarWinfsp` (Windows: DLL/registro/pasta do WinFsp; Linux: `/dev/fuse` e `fusermount3` ou `fusermount` no PATH; macOS: `macfuse.fs` ou `fuse-t.fs`); se ela disser que está instalado e o rclone falhar mesmo assim, o texto do rclone (`cannot find winfsp`, `cannot find FUSE`, `fuse device not found`, `"fusermount3": executable file not found`) leva à mesma frase.
 - Log: `runtimecrypto.log` fica na mesma pasta do `vaults.json` (o `DiretorioApp` do gerenciador) e troca para `.log.1` ao passar de 1 MB. Senhas não entram no log. Se essa pasta não aceita escrita, o app segue sem arquivo de log: não trava e não tenta outra pasta.
