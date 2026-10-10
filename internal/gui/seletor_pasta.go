@@ -99,36 +99,42 @@ func (l *listaPastas) carregar() {
 	l.lblCaminho.Refresh()
 
 	caminho := l.caminho
+	// Demanda 023: a goroutine só busca a lista. Os widgets são trocados na
+	// thread da interface, por fyne.Do.
 	go func() {
 		dirs, err := l.listar(l.nomeRemoto, caminho)
-
-		// Atualizar UI na thread Fyne
-		l.lista.RemoveAll()
-
-		if err != nil {
-			// Demanda 009: o erro aparece com o motivo, e "Tentar de novo"
-			// lista de novo a mesma pasta (l.caminho não muda).
-			l.lista.Add(linhaErroListagem(err, l.carregar))
-		} else if len(dirs) == 0 {
-			// Uma linha só, sem botão: a pasta atual continua escolhível
-			// pelo caminho do topo e por "Selecionar esta pasta" (demanda 021).
-			lblVazio := canvas.NewText(TextoPastaSemSubpastas, CorTextoSec)
-			lblVazio.TextSize = 12
-			l.lista.Add(lblVazio)
-		} else {
-			for _, nomePasta := range dirs {
-				np := nomePasta // captura
-				btn := widget.NewButton("📁  "+np, func() { l.entrar(np) })
-				btn.Importance = widget.LowImportance
-				btn.Alignment = widget.ButtonAlignLeading
-				l.lista.Add(btn)
-			}
-		}
-		l.lista.Refresh()
-		if l.carregada != nil {
-			l.carregada()
-		}
+		fyne.Do(func() { l.mostrar(dirs, err) })
 	}()
+}
+
+// mostrar troca o conteúdo da lista pelo resultado da listagem. Roda na
+// thread da interface.
+func (l *listaPastas) mostrar(dirs []string, err error) {
+	l.lista.RemoveAll()
+
+	if err != nil {
+		// Demanda 009: o erro aparece com o motivo, e "Tentar de novo"
+		// lista de novo a mesma pasta (l.caminho não muda).
+		l.lista.Add(linhaErroListagem(err, l.carregar))
+	} else if len(dirs) == 0 {
+		// Uma linha só, sem botão: a pasta atual continua escolhível
+		// pelo caminho do topo e por "Selecionar esta pasta" (demanda 021).
+		lblVazio := canvas.NewText(TextoPastaSemSubpastas, CorTextoSec)
+		lblVazio.TextSize = 12
+		l.lista.Add(lblVazio)
+	} else {
+		for _, nomePasta := range dirs {
+			np := nomePasta // captura
+			btn := widget.NewButton("📁  "+np, func() { l.entrar(np) })
+			btn.Importance = widget.LowImportance
+			btn.Alignment = widget.ButtonAlignLeading
+			l.lista.Add(btn)
+		}
+	}
+	l.lista.Refresh()
+	if l.carregada != nil {
+		l.carregada()
+	}
 }
 
 // DialogoSeletorPastaRemota exibe um navegador visual de pastas em um remoto rclone.
@@ -207,8 +213,9 @@ func DialogoSeletorPastaRemota(janelaPai fyne.Window, gerenciador *core.Gerencia
 	dialogo.Resize(fyne.NewSize(520, 540))
 	dialogo.Show()
 
-	// Carregar inicial
-	pastas.carregar()
+	// Carregar inicial. Esta função roda numa goroutine de main.go; a
+	// primeira carga mexe na lista, então vai para a thread da interface.
+	fyne.Do(pastas.carregar)
 
 	return <-resultado
 }
