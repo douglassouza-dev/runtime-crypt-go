@@ -37,6 +37,7 @@ A ordem segue o risco à estabilidade e aos segredos. A migração para Wails (0
 | [029](029-config-create-valor-com-hifen.md) | Criar cofre falha quando a senha ofuscada começa com hífen | Alto · uso | — | Aberta |
 | [030](030-senha-errada-nao-destranca.md) | Senha errada não destranca | Alto · segredos | 027 | Aberta |
 | [031](031-pasta-de-configuracao.md) | vaults.json e log na pasta de configuração do usuário | Alto · dados | 007, 012, 027 | Aberta |
+| [032](032-app-proprio-do-google-drive.md) | App próprio do Google (client ID e client secret) no Google Drive | Médio · uso, segredos | 027, 029, ADR-0006 | Aberta |
 
 ## Ordem sugerida de execução
 
@@ -94,4 +95,7 @@ flowchart LR
     d007 --> d031["031 pasta de configuração"]
     d012 --> d031
     d027 --> d031
+    d027 --> d032["032 app próprio do Google"]
+    d029 --> d032
+    adr6 -.-> d032
 ```
