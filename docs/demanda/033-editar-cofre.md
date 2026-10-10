@@ -179,8 +179,15 @@ Por isso a raiz bloqueia sempre, sem tentar estimar caso a caso.
 **Pasta com outros arquivos (cofre importado).** Fora da raiz, o app confere antes de liberar, junto com o resumo e no mesmo tempo limite:
 
 - `rclone lsf --max-depth 1 <nome>_base:<pasta>` (o que existe na pasta) e `rclone lsf --max-depth 1 <remoto>:` (o que o crypt decifra);
-- se o primeiro tem mais entradas que o segundo, há nomes que o crypt não decifra, isto é, arquivos que não são do cofre. Bloqueia com a mesma frase aprovada;
-- erro ou tempo esgotado em qualquer das duas: bloqueia (na dúvida, bloqueia).
+- se o primeiro tem mais entradas que o segundo, há nomes que o crypt não decifra, isto é, arquivos que não são do cofre. Bloqueia com (**aprovado pela UI**):
+
+  `Não dá para excluir do {provedor}: a pasta {pasta} tem arquivos que não são deste cofre.`
+
+- erro ou tempo esgotado em qualquer das duas: bloqueia (na dúvida, bloqueia), com (**aprovado pela UI**):
+
+  `Não dá para excluir do {provedor}: não deu para conferir a pasta {pasta}.`
+
+Nos dois casos, como no cofre na raiz, `Deste computador e do {provedor}` aparece desabilitada com a frase na linha de baixo, e `Só deste computador` continua disponível. `{pasta}` é o caminho do cofre no provedor, o que vem depois de `:` no `remoto_base`, já sem `/` nas pontas.
 
 São duas listagens de uma pasta só, sem entrar nas subpastas, então é barato. Limites:
 
@@ -364,7 +371,7 @@ Por que apagar os remotos do `rclone.conf`, e não só tirar da lista:
 4. **Números do apagamento (Douglas):** os 2 min do resumo e os 5 min sem progresso são propostas.
 5. **Frases marcadas como proposta (UI):** placeholder do secret, botões, `Cofre reconectado.`, título, corpo, campo e botão `Remover` do diálogo, a linha da Pasta Local, o resumo e as linhas de lixeira, o progresso e `Parar`, a falha parcial e o card de exclusão incompleta, o nome em uso e o cache ilegível.
 
-Já decididas pela UI: o bloqueio sempre que o cofre está na raiz, ou com outros arquivos na pasta, e a frase `Não dá para excluir do {provedor}: este cofre está na raiz junto com outros arquivos. Remova só deste computador e apague pelo site do {provedor}.`; o bloqueio por arquivos em comum e a frase `Não dá para excluir: o cofre {outro} usa os mesmos arquivos no {provedor}.`; `Editar` também em `Não destrancou`, com `Reconectar` em destaque; duas opções, com `Só deste computador` marcada; o botão `Excluir do {provedor}`; sem pedir a senha de novo; a frase de bloqueio com `Destranque o cofre...`.
+Já decididas pela UI: o bloqueio sempre que o cofre está na raiz, ou com outros arquivos na pasta, e a frase `Não dá para excluir do {provedor}: este cofre está na raiz junto com outros arquivos. Remova só deste computador e apague pelo site do {provedor}.`; as frases da pasta com outros arquivos, `Não dá para excluir do {provedor}: a pasta {pasta} tem arquivos que não são deste cofre.`, e da conferência que falha, `Não dá para excluir do {provedor}: não deu para conferir a pasta {pasta}.`, com a opção desabilitada e `Só deste computador` disponível; o bloqueio por arquivos em comum e a frase `Não dá para excluir: o cofre {outro} usa os mesmos arquivos no {provedor}.`; `Editar` também em `Não destrancou`, com `Reconectar` em destaque; duas opções, com `Só deste computador` marcada; o botão `Excluir do {provedor}`; sem pedir a senha de novo; a frase de bloqueio com `Destranque o cofre...`.
 
 ## Pronto quando
 
@@ -394,9 +401,9 @@ Já decididas pela UI: o bloqueio sempre que o cofre está na raiz, ou com outro
 - [ ] Teste: nenhum valor de `password`/`password2`, revelado ou ofuscado, aparece em `runtimecrypto.log`, nas mensagens de erro ou na tela durante a comparação.
 - [ ] Teste: a comparação não chama o rclone além do `config dump` (nenhum comando que fale com o provedor em `chamadas.log`).
 - [ ] Teste: cofre com `remoto_base` na raiz (`<nome>_base:`, `<nome>_base:/`) tem `Deste computador e do {provedor}` desabilitada com a frase aprovada, mesmo sem nenhum outro cofre; `Só deste computador` funciona; o core recusa o `delete`, e nenhum `size`, `lsf` ou `delete` aparece em `chamadas.log`.
-- [ ] Teste: cofre importado numa pasta, com o `lsf` do base mostrando uma entrada a mais que o `lsf` do crypt → bloqueia com a mesma frase; contagens iguais → libera; `lsf` com erro ou tempo esgotado → bloqueia.
+- [ ] Teste: cofre importado numa pasta, com o `lsf` do base mostrando uma entrada a mais que o `lsf` do crypt → `Deste computador e do {provedor}` desabilitada com `Não dá para excluir do {provedor}: a pasta {pasta} tem arquivos que não são deste cofre.`; contagens iguais → libera; `lsf` com erro ou tempo esgotado → desabilitada com `Não dá para excluir do {provedor}: não deu para conferir a pasta {pasta}.`. Nos dois bloqueios, `Só deste computador` funciona e nenhum `delete` aparece em `chamadas.log`.
 - [ ] Teste com o crypt do rclone (nomes de exemplo, sem provedor): `Foto 2024.jpg`, `relatorio.pdf` e `notas` são recusados na decodificação em `standard`/base32; um nome de 26 caracteres só com `0-9a-v` chega à conferência do preenchimento; em `obfuscate`, `2024.relatorio.pdf` decodifica; em `off`, `x.bin` decodifica. O teste registra o comportamento em que a regra se apoia.
 - [ ] Teste: a linha de lixeira segue o provedor e a seção do base (`use_trash = false` e `hard_delete = true` mostram `Não dá para desfazer.`).
 - [ ] Teste da tela: o diálogo abre com `Só deste computador` marcada e `Os arquivos no {provedor} continuam lá.` abaixo da pergunta; ao marcar a outra opção, a linha some, o resumo aparece e o botão vira `Excluir do {provedor}`; nas duas, o botão só habilita com o nome digitado; não há campo de senha.
-- [ ] Na tela, no Windows, com uma conta do Google Drive de teste: um cofre criado pelo app (na raiz) mostra a opção do provedor desabilitada com a frase da raiz. Um cofre importado numa pasta só dele: `Deste computador e do Google Drive` apaga os arquivos do cofre; os arquivos fora da pasta continuam; os do cofre aparecem na lixeira do Drive; o cofre sai do app. A mesma pasta com um arquivo comum a mais: bloqueia.
+- [ ] Na tela, no Windows, com uma conta do Google Drive de teste: um cofre criado pelo app (na raiz) mostra a opção do provedor desabilitada com a frase da raiz. Um cofre importado numa pasta só dele: `Deste computador e do Google Drive` apaga os arquivos do cofre; os arquivos fora da pasta continuam; os do cofre aparecem na lixeira do Drive; o cofre sai do app. A mesma pasta com um arquivo comum a mais: a opção do provedor fica desabilitada com `Não dá para excluir do Google Drive: a pasta {pasta} tem arquivos que não são deste cofre.`, com o nome da pasta no lugar de `{pasta}`.
 - [ ] Na tela, no Windows: `Reconectar` num cofre do Google Drive; trocar para o app próprio; renomear e destrancar; `Só deste computador` e conferir que os arquivos continuam no Drive e que `Importar Cofre Existente` abre de novo com a senha.
