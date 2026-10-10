@@ -14,6 +14,10 @@ import (
 type Acoes struct {
 	g  *core.GerenciadorRClone
 	jp *JanelaPrincipal
+
+	// progresso é o diálogo de passos da criação/conexão em andamento
+	// (demanda 018); nil fora delas.
+	progresso *progressoWizard
 }
 
 // NovasAcoes cria as ações da janela jp.
@@ -33,8 +37,18 @@ func (a *Acoes) AbrirAutorizacao(url string) {
 		"O navegador foi aberto para autorização.\nApós concluir, volte para esta janela.", MsgInfo)
 }
 
+// Passo implementa core.Interacao: mostra o passo atual (demanda 018).
+func (a *Acoes) Passo(p core.Passo) {
+	if a.progresso != nil {
+		a.progresso.passo(p)
+	}
+}
+
 // EscolherPasta implementa core.Interacao com o seletor de pasta.
 func (a *Acoes) EscolherPasta(remotoBase, tituloProvedor string) (string, bool) {
+	if a.progresso != nil {
+		a.progresso.esconder()
+	}
 	caminho := DialogoSeletorPastaRemota(a.jp.Janela(), a.g, remotoBase, tituloProvedor)
 	if caminho == nil {
 		return "", false
@@ -42,19 +56,26 @@ func (a *Acoes) EscolherPasta(remotoBase, tituloProvedor string) (string, bool) 
 	return *caminho, true
 }
 
-// Cofre tranca o cofre montado ou destranca o trancado.
+// Cofre age conforme o estado do cofre no core (demanda 018): tranca o
+// destrancado; destranca o trancado ou o que não subiu/caiu ("Tentar de
+// novo"); ignora o que está destrancando.
 func (a *Acoes) Cofre(nome string) {
-	if a.g.EstaMontado(nome) {
+	switch a.g.EstadoDoCofre(nome).Estado {
+	case core.EstadoMontado:
 		a.trancar(nome)
+	case core.EstadoMontando:
 		return
+	default:
+		a.jp.LimparFalhaTrancar(nome)
+		a.destrancar(nome)
 	}
-	a.jp.LimparFalhaTrancar(nome)
-	a.destrancar(nome)
 }
 
 func (a *Acoes) destrancar(nome string) {
 	a.jp.Mostrar()
-	letra, err := a.g.Destrancar(nome, func() (string, bool) {
+	// "Destrancando…" aparece assim que a montagem começa (demanda 018).
+	go a.jp.atualizarLogoApos(nome)
+	ponto, err := a.g.Destrancar(nome, func() (string, bool) {
 		senha := DialogoSenha(a.jp.Janela(), nome, "Desbloquear")
 		return senha, senha != ""
 	})
@@ -65,10 +86,11 @@ func (a *Acoes) destrancar(nome string) {
 		DialogoMensagem(a.jp.Janela(), "Erro ao Destrancar",
 			fmt.Sprintf("Falha ao montar '%s':\n%s", nome, err), MsgErro)
 	default:
-		texto := fmt.Sprintf("'%s' montado em %s:\\\n\nO Explorador de Arquivos foi aberto.", nome, letra)
-		if err := core.AbrirExplorador(letra + ":\\"); err != nil {
+		// Demanda 013: o Explorador abre o ponto real (letra ou pasta).
+		texto := fmt.Sprintf("'%s' montado em %s\n\nO Explorador de Arquivos foi aberto.", nome, ponto)
+		if err := core.AbrirExplorador(ponto); err != nil {
 			// Demanda 009: a falha ao abrir o Explorador chega ao usuário.
-			texto = fmt.Sprintf("'%s' montado em %s:\\\n\nNão deu para abrir o Explorador: %v", nome, letra, err)
+			texto = fmt.Sprintf("'%s' montado em %s\n\nNão deu para abrir o Explorador: %v", nome, ponto, err)
 		}
 		DialogoMensagem(a.jp.Janela(), "Cofre Destrancado", texto, MsgInfo)
 	}
@@ -95,10 +117,13 @@ func (a *Acoes) NovoCofre() {
 	if !r.Sucesso {
 		return
 	}
+	a.progresso = novoProgressoWizard(a.jp.Janela(), "Novo cofre", r.Dados.Provedor.Nome)
 	remotoBase, err := a.g.CriarCofre(r.Dados, a)
+	a.progresso.esconder()
+	a.progresso = nil
 	if err != nil {
 		if !errors.Is(err, core.ErrCancelado) {
-			DialogoMensagem(a.jp.Janela(), "Erro", err.Error(), MsgErro)
+			DialogoMensagem(a.jp.Janela(), "Erro", mensagemErroPasso(err, r.Dados.Provedor.Nome), MsgErro)
 		}
 		return
 	}
@@ -115,10 +140,13 @@ func (a *Acoes) ImportarCofre() {
 	if !r.Sucesso {
 		return
 	}
+	a.progresso = novoProgressoWizard(a.jp.Janela(), "Conectar cofre", r.Dados.Provedor.Nome)
 	remotoBase, err := a.g.ConectarCofre(r.Dados, a)
+	a.progresso.esconder()
+	a.progresso = nil
 	if err != nil {
 		if !errors.Is(err, core.ErrCancelado) {
-			DialogoMensagem(a.jp.Janela(), "Erro", err.Error(), MsgErro)
+			DialogoMensagem(a.jp.Janela(), "Erro", mensagemErroPasso(err, r.Dados.Provedor.Nome), MsgErro)
 		}
 		return
 	}

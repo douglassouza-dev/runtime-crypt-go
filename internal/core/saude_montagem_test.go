@@ -19,9 +19,9 @@ func novoMontadorComPasta(t *testing.T) (*GerenciadorMontagem, string) {
 	g := NovoGerenciadorMontagem(f.exe, NovoConfigVfs())
 	raiz := t.TempDir()
 	g.caminhoPonto = func(letra string) string { return filepath.Join(raiz, letra) }
+	g.pontoExiste = caminhoExiste // a pasta temporária faz o papel da unidade
 	// A pasta temporária não some sozinha quando o rclone falso morre.
 	g.esperaEncerrar = 200 * time.Millisecond
-	// g.pontoExiste fica o de produção: os.Stat.
 	ponto := g.caminhoPonto("V")
 	if err := os.Mkdir(ponto, 0o755); err != nil {
 		t.Fatal(err)

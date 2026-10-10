@@ -12,6 +12,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"github.com/eufrauzino/runtime-crypt-go/internal/core"
+	"github.com/eufrauzino/runtime-crypt-go/internal/gui/frases"
 )
 
 // JanelaPrincipal é a janela principal do RuntimeCrypto.
@@ -160,7 +161,7 @@ func (jp *JanelaPrincipal) atualizarCofres() {
 	// Gerar estado para comparação
 	estadoNovo := make(map[string]string)
 	for _, c := range cofres {
-		chave := fmt.Sprintf("%s_%v_%s_%s", c.Nome, c.Montado, c.Letra, jp.falhasTrancar[c.Nome])
+		chave := fmt.Sprintf("%s|%s|%v|%s|%s", c.Nome, frases.DoCofre(c), c.Estado == core.EstadoMontando, frases.Botao(c), jp.falhasTrancar[c.Nome])
 		estadoNovo[c.Nome] = chave
 	}
 
@@ -210,6 +211,22 @@ func (jp *JanelaPrincipal) agendarAtualizacao() {
 		}
 	}
 }
+
+// atualizarLogoApos atualiza o card assim que o core tira o cofre de
+// trancado (demanda 018), sem esperar o próximo ciclo de 3 s. Se a senha
+// demorar mais que esperaDestrancando, o ciclo normal cuida.
+func (jp *JanelaPrincipal) atualizarLogoApos(nome string) {
+	fim := time.Now().Add(esperaDestrancando)
+	for time.Now().Before(fim) {
+		if jp.gerenciador.EstadoDoCofre(nome).Estado != core.EstadoDesmontado {
+			jp.ForcarAtualizacao()
+			return
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+const esperaDestrancando = 30 * time.Second
 
 // Mostrar traz a janela para frente.
 func (jp *JanelaPrincipal) Mostrar() {
@@ -275,37 +292,34 @@ func criarCardCofre(cofre core.CofreStatus, falhaTrancar string, aoClicar func()
 	lblProvedor := canvas.NewText(cofre.ProvedorNome, CorTextoSec)
 	lblProvedor.TextSize = 11
 
-	var textoStatus string
-	var corStatus = CorTrancado
-	if cofre.Montado {
-		if cofre.Letra != "" {
-			textoStatus = fmt.Sprintf("● Destrancado  •  %s:\\", cofre.Letra)
-		} else {
-			textoStatus = "● Destrancado"
+	// Demanda 018: a frase do estado vem de internal/frases, a mesma da
+	// bandeja. Uma falha de montagem tem o motivo, que pode ser longo: vai
+	// para a linha de baixo, com quebra.
+	fraseEstado := frases.DoCofre(cofre)
+	infoContainer := container.NewVBox(lblNome, lblProvedor)
+	if cofre.Estado != core.EstadoFalhou {
+		corStatus := CorTrancado
+		switch cofre.Estado {
+		case core.EstadoMontado:
+			corStatus = CorMontado
+		case core.EstadoMontando:
+			corStatus = CorAviso
 		}
-		corStatus = CorMontado
-	} else {
-		textoStatus = "● Trancado"
+		lblStatus := canvas.NewText(fraseEstado, corStatus)
+		lblStatus.TextSize = 10
+		infoContainer.Add(lblStatus)
 	}
 
-	lblStatus := canvas.NewText(textoStatus, corStatus)
-	lblStatus.TextSize = 10
-
-	infoContainer := container.NewVBox(lblNome, lblProvedor, lblStatus)
-
-	// Botão de ação
-	var textoBotao string
-	if cofre.Montado {
-		textoBotao = "Trancar"
-	} else {
-		textoBotao = "Destrancar"
-	}
-
-	btnAcao := widget.NewButton(textoBotao, aoClicar)
-	if cofre.Montado {
+	// Botão de ação: Destrancar, Trancar ou Tentar de novo. Destrancando
+	// desabilita o botão; um segundo clique não começa outro rclone.
+	btnAcao := widget.NewButton(frases.Botao(cofre), aoClicar)
+	if cofre.EstaMontado() {
 		btnAcao.Importance = widget.MediumImportance
 	} else {
 		btnAcao.Importance = widget.HighImportance
+	}
+	if cofre.Estado == core.EstadoMontando {
+		btnAcao.Disable()
 	}
 
 	// Layout do card
@@ -321,14 +335,25 @@ func criarCardCofre(cofre core.CofreStatus, falhaTrancar string, aoClicar func()
 	cardBg.CornerRadius = 10
 	cardBg.SetMinSize(fyne.NewSize(0, 76))
 
-	// A linha "Não trancou" fica embaixo, com a largura toda do card, para o
-	// motivo quebrar em linhas.
-	var corpo fyne.CanvasObject = cardConteudo
+	// As linhas de motivo ("Não destrancou", "Caiu", "Não trancou") ficam
+	// embaixo, com a largura toda do card, para o motivo quebrar em linhas.
+	var linhas []string
+	if cofre.Estado == core.EstadoFalhou {
+		linhas = append(linhas, fraseEstado)
+	}
 	if falhaTrancar != "" {
-		lblFalha := widget.NewLabel(fmt.Sprintf(TextoNaoTrancou, falhaTrancar))
-		lblFalha.Wrapping = fyne.TextWrapWord
-		lblFalha.Importance = widget.DangerImportance
-		corpo = container.NewVBox(cardConteudo, lblFalha)
+		linhas = append(linhas, fmt.Sprintf(TextoNaoTrancou, falhaTrancar))
+	}
+	var corpo fyne.CanvasObject = cardConteudo
+	if len(linhas) > 0 {
+		caixa := container.NewVBox(cardConteudo)
+		for _, l := range linhas {
+			lbl := widget.NewLabel(l)
+			lbl.Wrapping = fyne.TextWrapWord
+			lbl.Importance = widget.DangerImportance
+			caixa.Add(lbl)
+		}
+		corpo = caixa
 	}
 
 	return container.NewStack(cardBg, container.NewPadded(corpo))
