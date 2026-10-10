@@ -253,6 +253,11 @@ func (g *GerenciadorRClone) ConectarCofre(d DadosConectarCofre, ui Interacao) (r
 // pedirSenha (ok=false: o usuário cancelou, ErrCancelado). Se a montagem
 // falha, a senha sai da sessão. Devolve o ponto de montagem: `V:\` no
 // Windows, a pasta em Linux e macOS (demanda 013).
+//
+// Demanda 030: a senha pedida é conferida antes de tudo. Errada, volta
+// ErrSenhaErrada sem guardar a senha nem iniciar o rclone; o cofre continua
+// trancado. A senha da sessão não é conferida de novo: ela veio de uma
+// conferência que passou ou da criação/conexão do cofre.
 func (g *GerenciadorRClone) Destrancar(nome string, pedirSenha func() (string, bool)) (string, error) {
 	senha := g.Senhas.Obter(nome)
 	if senha == "" {
@@ -260,6 +265,9 @@ func (g *GerenciadorRClone) Destrancar(nome string, pedirSenha func() (string, b
 		senha, ok = pedirSenha()
 		if !ok || senha == "" {
 			return "", ErrCancelado
+		}
+		if err := g.ConferirSenha(nome, senha); err != nil {
+			return "", err
 		}
 	}
 	g.Senhas.Armazenar(nome, senha)

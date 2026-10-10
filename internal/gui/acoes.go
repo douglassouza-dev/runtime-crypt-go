@@ -35,7 +35,7 @@ func NovasAcoes(g *core.GerenciadorRClone, jp *JanelaPrincipal) *Acoes {
 	a.pendentesAoSair = g.PendentesAoSair
 	a.enviarPendentes = func(nomes []string) []core.FalhaEnvio {
 		return g.EnviarPendentes(nomes, func(nome string) (string, bool) {
-			senha := DialogoSenha(jp.Janela(), nome, "Desbloquear")
+			senha := DialogoSenha(jp.Janela(), nome, "Desbloquear", func(s string) error { return g.ConferirSenha(nome, s) })
 			return senha, senha != ""
 		})
 	}
@@ -167,7 +167,9 @@ func (a *Acoes) destrancar(nome string) {
 	// "Destrancando…" aparece assim que a montagem começa (demanda 018).
 	go a.jp.atualizarLogoApos(nome)
 	ponto, err := a.g.Destrancar(nome, func() (string, bool) {
-		senha := DialogoSenha(a.jp.Janela(), nome, "Desbloquear")
+		// Demanda 030: senha errada fica no diálogo, com "Senha errada."
+		// embaixo do campo; o cofre continua trancado.
+		senha := DialogoSenha(a.jp.Janela(), nome, "Desbloquear", func(s string) error { return a.g.ConferirSenha(nome, s) })
 		return senha, senha != ""
 	})
 	switch {
