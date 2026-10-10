@@ -5,6 +5,7 @@ package frases
 
 import (
 	"fmt"
+	"runtime"
 	"strings"
 	"unicode/utf16"
 
@@ -21,6 +22,8 @@ const (
 	DestrancadoEm = "Destrancado • %s"
 	// NaoDestrancou: a montagem nunca subiu.
 	NaoDestrancou = "Não destrancou: %s"
+	// NaoMontou é a frase de quando falta o driver de montagem (027).
+	NaoMontou = "Não montou: falta instalar o %s."
 	// Caiu: a montagem chegou a subir e depois caiu.
 	Caiu = "Caiu: %s"
 
@@ -98,9 +101,42 @@ func DoCofre(c core.CofreStatus) string {
 		if c.Caiu {
 			return fmt.Sprintf(Caiu, Motivo(c))
 		}
+		if DriverAusente(c) {
+			return TextoDriverAusente(runtime.GOOS)
+		}
 		return fmt.Sprintf(NaoDestrancou, Motivo(c))
 	}
 	return Trancado
+}
+
+// DriverAusente diz se o cofre não montou por falta do driver de montagem.
+func DriverAusente(c core.CofreStatus) bool {
+	return c.Estado == core.EstadoFalhou && !c.Caiu && c.Rclone != nil && c.Rclone.Falha == core.FalhaDriver
+}
+
+// TextoDriverAusente é "Não montou: falta instalar o {WinFsp|FUSE|macFUSE}."
+// para o sistema goos.
+func TextoDriverAusente(goos string) string {
+	nome, _ := core.DriverDeMontagem(goos)
+	return fmt.Sprintf(NaoMontou, nome)
+}
+
+// BotaoBaixarDriver é o botão ao lado do principal quando falta o driver:
+// "Baixar WinFsp" no Windows e "Baixar macFUSE" no macOS, com o site oficial.
+// No Linux (e fora desse estado) não há botão: rotulo e url vêm vazios.
+func BotaoBaixarDriver(c core.CofreStatus) (rotulo, url string) {
+	if !DriverAusente(c) {
+		return "", ""
+	}
+	return botaoDriver(runtime.GOOS)
+}
+
+func botaoDriver(goos string) (rotulo, url string) {
+	nome, url := core.DriverDeMontagem(goos)
+	if url == "" {
+		return "", ""
+	}
+	return "Baixar " + nome, url
 }
 
 // Botao é o texto do botão do card para o estado.

@@ -76,7 +76,7 @@ func VerificarWinfsp() InfoWinfsp {
 	return InfoWinfsp{
 		Instalado:   false,
 		Motivo:      "macFUSE nao encontrado. Necessario para montar unidades virtuais.",
-		UrlDownload: "https://osxfuse.github.io/",
+		UrlDownload: "https://macfuse.github.io/",
 	}
 }
 

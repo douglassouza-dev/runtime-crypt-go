@@ -5,6 +5,7 @@ package plataforma
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 )
 
@@ -57,9 +58,10 @@ type InfoWinfsp struct {
 	UrlDownload string `json:"url_download,omitempty"`
 }
 
-// VerificarWinfsp verifica se o FUSE está disponível no Linux.
+// VerificarWinfsp verifica se o FUSE está disponível no Linux: o rclone mount
+// precisa de /dev/fuse e do fusermount3 (ou fusermount) no PATH.
 func VerificarWinfsp() InfoWinfsp {
-	if _, err := os.Stat("/dev/fuse"); err == nil {
+	if fuseDisponivel("/dev/fuse", exec.LookPath) {
 		return InfoWinfsp{Instalado: true}
 	}
 	return InfoWinfsp{
@@ -76,4 +78,18 @@ func caminhoAutostart() string {
 		configDir = filepath.Join(home, ".config")
 	}
 	return filepath.Join(configDir, "autostart", "runtime-crypto.desktop")
+}
+
+// fuseDisponivel é o teste de VerificarWinfsp com o dispositivo e a busca no
+// PATH trocáveis (testes).
+func fuseDisponivel(dispositivo string, procurar func(string) (string, error)) bool {
+	if _, err := os.Stat(dispositivo); err != nil {
+		return false
+	}
+	for _, nome := range []string{"fusermount3", "fusermount"} {
+		if _, err := procurar(nome); err == nil {
+			return true
+		}
+	}
+	return false
 }
