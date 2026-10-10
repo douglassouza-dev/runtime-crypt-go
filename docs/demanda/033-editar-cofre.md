@@ -104,7 +104,9 @@ A alternativa, renomear tudo, fica como pergunta 1.
 - Remover pede confirmação com o nome do cofre: o usuário digita o nome, e o botão de confirmar só habilita quando o texto bate.
 - Texto do diálogo (**proposta**):
   - título: `Remover {nome}?`
-  - corpo: `O cofre sai da lista e do rclone. Os arquivos continuam no {provedor}, cifrados. Para abrir de novo, você vai precisar da senha do cofre.`
+  - logo abaixo da pergunta (aprovado): `Os arquivos no {provedor} continuam lá.`
+  - para Pasta Local, no lugar dessa linha (**proposta**): `Os arquivos na pasta {caminho} continuam lá.`
+  - corpo (**proposta**): `O cofre sai da lista e do rclone. Para abrir de novo, você vai precisar da senha do cofre.`
   - campo: `Digite {nome} para confirmar`
   - botões: `Cancelar` e `Remover`, em vermelho.
 
@@ -160,7 +162,7 @@ Por que apagar os remotos do `rclone.conf`, e não só tirar da lista:
 1. **Renomear (Douglas):** a decisão aqui é mudar só o nome visto, sem tocar no `rclone.conf` nem no cache. Serve, ou o nome do remoto também deve mudar, com os riscos descritos acima?
 2. **Cofre que não destrancou (UI):** um cofre em `Não destrancou: ...` não tem rclone rodando. `Editar` fica habilitado nesse estado? O caso mais comum é justamente o token vencido, que se resolve com `Reconectar`. Do jeito aprovado, só `Trancado` habilita.
 3. **Arquivos que não subiram (UI):** a frase de bloqueio deve dizer como resolver (destrancar para o envio terminar)?
-4. **Frases marcadas como proposta (UI):** placeholder do secret, botões, `Cofre reconectado.`, o diálogo de remover, o nome em uso e o cache ilegível.
+4. **Frases marcadas como proposta (UI):** placeholder do secret, botões, `Cofre reconectado.`, a linha da Pasta Local e o corpo do diálogo de remover, o nome em uso e o cache ilegível.
 
 ## Pronto quando
 
@@ -174,5 +176,5 @@ Por que apagar os remotos do `rclone.conf`, e não só tirar da lista:
 - [ ] Teste: remover sem pendentes apaga `vfs/<remoto>` e `vfsMeta/<remoto>` (e nada fora delas), chama `config delete <remoto>` e `config delete <remoto>_base`, tira de `vaults.json` e apaga a pasta de montagem vazia.
 - [ ] Teste: crypt que não aponta para o base do cofre não é apagado; base usado por outra seção fica; falha no meio deixa o cofre na lista, e a segunda tentativa termina.
 - [ ] Teste: nenhum comando do rclone que fala com o provedor (`delete`, `purge`, `rmdir`, `deletefile`, `cleanup`) aparece em `chamadas.log` em nenhum caminho desta demanda.
-- [ ] Teste da tela: o diálogo de remover só habilita o botão quando o texto digitado é igual ao nome.
+- [ ] Teste da tela: o diálogo de remover mostra `Os arquivos no {provedor} continuam lá.` logo abaixo da pergunta (a linha da Pasta Local, para esse provedor) e só habilita o botão quando o texto digitado é igual ao nome.
 - [ ] Na tela, no Windows: `Reconectar` num cofre do Google Drive; trocar para o app próprio; renomear e destrancar; remover e conferir que os arquivos continuam no Drive e que `Importar Cofre Existente` abre de novo com a senha.
