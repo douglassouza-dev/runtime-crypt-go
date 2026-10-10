@@ -29,6 +29,9 @@ type InfoMontagem struct {
 	// controle é ponteiro para InfoMontagem poder ser copiada (ObterMontagens)
 	// sem copiar os atomics (demanda 010).
 	controle *controleMontagem
+
+	// rc fala com o controle remoto deste rclone (demanda 025).
+	rc *clienteRC
 }
 
 // controleMontagem guarda as marcas da demanda 010 de uma montagem.
@@ -41,6 +44,19 @@ type controleMontagem struct {
 	// conferindo fica ligado enquanto um os.Stat do ponto de montagem está em
 	// andamento, para um ponto travado não acumular goroutines.
 	conferindo atomic.Bool
+
+	// emCurso é a conferência do ponto em andamento. Quem chega enquanto ela
+	// roda espera o mesmo resultado, em vez de ler "não respondeu" (demanda
+	// 025: leituras ao mesmo tempo — tela, bandeja, Trancar — não podem ver
+	// uma falha que não existe).
+	mu      sync.Mutex
+	emCurso *conferenciaPonto
+}
+
+// conferenciaPonto é um os.Stat do ponto em andamento.
+type conferenciaPonto struct {
+	pronto chan struct{}
+	existe bool
 }
 
 // vivo diz se o processo da montagem ainda não terminou.
@@ -132,7 +148,20 @@ type GerenciadorMontagem struct {
 	// desmontarPonto desfaz uma montagem FUSE que ficou presa depois de o
 	// processo terminar (fusermount -u / umount). Os testes trocam.
 	desmontarPonto func(caminho string) error
+
+	// enviando guarda, por letra/pasta, quantos arquivos faltam subir
+	// enquanto DesmontarUnidade espera o envio (demanda 025).
+	enviando map[string]int
+	// esperaSemEnvio é quanto se espera sem nenhum avanço no envio (fila e
+	// bytes parados) antes de desistir de trancar.
+	esperaSemEnvio time.Duration
+	// intervaloEnvio é de quanto em quanto o rc é consultado.
+	intervaloEnvio time.Duration
 }
+
+// EsperaSemEnvioPadrao: o write-back padrão é 5 s; uma fila parada por 2 min
+// é envio que não vai andar sozinho (rede fora, nuvem recusando).
+const EsperaSemEnvioPadrao = 2 * time.Minute
 
 // EsperaEncerrarPadrao é a espera por pedido de encerramento: cobre o
 // --vfs-write-back padrão (5 s) mais a desmontagem do WinFsp/FUSE.
@@ -226,6 +255,10 @@ func NovoGerenciadorMontagem(executavel string, configVfs *ConfigVfs) *Gerenciad
 
 		raizPontos:     PastaPontosPadrao(),
 		desmontarPonto: desmontarPontoFuse,
+
+		enviando:       make(map[string]int),
+		esperaSemEnvio: EsperaSemEnvioPadrao,
+		intervaloEnvio: 250 * time.Millisecond,
 	}
 }
 
@@ -282,7 +315,7 @@ func (g *GerenciadorMontagem) montar(remoto string, letra string, senha string, 
 	for _, info := range g.montagens {
 		if info.Remoto == remoto {
 			g.mu.Unlock()
-			return false, fmt.Sprintf("Este cofre ja esta montado em %s:", info.Letra), "", ""
+			return false, fmt.Sprintf("Este cofre ja esta montado em %s", TextoPonto(g.caminhoPonto(info.Letra))), "", ""
 		}
 	}
 	g.mu.Unlock()
@@ -307,13 +340,14 @@ func (g *GerenciadorMontagem) montar(remoto string, letra string, senha string, 
 	g.mu.Lock()
 	if _, existe := g.montagens[letra]; existe {
 		g.mu.Unlock()
-		return false, fmt.Sprintf("A letra %s: ja esta em uso.", letra), "", fmt.Sprintf("a letra %s: já está em uso", letra)
+		rotulo := RotuloPonto(g.caminhoPonto(letra))
+		return false, fmt.Sprintf("%s ja esta em uso.", maiuscula(rotulo)), "", rotulo + " já está em uso"
 	}
 	g.mu.Unlock()
 
 	if criarPasta {
 		if err := os.MkdirAll(letra, 0o700); err != nil {
-			return false, fmt.Sprintf("Nao deu para criar a pasta %s: %v", letra, err), "", fmt.Sprintf("não deu para criar a pasta %s", letra)
+			return false, fmt.Sprintf("Nao deu para criar a pasta %s: %v", TextoPonto(letra), err), "", fmt.Sprintf("não deu para criar a pasta %s", TextoPonto(letra))
 		}
 		// Se não montar, a pasta criada (vazia) sai.
 		defer func() {
@@ -337,11 +371,19 @@ func (g *GerenciadorMontagem) montar(remoto string, letra string, senha string, 
 		args = append(args, "--network-mode", "--no-console")
 	}
 
+	// Demanda 025: o rc do rclone, só em 127.0.0.1, para Trancar saber se
+	// ainda há envio pendente.
+	rc, err := novoClienteRC()
+	if err != nil {
+		return false, fmt.Sprintf("Nao deu para preparar o controle do rclone: %v", err), "", "não deu para preparar o controle do rclone: " + err.Error()
+	}
+	args = append(args, rc.args()...)
+
 	// O mount é um processo de vida longa: não leva tempo limite de execução.
 	// A espera de 45 s para a unidade aparecer é tratada na demanda 003.
 	cmd := exec.CommandContext(context.Background(), g.executavel, args...)
 
-	env := os.Environ()
+	env := append(os.Environ(), rc.env()...)
 	if senha != "" {
 		env = append(env, "RCLONE_CONFIG_PASS="+senha)
 	}
@@ -370,6 +412,7 @@ func (g *GerenciadorMontagem) montar(remoto string, letra string, senha string, 
 		Letra:    letra,
 		fim:      make(chan struct{}),
 		controle: &controleMontagem{},
+		rc:       rc,
 	}
 	go g.acompanhar(info)
 
@@ -419,7 +462,7 @@ func (g *GerenciadorMontagem) montar(remoto string, letra string, senha string, 
 		return false, mensagemFalhaMontagem(cmd, saidaErro), "", motivoFalhaMontagem(cmd, saidaErro)
 	}
 
-	return true, fmt.Sprintf("Unidade %s: montada com sucesso.", letra), letra, ""
+	return true, fmt.Sprintf("%s foi montada.", maiuscula(RotuloPonto(g.caminhoPonto(letra)))), letra, ""
 }
 
 // motivoFalhaMontagem é a versão curta de mensagemFalhaMontagem, para o card
@@ -542,7 +585,13 @@ func (g *GerenciadorMontagem) DesmontarUnidade(letra string) (bool, string) {
 	info, existe := g.montagens[letra]
 	g.mu.Unlock()
 	if !existe {
-		return false, fmt.Sprintf("Nenhuma montagem ativa na letra %s:", letra)
+		return false, fmt.Sprintf("Nenhuma montagem ativa em %s", TextoPonto(g.caminhoPonto(letra)))
+	}
+
+	// Demanda 025: só encerra o rclone depois de a VFS enviar tudo. Se o
+	// envio falha, a montagem fica como está.
+	if err := g.esperarEnvio(info); err != nil {
+		return false, err.Error()
 	}
 
 	info.controle.desmontando.Store(true)
@@ -566,7 +615,7 @@ func (g *GerenciadorMontagem) DesmontarUnidade(letra string) (bool, string) {
 	}
 
 	if !terminou {
-		msg := fmt.Sprintf("Unidade %s: o rclone (pid %d) nao terminou depois de Interrupt e duas tentativas de Kill. A unidade pode continuar aberta.", letra, info.Processo.Pid)
+		msg := fmt.Sprintf("O rclone (pid %d) nao terminou depois de Interrupt e duas tentativas de Kill; %s pode continuar aberta.", info.Processo.Pid, RotuloPonto(g.caminhoPonto(letra)))
 		if len(motivos) > 0 {
 			msg += " (" + strings.Join(motivos, "; ") + ")"
 		}
@@ -592,7 +641,12 @@ func (g *GerenciadorMontagem) DesmontarUnidade(letra string) (bool, string) {
 		livre = esperarCondicao(g.esperaEncerrar, func() bool { return !g.pontoExiste(ponto) })
 	}
 	if !livre {
-		msg := fmt.Sprintf("Unidade %s: o rclone terminou, mas %s continua visivel. Confira no Explorador antes de considerar o cofre trancado.", letra, ponto)
+		var msg string
+		if EhUnidade(ponto) {
+			msg = fmt.Sprintf("O rclone terminou, mas %s continua visivel. Confira no Explorador antes de considerar o cofre trancado.", RotuloPonto(ponto))
+		} else {
+			msg = fmt.Sprintf("O rclone terminou, mas %s continua montada. Confira antes de considerar o cofre trancado.", RotuloPonto(ponto))
+		}
 		if len(motivos) > 0 {
 			msg += " (" + strings.Join(motivos, "; ") + ")"
 		}
@@ -602,7 +656,62 @@ func (g *GerenciadorMontagem) DesmontarUnidade(letra string) (bool, string) {
 		g.removerPastaVazia(ponto)
 	}
 
-	return true, fmt.Sprintf("Unidade %s: desmontada com sucesso.", letra)
+	return true, fmt.Sprintf("%s foi desmontada.", maiuscula(RotuloPonto(ponto)))
+}
+
+// esperarEnvio espera a VFS do rclone terminar de enviar os arquivos
+// gravados (demanda 025). Volta nil quando a fila zera ou quando o processo
+// já não existe (aí não há o que esperar: o que ficou no cache sobe na
+// próxima montagem). Volta erro quando o rc não responde com o processo vivo,
+// quando o rclone diz que um envio falhou, ou quando nada anda por
+// esperaSemEnvio.
+func (g *GerenciadorMontagem) esperarEnvio(info *InfoMontagem) error {
+	if info.rc == nil {
+		return nil
+	}
+	defer g.marcarEnviando(info.Letra, 0)
+	ultimoPendente, ultimosBytes := -1, int64(-1)
+	ultimoAvanco := time.Now()
+	for {
+		if !info.vivo() {
+			return nil
+		}
+		e, err := info.rc.envio()
+		if err != nil {
+			if !info.vivo() {
+				return nil
+			}
+			return fmt.Errorf("não deu para conferir o envio dos arquivos (%v)", err)
+		}
+		if n := e.DiskCache.ErroredFiles; n > 0 {
+			return fmt.Errorf("o envio de %d arquivo(s) falhou", n)
+		}
+		pendente := e.pendentes()
+		if pendente == 0 {
+			return nil
+		}
+		g.marcarEnviando(info.Letra, pendente)
+
+		bytes, _ := info.rc.bytesEnviados()
+		if pendente != ultimoPendente || bytes != ultimosBytes {
+			ultimoPendente, ultimosBytes = pendente, bytes
+			ultimoAvanco = time.Now()
+		}
+		if time.Since(ultimoAvanco) > g.esperaSemEnvio {
+			return fmt.Errorf("o envio de %d arquivo(s) parou por %s", pendente, g.esperaSemEnvio)
+		}
+		time.Sleep(g.intervaloEnvio)
+	}
+}
+
+func (g *GerenciadorMontagem) marcarEnviando(letra string, n int) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if n == 0 {
+		delete(g.enviando, letra)
+		return
+	}
+	g.enviando[letra] = n
 }
 
 // removerPastaVazia tira a pasta do ponto de montagem se ela estiver vazia e
@@ -700,24 +809,33 @@ func (g *GerenciadorMontagem) estadoDe(info *InfoMontagem) (EstadoMontagem, stri
 const esperaFimAntesDePontoSumiu = time.Second
 
 // conferirPonto roda pontoExiste com limite de tempo. respondeu=false quando
-// o limite passou, ou quando a conferência anterior desta montagem ainda não
-// voltou (não se empilha outra goroutine num ponto travado).
+// o limite passou. Se já há uma conferência desta montagem em andamento,
+// espera o resultado dela (não se empilha outra goroutine num ponto travado).
 func (g *GerenciadorMontagem) conferirPonto(info *InfoMontagem) (existe bool, respondeu bool) {
-	if !info.controle.conferindo.CompareAndSwap(false, true) {
-		return false, false
-	}
+	c := info.controle
+	c.mu.Lock()
+	conf := c.emCurso
 	caminho := g.caminhoPonto(info.Letra)
-	resposta := make(chan bool, 1)
 	inicio := time.Now()
-	go func() {
-		defer info.controle.conferindo.Store(false)
-		resposta <- g.pontoExiste(caminho)
-	}()
+	if conf == nil {
+		conf = &conferenciaPonto{pronto: make(chan struct{})}
+		c.emCurso = conf
+		c.conferindo.Store(true)
+		go func() {
+			conf.existe = g.pontoExiste(caminho)
+			c.mu.Lock()
+			c.emCurso = nil
+			c.mu.Unlock()
+			c.conferindo.Store(false)
+			close(conf.pronto)
+		}()
+	}
+	c.mu.Unlock()
 
 	select {
-	case existe = <-resposta:
+	case <-conf.pronto:
 		registrarDemoraPonto(caminho, time.Since(inicio), true)
-		return existe, true
+		return conf.existe, true
 	case <-time.After(g.limitePonto):
 		registrarDemoraPonto(caminho, time.Since(inicio), false)
 		return false, false
@@ -795,6 +913,9 @@ type EstadoRemoto struct {
 	Caiu          bool
 	Letra         string
 	PontoMontagem string
+	// Enviando é quantos arquivos faltam subir enquanto Trancar espera
+	// (demanda 025); 0 fora disso.
+	Enviando int
 }
 
 // EstadosPorRemoto devolve nome_remoto → estado de todo remoto que não está
@@ -809,8 +930,18 @@ func (g *GerenciadorMontagem) EstadosPorRemoto() map[string]EstadoRemoto {
 	}
 	g.mu.Unlock()
 
-	for _, s := range g.Status() {
+	status := g.Status()
+	g.mu.Lock()
+	enviando := make(map[string]int, len(g.enviando))
+	for l, n := range g.enviando {
+		enviando[l] = n
+	}
+	g.mu.Unlock()
+	for _, s := range status {
 		e := EstadoRemoto{Estado: s.Estado, Letra: s.Letra, PontoMontagem: s.PontoMontagem}
+		if s.Estado == EstadoMontado {
+			e.Enviando = enviando[s.Letra]
+		}
 		if s.Estado == EstadoFalhou {
 			e.Motivo = s.Motivo
 			e.Caiu = true

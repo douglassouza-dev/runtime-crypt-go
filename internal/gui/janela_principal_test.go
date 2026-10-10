@@ -121,3 +121,22 @@ func TestCardDestrancandoIgnoraClique(t *testing.T) {
 		t.Errorf("%d cliques chegaram à ação", cliques)
 	}
 }
+
+// Demanda 025: enquanto envia, o card diz quantos arquivos faltam e o botão
+// não aceita outro clique.
+func TestCardEnviandoDesabilitaBotao(t *testing.T) {
+	test.NewTempApp(t)
+	c := core.CofreStatus{Cofre: core.Cofre{Nome: "a"}, Estado: core.EstadoMontado, Letra: "V", PontoMontagem: `V:\`, Enviando: 2}
+	cliques := 0
+	card := criarCardCofre(c, "", func() { cliques++ })
+
+	junto := strings.Join(textosDoCard(card), "|")
+	if !strings.Contains(junto, "Enviando 2 arquivos…") {
+		t.Errorf("card = %q", junto)
+	}
+	b := botaoDoCard(card)
+	test.Tap(b)
+	if !b.Disabled() || cliques != 0 {
+		t.Errorf("botão deveria estar desabilitado (cliques=%d)", cliques)
+	}
+}

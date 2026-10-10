@@ -1,6 +1,9 @@
 package frases
 
 import (
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"unicode/utf16"
@@ -95,5 +98,71 @@ func TestTooltipCabeNoLimiteDoWindows(t *testing.T) {
 	}
 	if !strings.HasSuffix(tip, "…") {
 		t.Errorf("tooltip cortado deveria terminar em …: %q", tip)
+	}
+}
+
+// Demanda 013: fora do Windows toda frase mostra a pasta, nunca `X:\`.
+func TestFrasesComPasta(t *testing.T) {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		t.Fatalf("sem home: %v", err)
+	}
+	ponto := filepath.Join(home, "RuntimeCrypto", "fotos")
+	mostrado := "~" + ponto[len(strings.TrimRight(home, `/\`)):] // ~/RuntimeCrypto/fotos
+	if runtime.GOOS != "windows" && mostrado != "~/RuntimeCrypto/fotos" {
+		t.Fatalf("pasta mostrada = %q", mostrado)
+	}
+	com := func(estado core.EstadoMontagem, caiu bool, motivo string) core.CofreStatus {
+		c := cofre(estado)
+		c.Letra, c.PontoMontagem, c.Caiu, c.Motivo = ponto, ponto, caiu, motivo
+		return c
+	}
+
+	casos := map[string]core.CofreStatus{
+		"Destrancado • " + mostrado:                    com(core.EstadoMontado, false, ""),
+		"Caiu: a pasta " + mostrado + " sumiu":         com(core.EstadoFalhou, true, core.MotivoPontoSumiu),
+		"Caiu: a pasta " + mostrado + " não respondeu": com(core.EstadoFalhou, true, "ponto de montagem nao respondeu em 2s"),
+		"Caiu: o rclone parou":                         com(core.EstadoFalhou, true, core.MotivoProcessoTerminou),
+	}
+	for quer, c := range casos {
+		got := DoCofre(c)
+		if got != quer {
+			t.Errorf("DoCofre = %q, quer %q", got, quer)
+		}
+		if strings.Contains(got, `:\`) || strings.Contains(got, "unidade") {
+			t.Errorf("frase de pasta com cara de unidade: %q", got)
+		}
+	}
+	if tip := Tooltip([]core.CofreStatus{com(core.EstadoMontado, false, "")}); !strings.Contains(tip, "Destrancado • "+mostrado) {
+		t.Errorf("tooltip = %q", tip)
+	}
+}
+
+// No Windows: a unidade, como antes.
+func TestFrasesComUnidade(t *testing.T) {
+	c := cofre(core.EstadoFalhou)
+	c.Letra, c.PontoMontagem, c.Caiu, c.Motivo = "V", `V:\`, true, "ponto de montagem nao respondeu em 2s"
+	if got := DoCofre(c); got != `Caiu: a unidade V:\ não respondeu` {
+		t.Errorf("DoCofre = %q", got)
+	}
+	c.Estado, c.Caiu, c.Motivo = core.EstadoMontado, false, ""
+	if got := DoCofre(c); got != `Destrancado • V:\` {
+		t.Errorf("DoCofre = %q", got)
+	}
+}
+
+// Demanda 025: enquanto o Trancar espera o envio.
+func TestFraseEnviando(t *testing.T) {
+	c := cofre(core.EstadoMontado)
+	c.Letra, c.PontoMontagem, c.Enviando = "V", `V:\`, 3
+	if got := DoCofre(c); got != "Enviando 3 arquivos…" {
+		t.Errorf("DoCofre = %q", got)
+	}
+	if tip := Tooltip([]core.CofreStatus{c}); !strings.Contains(tip, "Enviando 3 arquivos…") {
+		t.Errorf("tooltip = %q", tip)
+	}
+	c.Enviando = 0
+	if got := DoCofre(c); got != `Destrancado • V:\` {
+		t.Errorf("sem envio: %q", got)
 	}
 }

@@ -15,6 +15,12 @@ package core
 //   RCLONE_FALSO_TOKEN=<json>   `authorize` entrega este token e sai
 //   RCLONE_FALSO_AUTH_FALHA=<t> `authorize` escreve <t> e sai com 1 (login
 //                               recusado no navegador)
+//   RCLONE_FALSO_DIR/vfs_stats.json  resposta do rc vfs/stats do `mount`
+//                               (padrão: fila vazia); relida a cada chamada
+//   RCLONE_FALSO_DIR/core_stats.json resposta do rc core/stats (padrão: bytes 0)
+//
+// `mount` com --rc-addr sobe um rc falso nesse endereço, com a mesma
+// autenticação do rclone (RCLONE_RC_USER/RCLONE_RC_PASS do ambiente).
 //   RCLONE_CONFIG=<arquivo>     com esta variável, `config create|delete|dump`
 //                               e `listremotes` usam este arquivo INI, como o
 //                               rclone real (create em nome existente
@@ -31,6 +37,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -137,6 +145,7 @@ func rodarRcloneFalso(arg0 string, args []string) int {
 	case "lsjson":
 		fmt.Print(lerArquivo(dir, "lsjson.json", "[]"))
 	case "mount":
+		servirRCFalso(dir, args)
 		time.Sleep(vidaMaximaFalso)
 	case "authorize":
 		saida := "If your browser doesn't open automatically go to the following link: http://127.0.0.1:53682/auth?state=falso\n" +
@@ -155,6 +164,42 @@ func rodarRcloneFalso(arg0 string, args []string) int {
 		time.Sleep(vidaMaximaFalso)
 	}
 	return 0
+}
+
+// servirRCFalso sobe o rc do mount falso, se pedido (demanda 025).
+func servirRCFalso(dir string, args []string) {
+	endereco := ""
+	for i, a := range args {
+		if a == "--rc-addr" && i+1 < len(args) {
+			endereco = args[i+1]
+		}
+	}
+	if endereco == "" {
+		return
+	}
+	usuario, senha := os.Getenv("RCLONE_RC_USER"), os.Getenv("RCLONE_RC_PASS")
+	respostas := map[string][2]string{
+		"/vfs/stats":  {"vfs_stats.json", `{"diskCache":{"uploadsInProgress":0,"uploadsQueued":0,"erroredFiles":0}}`},
+		"/core/stats": {"core_stats.json", `{"bytes":0}`},
+	}
+	mux := http.NewServeMux()
+	for caminho, r := range respostas {
+		r := r
+		mux.HandleFunc(caminho, func(w http.ResponseWriter, req *http.Request) {
+			u, p, ok := req.BasicAuth()
+			if usuario != "" && (!ok || u != usuario || p != senha) {
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+				return
+			}
+			io.WriteString(w, lerArquivo(dir, r[0], r[1]))
+		})
+	}
+	l, err := net.Listen("tcp", endereco)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "rc falso:", err)
+		os.Exit(1)
+	}
+	go http.Serve(l, mux)
 }
 
 // secaoIni é uma seção [nome] do rclone.conf falso.

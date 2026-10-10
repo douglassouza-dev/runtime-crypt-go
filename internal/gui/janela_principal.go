@@ -228,6 +228,21 @@ func (jp *JanelaPrincipal) atualizarLogoApos(nome string) {
 
 const esperaDestrancando = 30 * time.Second
 
+// acompanharTrancar atualiza o card enquanto o Trancar espera o envio
+// (demanda 025): "Enviando {n} arquivos…" muda a cada arquivo enviado.
+func (jp *JanelaPrincipal) acompanharTrancar(feito <-chan struct{}) {
+	t := time.NewTicker(300 * time.Millisecond)
+	defer t.Stop()
+	for {
+		select {
+		case <-feito:
+			return
+		case <-t.C:
+			jp.atualizarCofres()
+		}
+	}
+}
+
 // Mostrar traz a janela para frente.
 func (jp *JanelaPrincipal) Mostrar() {
 	jp.janela.Show()
@@ -318,7 +333,7 @@ func criarCardCofre(cofre core.CofreStatus, falhaTrancar string, aoClicar func()
 	} else {
 		btnAcao.Importance = widget.HighImportance
 	}
-	if cofre.Estado == core.EstadoMontando {
+	if cofre.Estado == core.EstadoMontando || cofre.Enviando > 0 {
 		btnAcao.Disable()
 	}
 
