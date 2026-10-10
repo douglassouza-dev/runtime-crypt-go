@@ -34,6 +34,7 @@ A ordem segue o risco à estabilidade e aos segredos. A migração para Wails (0
 | [026](026-cofre-que-caiu.md) | Cofre que caiu: destrancar de novo e trancar sem perder envio | Alto · dados, segredos | 018, 022, 025 | Aberta |
 | [027](027-erros-do-rclone-em-portugues.md) | Erros do rclone em português e cabeçalho do seletor | Médio · uso | 018, 026 | Aberta |
 | [028](028-sair-com-cofre-que-caiu.md) | Sair com cofre que caiu e arquivos que não subiram | Alto · dados | 022, 025, 026 | Aberta |
+| [031](031-pasta-de-configuracao.md) | vaults.json e log na pasta de configuração do usuário | Alto · dados | 007, 012, 027 | Aberta |
 
 ## Ordem sugerida de execução
 
@@ -85,4 +86,7 @@ flowchart LR
     d022 --> d028["028 sair com cofre que caiu"]
     d025 --> d028
     d026 --> d028
+    d007 --> d031["031 pasta de configuração"]
+    d012 --> d031
+    d027 --> d031
 ```

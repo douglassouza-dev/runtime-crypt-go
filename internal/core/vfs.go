@@ -23,6 +23,9 @@ type ConfigVfs struct {
 	arquivo string
 	// avisos lista o que foi descartado na leitura do arquivo.
 	avisos []string
+	// bloqueio impede gravar (demanda 031: pasta de configuração sem
+	// gravação). Atualizar e Restaurar devolvem este erro.
+	bloqueio error
 }
 
 // ArquivoVfs é o nome do arquivo da configuração VFS, ao lado de vaults.json.
@@ -91,6 +94,9 @@ func (c *ConfigVfs) Avisos() []string {
 // gravar grava cfg no arquivo, com a escrita atômica de vaults.json (007).
 // Sem arquivo (só em memória), não faz nada.
 func (c *ConfigVfs) gravar(cfg map[string]string) error {
+	if c.bloqueio != nil {
+		return c.bloqueio
+	}
 	if c.arquivo == "" {
 		return nil
 	}
@@ -324,4 +330,11 @@ func validarPastaCache(caminho string) error {
 	f.Close()
 	os.Remove(nome)
 	return nil
+}
+
+// BloquearGravacao faz Atualizar e Restaurar recusarem com err (demanda 031).
+func (c *ConfigVfs) BloquearGravacao(err error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.bloqueio = err
 }

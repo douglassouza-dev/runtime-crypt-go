@@ -52,6 +52,25 @@ type GerenciadorCofres struct {
 	// erroCarga guarda o motivo de vaults.json não ter sido lido. Enquanto ele
 	// existir, nada é gravado por cima do arquivo (demanda 007).
 	erroCarga error
+	// bloqueio impede qualquer gravação quando a pasta de configuração não
+	// pode ser usada (demanda 031). A leitura segue normal.
+	bloqueio error
+}
+
+// BloquearGravacao faz Adicionar, Remover e Atualizar recusarem com err, sem
+// tocar no arquivo (demanda 031: pasta de configuração sem gravação).
+func (g *GerenciadorCofres) BloquearGravacao(err error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.bloqueio = err
+}
+
+// motivoBloqueio é o que impede gravar, ou nil.
+func (g *GerenciadorCofres) motivoBloqueio() error {
+	if g.bloqueio != nil {
+		return g.bloqueio
+	}
+	return g.erroCarga
 }
 
 // NovoGerenciadorCofres cria uma instância e carrega os cofres do disco.
@@ -61,9 +80,16 @@ type GerenciadorCofres struct {
 // erro: nesse estado Adicionar, Remover e Atualizar recusam e o arquivo fica
 // como está. Uma cópia do arquivo ilegível é guardada ao lado, com outro nome.
 func NovoGerenciadorCofres(diretorioApp string) (*GerenciadorCofres, error) {
+	return novoGerenciadorCofres(diretorioApp, nil)
+}
+
+// novoGerenciadorCofres é NovoGerenciadorCofres com a gravação já bloqueada
+// por bloqueio (031): aí nem a cópia do arquivo ilegível é gravada.
+func novoGerenciadorCofres(diretorioApp string, bloqueio error) (*GerenciadorCofres, error) {
 	g := &GerenciadorCofres{
 		diretorioApp: diretorioApp,
 		cofres:       []Cofre{},
+		bloqueio:     bloqueio,
 	}
 	if err := g.carregar(); err != nil {
 		g.erroCarga = err
@@ -97,6 +123,9 @@ func (g *GerenciadorCofres) carregar() error {
 	}
 	var cofres []Cofre
 	if err := json.Unmarshal(dados, &cofres); err != nil {
+		if g.bloqueio != nil {
+			return fmt.Errorf("%s esta corrompido (%v); nada sera gravado por cima. Nenhuma copia guardada: a pasta de configuracao nao aceita gravacao", caminho, err)
+		}
 		copia := g.preservarIlegivel(dados)
 		return fmt.Errorf("%s esta corrompido (%v); nada sera gravado por cima. Copia guardada em %s", caminho, err, copia)
 	}
@@ -155,8 +184,8 @@ func (g *GerenciadorCofres) preservarIlegivel(dados []byte) string {
 // pasta e renomeia por cima, para uma queda no meio nunca deixar vaults.json
 // pela metade.
 func (g *GerenciadorCofres) salvar() error {
-	if g.erroCarga != nil {
-		return fmt.Errorf("gravacao bloqueada: %w", g.erroCarga)
+	if err := g.motivoBloqueio(); err != nil {
+		return fmt.Errorf("gravacao bloqueada: %w", err)
 	}
 	dados, err := json.MarshalIndent(g.cofres, "", "  ")
 	if err != nil {
@@ -235,8 +264,8 @@ func (g *GerenciadorCofres) Adicionar(nome, provedorId, provedorNome, remotoBase
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
-	if g.erroCarga != nil {
-		return false, "Erro ao salvar: gravacao bloqueada: " + g.erroCarga.Error()
+	if err := g.motivoBloqueio(); err != nil {
+		return false, "Erro ao salvar: gravacao bloqueada: " + err.Error()
 	}
 
 	for _, c := range g.cofres {

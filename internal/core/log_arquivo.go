@@ -10,10 +10,10 @@ import (
 
 // Demanda 027: "detalhes no log" precisa de um log. No Windows, com
 // -H windowsgui, o stderr do app não vai para lugar nenhum; o log passa a ir
-// para {pasta do app}/runtimecrypto.log, que troca para .log.1 ao passar do
-// limite. Senhas não são escritas no log em lugar nenhum do core.
+// para runtimecrypto.log na pasta de configuração (031), que troca para .log.1
+// ao passar do limite. Senhas não são escritas no log em lugar nenhum do core.
 
-// NomeArquivoLog é o nome do log dentro da pasta do app.
+// NomeArquivoLog é o nome do log dentro da pasta de configuração.
 const NomeArquivoLog = "runtimecrypto.log"
 
 // LimiteArquivoLog é o tamanho a partir do qual o log troca de arquivo.

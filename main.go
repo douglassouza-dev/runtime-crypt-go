@@ -2,6 +2,7 @@ package main
 
 import (
 	_ "embed"
+	"log"
 	"time"
 
 	"fyne.io/fyne/v2/app"
@@ -20,8 +21,15 @@ var iconeBytes []byte
 func main() {
 	gerenciador := core.NovoGerenciador()
 	// Demanda 027: o texto do rclone vai para o log, que precisa existir.
-	if registro, err := core.AbrirLog(gerenciador.DiretorioApp); err == nil {
-		defer registro.Close()
+	// Demanda 031: o log fica na pasta de configuração; se ela não pode ser
+	// usada, não há arquivo de log (nunca na pasta do executável).
+	if gerenciador.ErroPastaConfig == nil {
+		if registro, err := core.AbrirLog(gerenciador.DiretorioConfig); err == nil {
+			defer registro.Close()
+		}
+	}
+	for _, linha := range gerenciador.RegistroPastaConfig {
+		log.Print(linha)
 	}
 	canalAcoes := make(chan tray.AcaoTray, 32)
 
