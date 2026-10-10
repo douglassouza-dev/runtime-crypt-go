@@ -43,7 +43,7 @@ func TestMontarUnidadeTempoEsgotadoNaoDeixaProcesso(t *testing.T) {
 
 	ok, msg, _ := g.MontarUnidade("cofre", "V", "", nil)
 
-	if ok || !strings.Contains(msg, "Timeout") {
+	if ok || !strings.Contains(msg, "Tempo esgotado: a unidade não ficou pronta") {
 		t.Errorf("ok=%v msg=%q", ok, msg)
 	}
 	semMontagemNemProcesso(t, g, f)

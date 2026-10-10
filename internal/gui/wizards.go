@@ -10,6 +10,22 @@ import (
 	"github.com/eufrauzino/runtime-crypt-go/internal/core"
 )
 
+// ProvedoresNovoCofre são os botões de "Criar Novo Cofre": os dos
+// assistentes, sem os que só servem para conectar (LocalOnly). S3 e Pasta
+// Local ficam de fora até funcionarem (core.ProvedoresOcultos).
+func ProvedoresNovoCofre() []core.Provedor {
+	var lista []core.Provedor
+	for _, p := range core.ProvedoresDosAssistentes() {
+		if !p.LocalOnly {
+			lista = append(lista, p)
+		}
+	}
+	return lista
+}
+
+// ProvedoresImportar são os botões de "Importar Cofre Existente".
+func ProvedoresImportar() []core.Provedor { return core.ProvedoresDosAssistentes() }
+
 // ResultadoNovoCofre contém o resultado do wizard de criação de cofre.
 type ResultadoNovoCofre struct {
 	Sucesso bool
@@ -20,13 +36,7 @@ type ResultadoNovoCofre struct {
 func DialogoNovoCofre(janelaPai fyne.Window) ResultadoNovoCofre {
 	resultado := make(chan ResultadoNovoCofre, 1)
 
-	// Filtrar provedores (sem local_only para criação)
-	var provedores []core.Provedor
-	for _, p := range core.Provedores {
-		if !p.LocalOnly {
-			provedores = append(provedores, p)
-		}
-	}
+	provedores := ProvedoresNovoCofre()
 
 	var provedorSelecionado *core.Provedor
 
@@ -171,7 +181,7 @@ func DialogoImportarCofre(janelaPai fyne.Window) ResultadoImportarCofre {
 	lblEscolha.TextSize = 12
 	containerProvedor.Add(lblEscolha)
 
-	for _, prov := range core.Provedores {
+	for _, prov := range ProvedoresImportar() {
 		p := prov
 		btn := widget.NewButton(p.Nome, func() {
 			provedorSelecionado = &p

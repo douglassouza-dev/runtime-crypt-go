@@ -110,8 +110,8 @@ func TestSaudePontoQueNaoRespondeFalhaSemTravarStatus(t *testing.T) {
 	if d := time.Since(inicio); d > time.Second {
 		t.Errorf("Status levou %v com o ponto travado", d)
 	}
-	if st.Estado != EstadoFalhou || !strings.Contains(st.Motivo, "nao respondeu") {
-		t.Errorf("Status = %+v, quer falhou com \"nao respondeu\"", st)
+	if st.Estado != EstadoFalhou || !strings.Contains(st.Motivo, "não respondeu") {
+		t.Errorf("Status = %+v, quer falhou com \"não respondeu\"", st)
 	}
 	if st2.Estado != EstadoFalhou || chamadas.Load() != 1 {
 		t.Errorf("segunda leitura: %+v, %d conferências em andamento (quer 1)", st2, chamadas.Load())

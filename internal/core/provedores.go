@@ -39,7 +39,7 @@ var Provedores = []Provedor{
 		Campos: []CampoProvedor{
 			{Id: "access_key_id", Label: "Access Key ID", Tipo: "text", Required: true},
 			{Id: "secret_access_key", Label: "Secret Access Key", Tipo: "password", Required: true},
-			{Id: "region", Label: "Regiao (ex: us-east-1)", Tipo: "text", Required: false},
+			{Id: "region", Label: "Região (ex: us-east-1)", Tipo: "text", Required: false},
 			{Id: "endpoint", Label: "Endpoint customizado (MinIO, etc)", Tipo: "text", Required: false},
 		},
 	},
@@ -60,4 +60,22 @@ func ObterProvedor(id string) *Provedor {
 		}
 	}
 	return nil
+}
+
+// ProvedoresOcultos são os provedores que os assistentes de criar e de
+// conectar cofre não mostram até funcionarem: S3 não pede as chaves e Pasta
+// Local não conecta (014). O código deles continua: um cofre desses que já
+// está em vaults.json continua listando, destrancando e trancando.
+var ProvedoresOcultos = map[string]bool{"s3": true, "local_path": true}
+
+// ProvedoresDosAssistentes é a lista que os assistentes mostram, na ordem de
+// Provedores, sem os ocultos.
+func ProvedoresDosAssistentes() []Provedor {
+	var lista []Provedor
+	for _, p := range Provedores {
+		if !ProvedoresOcultos[p.Id] {
+			lista = append(lista, p)
+		}
+	}
+	return lista
 }

@@ -144,7 +144,7 @@ func (g *GerenciadorRClone) EstaDisponivel() bool {
 // ObscurecerSenha ofusca uma senha usando rclone obscure.
 func (g *GerenciadorRClone) ObscurecerSenha(senha string) (string, error) {
 	if !g.EstaDisponivel() {
-		return "", fmt.Errorf("RClone nao disponivel")
+		return "", errors.New(TextoRcloneNaoInstalado)
 	}
 
 	saida, err := chamadaRclone{
@@ -185,7 +185,7 @@ func (g *GerenciadorRClone) ImportarCrypt(nome string, remotoBase string, senha 
 // RemoverRemoto remove um remoto da configuração do rclone.
 func (g *GerenciadorRClone) RemoverRemoto(nome string) (bool, string) {
 	if !g.EstaDisponivel() {
-		return false, "RClone nao disponivel."
+		return false, TextoRcloneNaoInstalado
 	}
 
 	nomeLimpo := strings.TrimSuffix(nome, ":")
@@ -210,11 +210,11 @@ func (g *GerenciadorRClone) RemoverRemoto(nome string) (bool, string) {
 
 // ErrRcloneIndisponivel é devolvido pelas listagens quando o rclone não foi
 // encontrado.
-var ErrRcloneIndisponivel = errors.New("rclone nao disponivel")
+var ErrRcloneIndisponivel = errors.New("o rclone não está instalado")
 
 // ErrRemotoNaoEncontrado é devolvido por ObterConfigRemoto quando o remoto não
 // existe no rclone.conf.
-var ErrRemotoNaoEncontrado = errors.New("remoto nao encontrado")
+var ErrRemotoNaoEncontrado = errors.New("remoto não encontrado")
 
 // configDump roda `rclone config dump` com tempo limite e devolve o JSON lido.
 func (g *GerenciadorRClone) configDump() (map[string]map[string]interface{}, error) {
@@ -228,7 +228,7 @@ func (g *GerenciadorRClone) configDump() (map[string]map[string]interface{}, err
 	}
 	var config map[string]map[string]interface{}
 	if err := json.Unmarshal(saida, &config); err != nil {
-		return nil, fmt.Errorf("saida de `rclone config dump` ilegivel: %w", err)
+		return nil, fmt.Errorf("saída de `rclone config dump` ilegível: %w", err)
 	}
 	return config, nil
 }
@@ -385,7 +385,7 @@ func (g *GerenciadorRClone) ListarDiretoriosRemoto(nomeRemoto string, caminho st
 
 	dirs, err := lerNomesLsjson(saida)
 	if err != nil {
-		return nil, fmt.Errorf("saida de `rclone lsjson` ilegivel: %w", err)
+		return nil, fmt.Errorf("saída de `rclone lsjson` ilegível: %w", err)
 	}
 
 	sort.Strings(dirs)

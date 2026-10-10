@@ -28,6 +28,11 @@ const (
 	TextoRcloneAusente      = "Não destrancou: o rclone não está instalado."
 )
 
+// TextoRcloneNaoInstalado é a frase das ações que precisam do rclone e não o
+// acharam (criar, conectar, montar), no mesmo estilo da 030. Era
+// "RClone nao disponivel.".
+const TextoRcloneNaoInstalado = "O rclone não está instalado."
+
 // MotivoNaoConferiu diz por que a senha não pôde ser comparada.
 type MotivoNaoConferiu int
 

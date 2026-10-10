@@ -111,7 +111,7 @@ func TestMontarUnidadeSucesso(t *testing.T) {
 
 func TestMontarUnidadeRecusa(t *testing.T) {
 	semRclone := NovoGerenciadorMontagem("", NovoConfigVfs())
-	if ok, msg, _ := semRclone.MontarUnidade("cofre", "V", "", nil); ok || !strings.Contains(msg, "nao disponivel") {
+	if ok, msg, _ := semRclone.MontarUnidade("cofre", "V", "", nil); ok || !strings.Contains(msg, "não está instalado") {
 		t.Errorf("sem rclone: ok=%v msg=%q", ok, msg)
 	}
 
@@ -120,7 +120,7 @@ func TestMontarUnidadeRecusa(t *testing.T) {
 		t.Fatal(msg)
 	}
 	defer g.DesmontarUnidade("V")
-	if ok, msg, _ := g.MontarUnidade("outro", "V", "", nil); ok || !strings.Contains(msg, "ja esta em uso") {
+	if ok, msg, _ := g.MontarUnidade("outro", "V", "", nil); ok || !strings.Contains(msg, "já está em uso") {
 		t.Errorf("letra repetida: ok=%v msg=%q", ok, msg)
 	}
 }

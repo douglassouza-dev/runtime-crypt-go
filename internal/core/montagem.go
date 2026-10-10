@@ -98,7 +98,7 @@ const (
 	MotivoProcessoTerminou = "processo terminou"
 	MotivoPontoSumiu       = "ponto de montagem sumiu"
 	// MotivoPontoNaoResponde leva o limite da conferência (%s).
-	MotivoPontoNaoResponde = "ponto de montagem nao respondeu em %s"
+	MotivoPontoNaoResponde = "ponto de montagem não respondeu em %s"
 )
 
 // StatusMontagem representa o estado público de uma montagem.
@@ -277,7 +277,7 @@ func NovoGerenciadorMontagem(executavel string, configVfs *ConfigVfs) *Gerenciad
 
 // MsgJaDestrancando é a recusa de um segundo MontarUnidade do mesmo remoto
 // enquanto o primeiro espera (demanda 018).
-const MsgJaDestrancando = "Este cofre ja esta sendo destrancado."
+const MsgJaDestrancando = "Este cofre já está sendo destrancado."
 
 // MontarUnidade monta um remoto crypt como unidade virtual.
 //
@@ -319,7 +319,7 @@ func (g *GerenciadorMontagem) MontarUnidade(remoto string, letra string, senha s
 // montou ("" quando montou, ou quando o remoto já estava montado).
 func (g *GerenciadorMontagem) montar(remoto string, letra string, senha string, configVfsOverride map[string]string) (ok bool, msg string, letraMontada string, motivo string, erroRc *ErroRclone) {
 	if g.executavel == "" {
-		return false, "RClone nao disponivel.", "", "o rclone não está disponível", nil
+		return false, TextoRcloneNaoInstalado, "", "o rclone não está instalado", nil
 	}
 	if g.DriverInstalado != nil && !g.DriverInstalado() {
 		e := &ErroRclone{Falha: FalhaDriver}
@@ -337,7 +337,7 @@ func (g *GerenciadorMontagem) montar(remoto string, letra string, senha string, 
 	for _, info := range g.montagens {
 		if info.Remoto == remoto {
 			g.mu.Unlock()
-			return false, fmt.Sprintf("Este cofre ja esta montado em %s", TextoPonto(g.caminhoPonto(info.Letra))), "", "", nil
+			return false, fmt.Sprintf("Este cofre já está montado em %s", TextoPonto(g.caminhoPonto(info.Letra))), "", "", nil
 		}
 	}
 	g.mu.Unlock()
@@ -352,7 +352,7 @@ func (g *GerenciadorMontagem) montar(remoto string, letra string, senha string, 
 	if letra == "" {
 		disponiveis := ObterLetrasDisponiveis(g.letrasOcupadas())
 		if len(disponiveis) == 0 {
-			return false, "Nenhuma letra de unidade disponivel.", "", "nenhuma letra de unidade livre", nil
+			return false, "Nenhuma letra de unidade disponível.", "", "nenhuma letra de unidade livre", nil
 		}
 		letra = disponiveis[0]
 	}
@@ -363,13 +363,13 @@ func (g *GerenciadorMontagem) montar(remoto string, letra string, senha string, 
 	if _, existe := g.montagens[letra]; existe {
 		g.mu.Unlock()
 		rotulo := RotuloPonto(g.caminhoPonto(letra))
-		return false, fmt.Sprintf("%s ja esta em uso.", maiuscula(rotulo)), "", rotulo + " já está em uso", nil
+		return false, fmt.Sprintf("%s já está em uso.", maiuscula(rotulo)), "", rotulo + " já está em uso", nil
 	}
 	g.mu.Unlock()
 
 	if criarPasta {
 		if err := os.MkdirAll(letra, 0o700); err != nil {
-			return false, fmt.Sprintf("Nao deu para criar a pasta %s: %v", TextoPonto(letra), err), "", fmt.Sprintf("não deu para criar a pasta %s", TextoPonto(letra)), nil
+			return false, fmt.Sprintf("Não deu para criar a pasta %s: %v", TextoPonto(letra), err), "", fmt.Sprintf("não deu para criar a pasta %s", TextoPonto(letra)), nil
 		}
 		// Se não montar, a pasta criada (vazia) sai.
 		defer func() {
@@ -397,7 +397,7 @@ func (g *GerenciadorMontagem) montar(remoto string, letra string, senha string, 
 	// ainda há envio pendente.
 	rc, err := novoClienteRC()
 	if err != nil {
-		return false, fmt.Sprintf("Nao deu para preparar o controle do rclone: %v", err), "", "não deu para preparar o controle do rclone: " + err.Error(), nil
+		return false, fmt.Sprintf("Não deu para preparar o controle do rclone: %v", err), "", "não deu para preparar o controle do rclone: " + err.Error(), nil
 	}
 	args = append(args, rc.args()...)
 
@@ -451,7 +451,7 @@ func (g *GerenciadorMontagem) montar(remoto string, letra string, senha string, 
 		case <-prazo.C:
 			cmd.Process.Kill()
 			<-info.fim
-			msg := fmt.Sprintf("Timeout: A unidade nao ficou pronta em %s.", limite)
+			msg := fmt.Sprintf("Tempo esgotado: a unidade não ficou pronta em %s.", limite)
 			if linhas := saidaErro.Texto(); linhas != "" {
 				// Demanda 027: o texto do rclone só vai para o log.
 				log.Printf("rclone mount %s (tempo esgotado): %s", remoto, linhas)
@@ -627,7 +627,7 @@ func (g *GerenciadorMontagem) DesmontarUnidade(letra string) (bool, string) {
 	}
 
 	if !terminou {
-		msg := fmt.Sprintf("O rclone (pid %d) nao terminou depois de Interrupt e duas tentativas de Kill; %s pode continuar aberta.", info.Processo.Pid, RotuloPonto(g.caminhoPonto(letra)))
+		msg := fmt.Sprintf("O rclone (pid %d) não terminou depois de Interrupt e duas tentativas de Kill; %s pode continuar aberta.", info.Processo.Pid, RotuloPonto(g.caminhoPonto(letra)))
 		if len(motivos) > 0 {
 			msg += " (" + strings.Join(motivos, "; ") + ")"
 		}
@@ -655,7 +655,7 @@ func (g *GerenciadorMontagem) DesmontarUnidade(letra string) (bool, string) {
 	if !livre {
 		var msg string
 		if EhUnidade(ponto) {
-			msg = fmt.Sprintf("O rclone terminou, mas %s continua visivel. Confira no Explorador antes de considerar o cofre trancado.", RotuloPonto(ponto))
+			msg = fmt.Sprintf("O rclone terminou, mas %s continua visível. Confira no Explorador antes de considerar o cofre trancado.", RotuloPonto(ponto))
 		} else {
 			msg = fmt.Sprintf("O rclone terminou, mas %s continua montada. Confira antes de considerar o cofre trancado.", RotuloPonto(ponto))
 		}
@@ -862,7 +862,7 @@ const demoraPontoNoLog = 500 * time.Millisecond
 // numa unidade WinFsp travada ainda não foi observado.
 func registrarDemoraPonto(caminho string, demora time.Duration, respondeu bool) {
 	if !respondeu {
-		log.Printf("montagem: os.Stat(%q) nao respondeu em %v", caminho, demora)
+		log.Printf("montagem: os.Stat(%q) não respondeu em %v", caminho, demora)
 		return
 	}
 	if demora >= demoraPontoNoLog {

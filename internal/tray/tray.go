@@ -1,12 +1,14 @@
 package tray
 
 import (
+	"sync"
 	"time"
 
 	"github.com/getlantern/systray"
 
 	"github.com/eufrauzino/runtime-crypt-go/internal/core"
 	"github.com/eufrauzino/runtime-crypt-go/internal/gui/frases"
+	"github.com/eufrauzino/runtime-crypt-go/internal/plataforma"
 )
 
 // TipoAcaoTray identifica o tipo de ação enviada pelo tray.
@@ -44,14 +46,29 @@ type GerenciadorTray struct {
 	gerenciador *core.GerenciadorRClone
 	canalAcoes  chan AcaoTray
 	iconeBytes  []byte
+
+	// autoIniciarLigado lê o estado real do auto-início (registro no
+	// Windows, .desktop no Linux, LaunchAgent no macOS). Os testes trocam.
+	autoIniciarLigado func() bool
+	// itemAutoIniciar é o item "Abrir ao ligar o computador", com a marca.
+	// O menu o cria na goroutine da bandeja; o clique o atualiza em outra.
+	muAutoIniciar   sync.Mutex
+	itemAutoIniciar itemMarcavel
+}
+
+// itemMarcavel é o que o item com marca do systray oferece.
+type itemMarcavel interface {
+	Check()
+	Uncheck()
 }
 
 // NovoGerenciadorTray cria uma instância do gerenciador de tray.
 func NovoGerenciadorTray(gerenciador *core.GerenciadorRClone, canalAcoes chan AcaoTray, iconeBytes []byte) *GerenciadorTray {
 	return &GerenciadorTray{
-		gerenciador: gerenciador,
-		canalAcoes:  canalAcoes,
-		iconeBytes:  iconeBytes,
+		gerenciador:       gerenciador,
+		canalAcoes:        canalAcoes,
+		iconeBytes:        iconeBytes,
+		autoIniciarLigado: plataforma.VerificarAutoIniciar,
 	}
 }
 
@@ -83,7 +100,11 @@ func (g *GerenciadorTray) aoIniciar() {
 	systray.AddSeparator()
 
 	mConfig := systray.AddMenuItem(RotuloConfiguracoes, "")
-	mAutoIniciar := mConfig.AddSubMenuItem(RotuloAutoIniciar, "")
+	// A marca mostra se o auto-início está ligado, lido do sistema.
+	mAutoIniciar := mConfig.AddSubMenuItemCheckbox(RotuloAutoIniciar, "", g.autoIniciarLigado())
+	g.muAutoIniciar.Lock()
+	g.itemAutoIniciar = mAutoIniciar
+	g.muAutoIniciar.Unlock()
 	mConfigVfs := mConfig.AddSubMenuItem(RotuloConfigVfs, "")
 	mVerificarFuse := mConfig.AddSubMenuItem("Verificar WinFsp/FUSE", "")
 	// Demanda 031: sem pasta de configuração, o que grava fica desabilitado.
@@ -117,6 +138,27 @@ func (g *GerenciadorTray) aoIniciar() {
 			}
 		}
 	}()
+}
+
+// AtualizarAutoIniciar lê de novo o estado real do auto-início e põe ou tira
+// a marca de "Abrir ao ligar o computador". Chamado depois de cada clique, já
+// com o auto-início trocado (ou não, se a troca falhou). Devolve o estado.
+func (g *GerenciadorTray) AtualizarAutoIniciar() bool {
+	ligado := g.autoIniciarLigado()
+	g.muAutoIniciar.Lock()
+	defer g.muAutoIniciar.Unlock()
+	if g.itemAutoIniciar != nil {
+		marcar(g.itemAutoIniciar, ligado)
+	}
+	return ligado
+}
+
+func marcar(item itemMarcavel, ligado bool) {
+	if ligado {
+		item.Check()
+	} else {
+		item.Uncheck()
+	}
 }
 
 // AtualizarTooltip põe no tooltip o resumo dos cofres, com as mesmas frases
