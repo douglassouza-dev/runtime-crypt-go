@@ -15,7 +15,14 @@ import (
 // devolve o gerenciador, a pasta de cache e o pid do rclone falso.
 func montarComCache(t *testing.T) (*GerenciadorRClone, string, int) {
 	t.Helper()
-	g, _ := novoGerenciadorFalso(t)
+	g, _, cache, pid := montarComCacheEFalso(t)
+	return g, cache, pid
+}
+
+// montarComCacheEFalso é montarComCache devolvendo também o rclone falso.
+func montarComCacheEFalso(t *testing.T) (*GerenciadorRClone, *rcloneFalso, string, int) {
+	t.Helper()
+	g, f := novoGerenciadorFalso(t)
 	if ok, msg := g.Cofres.Adicionar("cofre", "drive", "Google Drive", "cofre_base:"); !ok {
 		t.Fatal(msg)
 	}
@@ -26,7 +33,7 @@ func montarComCache(t *testing.T) (*GerenciadorRClone, string, int) {
 	}
 	g.Montagens.intervaloEnvio = 20 * time.Millisecond
 	t.Cleanup(g.Montagens.DesmontarTodas)
-	return g, cache, pidDaMontagem(t, g.Montagens, normalizarPonto("V"))
+	return g, f, cache, pidDaMontagem(t, g.Montagens, normalizarPonto("V"))
 }
 
 // metaNoCache grava o registro da VFS de um arquivo do cofre.

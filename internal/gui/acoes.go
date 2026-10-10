@@ -4,8 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 
 	"github.com/eufrauzino/runtime-crypt-go/internal/core"
+	"github.com/eufrauzino/runtime-crypt-go/internal/gui/frases"
 	"github.com/eufrauzino/runtime-crypt-go/internal/plataforma"
 )
 
@@ -18,11 +20,75 @@ type Acoes struct {
 	// progresso é o diálogo de passos da criação/conexão em andamento
 	// (demanda 018); nil fora delas.
 	progresso *progressoWizard
+
+	// Demanda 028: peças de Sair, trocadas nos testes.
+	saindo          atomic.Bool
+	pendentesAoSair func() []core.PendenciaCofre
+	enviarPendentes func(nomes []string) []core.FalhaEnvio
+	perguntarSair   func(texto string) (enviar bool)
+	avisar          func(titulo, texto string)
 }
 
 // NovasAcoes cria as ações da janela jp.
 func NovasAcoes(g *core.GerenciadorRClone, jp *JanelaPrincipal) *Acoes {
-	return &Acoes{g: g, jp: jp}
+	a := &Acoes{g: g, jp: jp}
+	a.pendentesAoSair = g.PendentesAoSair
+	a.enviarPendentes = func(nomes []string) []core.FalhaEnvio {
+		return g.EnviarPendentes(nomes, func(nome string) (string, bool) {
+			senha := DialogoSenha(jp.Janela(), nome, "Desbloquear")
+			return senha, senha != ""
+		})
+	}
+	a.perguntarSair = func(texto string) bool { return DialogoSairComPendencias(jp.Janela(), texto) }
+	a.avisar = func(titulo, texto string) { DialogoMensagem(jp.Janela(), titulo, texto, MsgErro) }
+	return a
+}
+
+// TituloNaoSaiu é o título do aviso quando "Enviar agora" não trancou tudo.
+const TituloNaoSaiu = "Não deu para enviar"
+
+// Sair é o pedido de sair do app (demanda 028). Se algum cofre caiu com
+// arquivos que não subiram, pergunta antes: "Enviar agora" destranca de novo,
+// espera o envio (025), tranca e só então sai; se algo falha, mostra a frase
+// da 022/025 e não sai. "Sair" sai e deixa o cache como está. Sem pendência,
+// sai direto. encerrar é o fim de verdade (Encerrar + Quit).
+func (a *Acoes) Sair(encerrar func()) {
+	if !a.saindo.CompareAndSwap(false, true) {
+		return // já há um pedido de sair em andamento
+	}
+	defer a.saindo.Store(false)
+
+	pendentes := a.pendentesAoSair()
+	if len(pendentes) == 0 {
+		encerrar()
+		return
+	}
+	a.jp.Mostrar()
+	if !a.perguntarSair(frases.AvisoAoSair(pendentes)) {
+		encerrar()
+		return
+	}
+	nomes := make([]string, 0, len(pendentes))
+	for _, p := range pendentes {
+		nomes = append(nomes, p.Nome)
+	}
+	feito := make(chan struct{})
+	go a.jp.acompanharTrancar(feito)
+	falhas := a.enviarPendentes(nomes)
+	close(feito)
+	if len(falhas) > 0 {
+		linhas := make([]string, 0, len(falhas))
+		for _, f := range falhas {
+			linhas = append(linhas, frases.FalhaAoEnviar(f))
+			if f.Etapa == core.EtapaTrancar {
+				a.jp.MostrarFalhaTrancar(f.Nome, f.Err.Error())
+			}
+		}
+		a.jp.ForcarAtualizacao()
+		a.avisar(TituloNaoSaiu, strings.Join(linhas, "\n"))
+		return
+	}
+	encerrar()
 }
 
 // AbrirAutorizacao implementa core.Interacao: abre o navegador na URL do

@@ -158,3 +158,51 @@ func cortar(texto string, n int) string {
 	}
 	return string(runas) + "…"
 }
+
+// Demanda 028: sair com cofre que caiu e arquivos que não subiram.
+const (
+	TextoEnviarAgora = "Enviar agora"
+	TextoSair        = "Sair"
+	// TituloSair é o título do diálogo (proposta; a cópia aprovada não traz
+	// título).
+	TituloSair      = "Arquivos que ainda não subiram"
+	sobemDeNovo     = "Eles sobem quando você destrancar de novo."
+	sobeDeNovo      = "Ele sobe quando você destrancar de novo."
+	naoTrancouEnvio = "%s: Não trancou: %s"
+	naoDestrancouEn = "%s: Não destrancou: %s"
+)
+
+// Pendencia é a linha de um cofre: "2 arquivos de X ainda não subiram." ou
+// "1 arquivo de X ainda não subiu."
+func Pendencia(p core.PendenciaCofre) string {
+	if p.N == 1 {
+		return fmt.Sprintf("1 arquivo de %s ainda não subiu.", p.Nome)
+	}
+	return fmt.Sprintf("%s de %s ainda não subiram.", core.Arquivos(p.N), p.Nome)
+}
+
+// AvisoAoSair é o texto do diálogo. Com um cofre, uma frase só; com vários,
+// uma linha por cofre e "Eles sobem…" no fim (com mais de um cofre há mais
+// de um arquivo).
+func AvisoAoSair(ps []core.PendenciaCofre) string {
+	if len(ps) == 1 {
+		if ps[0].N == 1 {
+			return Pendencia(ps[0]) + " " + sobeDeNovo
+		}
+		return Pendencia(ps[0]) + " " + sobemDeNovo
+	}
+	linhas := make([]string, 0, len(ps)+1)
+	for _, p := range ps {
+		linhas = append(linhas, Pendencia(p))
+	}
+	return strings.Join(append(linhas, sobemDeNovo), "\n")
+}
+
+// FalhaAoEnviar é a linha de um cofre que "Enviar agora" não trancou, com a
+// frase da 022/025.
+func FalhaAoEnviar(f core.FalhaEnvio) string {
+	if f.Etapa == core.EtapaDestrancar {
+		return fmt.Sprintf(naoDestrancouEn, f.Nome, f.Err.Error())
+	}
+	return fmt.Sprintf(naoTrancouEnvio, f.Nome, f.Err.Error())
+}

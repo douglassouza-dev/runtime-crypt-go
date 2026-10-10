@@ -6,6 +6,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
+	"github.com/eufrauzino/runtime-crypt-go/internal/gui/frases"
 )
 
 // DialogoSenha exibe um diálogo modal para entrada de senha de cofre.
@@ -147,4 +148,48 @@ func DialogoMensagem(janelaPai fyne.Window, titulo string, mensagem string, tipo
 	dialogo.Show()
 
 	<-resultado
+}
+
+// conteudoSair monta o diálogo da demanda 028: o texto e os dois botões,
+// "Enviar agora" (principal) e "Sair". Não há botão de fechar.
+func conteudoSair(texto string, aoEnviar, aoSair func()) fyne.CanvasObject {
+	lblTitulo := canvas.NewText(frases.TituloSair, CorAviso)
+	lblTitulo.TextSize = 14
+	lblTitulo.TextStyle = fyne.TextStyle{Bold: true}
+	lblTitulo.Alignment = fyne.TextAlignCenter
+
+	lblTexto := widget.NewLabel(texto)
+	lblTexto.Wrapping = fyne.TextWrapWord
+
+	btnEnviar := widget.NewButton(frases.TextoEnviarAgora, aoEnviar)
+	btnEnviar.Importance = widget.HighImportance
+	btnSair := widget.NewButton(frases.TextoSair, aoSair)
+
+	return container.NewPadded(container.NewVBox(
+		lblTitulo,
+		widget.NewSeparator(),
+		lblTexto,
+		layout.NewSpacer(),
+		container.NewCenter(container.NewHBox(btnEnviar, btnSair)),
+	))
+}
+
+// DialogoSairComPendencias mostra o diálogo da 028 e espera a escolha:
+// true = "Enviar agora", false = "Sair".
+func DialogoSairComPendencias(janelaPai fyne.Window, texto string) bool {
+	escolha := make(chan bool, 1)
+	var dialogo *widget.PopUp
+	fechar := func(enviar bool) {
+		escolha <- enviar
+		if dialogo != nil {
+			dialogo.Hide()
+		}
+	}
+	fyne.DoAndWait(func() {
+		conteudo := conteudoSair(texto, func() { fechar(true) }, func() { fechar(false) })
+		dialogo = widget.NewModalPopUp(conteudo, janelaPai.Canvas())
+		dialogo.Resize(fyne.NewSize(460, 280))
+		dialogo.Show()
+	})
+	return <-escolha
 }
