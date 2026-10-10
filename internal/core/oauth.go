@@ -22,6 +22,9 @@ type StatusOAuth struct {
 // GerenciadorOAuth controla o fluxo de autorização OAuth via rclone authorize.
 type GerenciadorOAuth struct {
 	processo *exec.Cmd
+	// fim é fechado pela goroutine de leitura depois da única espera (Wait) do
+	// processo atual (demanda 020). Abortar espera este canal.
+	fim chan struct{}
 	token    string
 	url      string
 	erro     string
@@ -68,12 +71,15 @@ func (g *GerenciadorOAuth) Iniciar(executavel string, tipo string) bool {
 		return false
 	}
 
+	fim := make(chan struct{})
 	g.mu.Lock()
 	g.processo = cmd
+	g.fim = fim
 	g.mu.Unlock()
 
-	// Goroutine para ler a saída
+	// Goroutine para ler a saída. É a única que chama Wait no processo.
 	go func() {
+		defer close(fim)
 		buf := make([]byte, 4096)
 		var bufferToken []string
 		capturandoToken := false
@@ -156,12 +162,18 @@ func (g *GerenciadorOAuth) ObterStatus() StatusOAuth {
 func (g *GerenciadorOAuth) Abortar() {
 	g.mu.Lock()
 	cmd := g.processo
+	fim := g.fim
 	g.processo = nil
+	g.fim = nil
 	g.mu.Unlock()
 
 	if cmd != nil && cmd.Process != nil {
 		cmd.Process.Kill()
-		cmd.Wait()
+		// O Wait é da goroutine de leitura de Iniciar; aqui só se espera o
+		// aviso de que ele voltou.
+		if fim != nil {
+			<-fim
+		}
 	}
 }
 
