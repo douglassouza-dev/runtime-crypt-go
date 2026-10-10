@@ -116,13 +116,13 @@ func (a *Acoes) NovoCofre() {
 	if !r.Sucesso {
 		return
 	}
-	a.progresso = novoProgressoWizard(a.jp.Janela(), "Novo cofre")
+	a.progresso = novoProgressoWizard(a.jp.Janela(), "Novo cofre", r.Dados.Provedor.Nome)
 	remotoBase, err := a.g.CriarCofre(r.Dados, a)
 	a.progresso.esconder()
 	a.progresso = nil
 	if err != nil {
 		if !errors.Is(err, core.ErrCancelado) {
-			DialogoMensagem(a.jp.Janela(), "Erro", mensagemErroPasso(err), MsgErro)
+			DialogoMensagem(a.jp.Janela(), "Erro", mensagemErroPasso(err, r.Dados.Provedor.Nome), MsgErro)
 		}
 		return
 	}
@@ -139,13 +139,13 @@ func (a *Acoes) ImportarCofre() {
 	if !r.Sucesso {
 		return
 	}
-	a.progresso = novoProgressoWizard(a.jp.Janela(), "Conectar cofre")
+	a.progresso = novoProgressoWizard(a.jp.Janela(), "Conectar cofre", r.Dados.Provedor.Nome)
 	remotoBase, err := a.g.ConectarCofre(r.Dados, a)
 	a.progresso.esconder()
 	a.progresso = nil
 	if err != nil {
 		if !errors.Is(err, core.ErrCancelado) {
-			DialogoMensagem(a.jp.Janela(), "Erro", mensagemErroPasso(err), MsgErro)
+			DialogoMensagem(a.jp.Janela(), "Erro", mensagemErroPasso(err, r.Dados.Provedor.Nome), MsgErro)
 		}
 		return
 	}
