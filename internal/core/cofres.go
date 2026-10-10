@@ -33,7 +33,9 @@ type CofreStatus struct {
 	Caiu          bool   `json:"caiu,omitempty"`
 	Letra         string `json:"letra"`
 	PontoMontagem string `json:"ponto_montagem,omitempty"`
-	TemSenha      bool   `json:"tem_senha"`
+	// Enviando: arquivos que faltam subir enquanto o Trancar espera (025).
+	Enviando int  `json:"enviando,omitempty"`
+	TemSenha bool `json:"tem_senha"`
 }
 
 // EstaMontado diz se o cofre está no estado montado.
@@ -218,6 +220,7 @@ func (g *GerenciadorCofres) Listar(estados map[string]EstadoRemoto, senhas *Cach
 			status.Caiu = e.Caiu
 			status.Letra = e.Letra
 			status.PontoMontagem = e.PontoMontagem
+			status.Enviando = e.Enviando
 		}
 		resultado = append(resultado, status)
 	}

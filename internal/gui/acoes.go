@@ -60,8 +60,12 @@ func (a *Acoes) EscolherPasta(remotoBase, tituloProvedor string) (string, bool) 
 // destrancado; destranca o trancado ou o que não subiu/caiu ("Tentar de
 // novo"); ignora o que está destrancando.
 func (a *Acoes) Cofre(nome string) {
-	switch a.g.EstadoDoCofre(nome).Estado {
+	e := a.g.EstadoDoCofre(nome)
+	switch e.Estado {
 	case core.EstadoMontado:
+		if e.Enviando > 0 {
+			return // já está trancando, esperando o envio
+		}
 		a.trancar(nome)
 	case core.EstadoMontando:
 		return
@@ -100,7 +104,11 @@ func (a *Acoes) destrancar(nome string) {
 // trancar: se a desmontagem não terminou, o card continua destrancado com
 // "Não trancou: {motivo}" (demanda 022).
 func (a *Acoes) trancar(nome string) {
-	if err := a.g.Trancar(nome); err != nil {
+	feito := make(chan struct{})
+	go a.jp.acompanharTrancar(feito)
+	err := a.g.Trancar(nome)
+	close(feito)
+	if err != nil {
 		a.jp.MostrarFalhaTrancar(nome, err.Error())
 		a.jp.Mostrar()
 		return
