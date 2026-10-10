@@ -47,7 +47,7 @@ func (e *ErroPastaConfig) Error() string { return TextoPastaConfig(e.Pasta) }
 func (e *ErroPastaConfig) Unwrap() error { return e.Err }
 
 // TextoPastaConfig é a faixa fixa do topo da janela nesse modo (aprovada) e
-// também o motivo das ações recusadas. Sem o caminho, a variante é proposta.
+// também o motivo das ações recusadas. As duas variantes estão aprovadas.
 func TextoPastaConfig(pasta string) string {
 	if pasta == "" {
 		return "Mudanças não serão salvas: não deu para gravar na pasta de configuração."

@@ -1,6 +1,7 @@
 package gui
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -21,8 +22,10 @@ type JanelaPrincipal struct {
 	gerenciador     *core.GerenciadorRClone
 	containerCofres *fyne.Container
 	lblVazio        *widget.Label
-	estadoAnterior  map[string]string
-	mu              sync.Mutex
+	// montou diz que a lista já foi montada uma vez.
+	montou         bool
+	estadoAnterior map[string]string
+	mu             sync.Mutex
 
 	// falhasTrancar guarda, por cofre, o motivo do último Trancar que não
 	// terminou (demanda 022). O card mostra "Não trancou: {motivo}".
@@ -92,7 +95,7 @@ func (jp *JanelaPrincipal) construirInterface() {
 	header := container.NewStack(headerBg, container.NewPadded(headerConteudo))
 
 	// === ÁREA CENTRAL ===
-	jp.lblVazio = widget.NewLabel("Nenhum cofre configurado.\n\nClique em '＋ Adicionar Cofre' para começar.")
+	jp.lblVazio = widget.NewLabel(textoVazio(jp.gerenciador.SomenteLeitura()))
 	jp.lblVazio.Alignment = fyne.TextAlignCenter
 
 	jp.containerCofres = container.NewVBox()
@@ -156,7 +159,7 @@ func (jp *JanelaPrincipal) construirInterface() {
 	// grava fica desabilitado. Destrancar e trancar seguem normais.
 	var topo fyne.CanvasObject = header
 	if jp.gerenciador.SomenteLeitura() {
-		jp.faixa = faixaSomenteLeitura(jp.gerenciador.DiretorioConfig)
+		jp.faixa = faixaSomenteLeitura(pastaDoErro(jp.gerenciador.ErroPastaConfig))
 		topo = container.NewVBox(header, jp.faixa)
 		btnNovo.Disable()
 		btnImportar.Disable()
@@ -167,6 +170,24 @@ func (jp *JanelaPrincipal) construirInterface() {
 
 	// Primeira renderização
 	jp.atualizarCofres()
+}
+
+// textoVazio é o texto da janela sem cofres. No modo só leitura (031) não
+// há a dica de Adicionar Cofre, que está desabilitado.
+func textoVazio(somenteLeitura bool) string {
+	if somenteLeitura {
+		return "Nenhum cofre ainda."
+	}
+	return "Nenhum cofre configurado.\n\nClique em '＋ Adicionar Cofre' para começar."
+}
+
+// pastaDoErro é a pasta que não pôde ser usada, "" se não se sabe.
+func pastaDoErro(err error) string {
+	var e *core.ErroPastaConfig
+	if errors.As(err, &e) {
+		return e.Pasta
+	}
+	return ""
 }
 
 // faixaSomenteLeitura é a faixa fixa do topo quando a pasta de configuração
@@ -193,8 +214,9 @@ func (jp *JanelaPrincipal) atualizarCofres() {
 		estadoNovo[c.Nome] = chave
 	}
 
-	// Se não mudou, não reconstroi
-	if len(estadoNovo) == len(jp.estadoAnterior) {
+	// Se não mudou, não reconstroi. A primeira vez sempre monta: sem cofres,
+	// os dois mapas vazios pareciam iguais e o texto de vazio nunca aparecia.
+	if jp.montou && len(estadoNovo) == len(jp.estadoAnterior) {
 		igual := true
 		for k, v := range estadoNovo {
 			if jp.estadoAnterior[k] != v {
@@ -207,6 +229,7 @@ func (jp *JanelaPrincipal) atualizarCofres() {
 		}
 	}
 	jp.estadoAnterior = estadoNovo
+	jp.montou = true
 
 	// Limpar
 	jp.containerCofres.RemoveAll()

@@ -53,3 +53,29 @@ func TestFaixaSemCaminho(t *testing.T) {
 		t.Errorf("%q", got)
 	}
 }
+
+// Demanda 031: janela vazia no modo só leitura só diz "Nenhum cofre ainda.";
+// no normal, mantém a dica de Adicionar Cofre.
+func TestJanelaVaziaPorModo(t *testing.T) {
+	app := test.NewTempApp(t)
+
+	g := core.NovoGerenciadorEm(t.TempDir(), "rclone-que-nao-existe")
+	g.ErroPastaConfig = &core.ErroPastaConfig{Err: errors.New("sem pasta")}
+	jp := NovaJanelaPrincipal(app, g)
+	if got := jp.lblVazio.Text; got != "Nenhum cofre ainda." {
+		t.Errorf("só leitura: %q", got)
+	}
+	if junto := strings.Join(textosDoCard(jp.containerCofres), "|"); junto != "Nenhum cofre ainda." {
+		t.Errorf("só leitura, a lista mostra %q", junto)
+	}
+	// Sem o caminho no erro, a faixa usa a variante sem pasta.
+	if junto := strings.Join(textosDoCard(jp.faixa), "|"); junto != "Mudanças não serão salvas: não deu para gravar na pasta de configuração." {
+		t.Errorf("faixa = %q", junto)
+	}
+
+	g2 := core.NovoGerenciadorEm(t.TempDir(), "rclone-que-nao-existe")
+	jp2 := NovaJanelaPrincipal(app, g2)
+	if junto := strings.Join(textosDoCard(jp2.containerCofres), "|"); junto != "Nenhum cofre configurado.\n\nClique em '＋ Adicionar Cofre' para começar." {
+		t.Errorf("normal, a lista mostra %q", junto)
+	}
+}

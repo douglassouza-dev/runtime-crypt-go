@@ -34,10 +34,11 @@ Nome da pasta: `RuntimeCrypto`, o nome do app na bandeja, em `~/RuntimeCrypto` e
 - O log não é copiado: o novo começa na pasta nova; os antigos ficam onde estão.
 - Ler nunca grava: abrir o app não muda a data do `vaults.json` nem do `vfs.json`.
 - Modo só leitura: quando a pasta nova não pode ser criada ou gravada, a cópia falha ou não dá para saber a pasta do usuário.
-  - Faixa fixa no topo da janela principal, sem título, visível o tempo todo nesse modo (aprovada): `Mudanças não serão salvas: não deu para gravar em {pasta}.` Sem o caminho (proposta): `Mudanças não serão salvas: não deu para gravar na pasta de configuração.` Não há diálogo.
+  - Faixa fixa no topo da janela principal, sem título, visível o tempo todo nesse modo (aprovada): `Mudanças não serão salvas: não deu para gravar em {pasta}.` Sem o caminho (aprovada): `Mudanças não serão salvas: não deu para gravar na pasta de configuração.` Não há diálogo.
   - Cada arquivo é lido da pasta nova se existir lá, senão da pasta do executável, só para leitura.
   - Funcionam normalmente: destrancar e trancar cofres que já existem, a espera do envio (025), destrancar de novo (026) e `Enviar agora` ao sair (028). Nenhum desses caminhos grava `vaults.json`, `vfs.json` ou outro arquivo na pasta de configuração ou na do executável (conferido no código e por teste). O que eles criam fica fora do app: a pasta de montagem `~/RuntimeCrypto/{nome}` (Linux e macOS), o cache da VFS do rclone e, se o provedor renovar o token, o `rclone.conf` do rclone.
-  - Ficam desabilitados (não falham ao clicar): `Adicionar Cofre`, `Importar Cofre Existente` e `Configurações` na janela; `Novo Cofre...` e `Configuracoes VFS...` na bandeja. No core, criar ou importar recusa antes de chamar o rclone (o `rclone.conf` não é tocado), e gravar cofres ou VFS recusa com a frase da faixa. Remover e editar cofre não existem no app hoje.
+  - Janela sem cofres nesse modo (aprovado): só `Nenhum cofre ainda.`, sem a dica de `Adicionar Cofre`. No modo normal a dica fica. (Corrigido junto: sem cofres, a lista não mostrava texto nenhum na primeira montagem da janela.)
+  - Ficam desabilitados (não falham ao clicar): `Adicionar Cofre`, `Importar Cofre Existente` e `Configurações` na janela; `Novo Cofre…` e `Configurações VFS…` na bandeja. No core, criar ou importar recusa antes de chamar o rclone (o `rclone.conf` não é tocado), e gravar cofres ou VFS recusa com a frase da faixa. Remover e editar cofre não existem no app hoje.
   - Nada é gravado em lugar nenhum, nem a cópia `.corrompido`.
   - O log não vai para arquivo (nunca para a pasta do executável).
   - `Auto-iniciar` continua habilitado: grava fora da pasta de configuração (atalho do sistema).
@@ -58,6 +59,8 @@ Nome da pasta: `RuntimeCrypto`, o nome do app na bandeja, em `~/RuntimeCrypto` e
 - [ ] Teste: `vaults.json` antigo corrompido com a pasta nova inutilizável não deixa `.corrompido` na pasta do executável.
 - [ ] Teste: no modo só leitura, destrancar, trancar, `Enviar agora` (028) e `Encerrar` de um cofre existente funcionam com o rclone falso, e a pasta de configuração e a do executável ficam iguais (nomes, datas, tamanhos).
 - [ ] Teste: no modo só leitura, criar cofre recusa sem chamar o rclone.
+- [ ] Teste: janela vazia mostra `Nenhum cofre ainda.` no modo só leitura e a dica de sempre no normal.
+- [ ] Rótulos da bandeja com acento e `…` (aprovado): `Novo Cofre…`, `Configurações`, `Configurações VFS…`.
 - [ ] Teste: a janela mostra a faixa com o texto aprovado e os três botões desabilitados; sem o modo, sem faixa.
 - [ ] Linux: executável com `vaults.json` ao lado, `XDG_CONFIG_HOME` vazio de app → o arquivo aparece em `RuntimeCrypto/`, o log também, o antigo fica igual.
 - [ ] Na tela (Windows, instalado em Program Files): o mesmo roteiro.
