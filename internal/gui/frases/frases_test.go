@@ -161,6 +161,10 @@ func TestFraseEnviando(t *testing.T) {
 	if tip := Tooltip([]core.CofreStatus{c}); !strings.Contains(tip, "Enviando 3 arquivos…") {
 		t.Errorf("tooltip = %q", tip)
 	}
+	c.Enviando = 1
+	if got := DoCofre(c); got != "Enviando 1 arquivo…" {
+		t.Errorf("singular: %q", got)
+	}
 	c.Enviando = 0
 	if got := DoCofre(c); got != `Destrancado • V:\` {
 		t.Errorf("sem envio: %q", got)
