@@ -32,6 +32,8 @@ A ordem segue o risco à estabilidade e aos segredos. A migração para Wails (0
 | [024](024-copias-corrompido-acumulam.md) | Cópias `.corrompido` se acumulam | Baixo · uso | 007 | Aberta |
 | [025](025-trancar-espera-envio.md) | Trancar logo depois de gravar não espera o envio | Alto · dados | 013, 018, 022 | Aberta |
 | [026](026-cofre-que-caiu.md) | Cofre que caiu: destrancar de novo e trancar sem perder envio | Alto · dados, segredos | 018, 022, 025 | Aberta |
+| [027](027-erros-do-rclone-em-portugues.md) | Erros do rclone em português e cabeçalho do seletor | Médio · uso | 018, 026 | Aberta |
+| [028](028-sair-com-cofre-que-caiu.md) | Sair com cofre que caiu e arquivos que não subiram | Alto · dados | 022, 025, 026 | Aberta |
 
 ## Ordem sugerida de execução
 
@@ -78,4 +80,9 @@ flowchart LR
     d018 --> d026["026 cofre que caiu"]
     d022 --> d026
     d025 --> d026
+    d018 --> d027["027 erros do rclone"]
+    d026 --> d027
+    d022 --> d028["028 sair com cofre que caiu"]
+    d025 --> d028
+    d026 --> d028
 ```
