@@ -131,6 +131,11 @@ func BotaoBaixarDriver(c core.CofreStatus) (rotulo, url string) {
 	return botaoDriver(runtime.GOOS)
 }
 
+// BotaoDriverDoSistema é o botão de baixar o driver do sistema goos
+// ("Baixar WinFsp", "Baixar macFUSE"), fora do card: por exemplo em
+// "Verificar WinFsp/FUSE". No Linux rotulo e url vêm vazios.
+func BotaoDriverDoSistema(goos string) (rotulo, url string) { return botaoDriver(goos) }
+
 func botaoDriver(goos string) (rotulo, url string) {
 	nome, url := core.DriverDeMontagem(goos)
 	if url == "" {

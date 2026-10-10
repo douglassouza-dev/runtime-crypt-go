@@ -10,5 +10,5 @@ func pontoAtivo(caminho string) bool { return caminhoExiste(caminho) }
 // desmontarPontoFuse não se aplica ao Windows: lá a unidade some com o
 // processo.
 func desmontarPontoFuse(string) error {
-	return errors.New("desmontar o ponto a mao nao se aplica ao Windows")
+	return errors.New("desmontar o ponto à mão não se aplica ao Windows")
 }

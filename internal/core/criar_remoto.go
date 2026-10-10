@@ -12,7 +12,7 @@ import (
 // recusou.
 func (g *GerenciadorRClone) criarRemoto(nome string, tipo string, params map[string]string) error {
 	if !g.EstaDisponivel() {
-		return errors.New("RClone nao disponivel.")
+		return errors.New(TextoRcloneNaoInstalado)
 	}
 
 	args := argsConfigCreate(nome, tipo, params)
@@ -34,7 +34,7 @@ func (g *GerenciadorRClone) criarRemoto(nome string, tipo string, params map[str
 
 func (g *GerenciadorRClone) criarCrypt(nome string, remotoBase string, senha string, senha2 string, configCrypt map[string]string) error {
 	if !g.EstaDisponivel() {
-		return errors.New("RClone nao disponivel.")
+		return errors.New(TextoRcloneNaoInstalado)
 	}
 
 	cfg := make(map[string]string)

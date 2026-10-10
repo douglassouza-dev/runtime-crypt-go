@@ -30,7 +30,7 @@ func TestDesmontarProcessoQueNaoMorreDevolveFalseComMotivo(t *testing.T) {
 	if ok {
 		t.Fatalf("DesmontarUnidade deveria devolver false: %q", msg)
 	}
-	if !strings.Contains(msg, "nao terminou") || !strings.Contains(msg, "V") {
+	if !strings.Contains(msg, "não terminou") || !strings.Contains(msg, "V") {
 		t.Errorf("a mensagem deveria dizer o motivo: %q", msg)
 	}
 	if len(pedidos) != 3 || pedidos[0] || !pedidos[1] || !pedidos[2] {

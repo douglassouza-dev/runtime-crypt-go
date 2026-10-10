@@ -44,7 +44,7 @@ func AdicionarAutoIniciar() error {
 
 	exe, err := os.Executable()
 	if err != nil {
-		return fmt.Errorf("erro ao obter caminho do executavel: %w", err)
+		return fmt.Errorf("erro ao obter caminho do executável: %w", err)
 	}
 
 	valor := fmt.Sprintf(`"%s"`, filepath.Clean(exe))
@@ -126,6 +126,6 @@ func VerificarWinfsp() InfoWinfsp {
 	return InfoWinfsp{
 		Instalado:   false,
 		UrlDownload: "https://winfsp.dev/rel/",
-		Motivo:      "WinFsp nao encontrado. Necessario para montar unidades virtuais.",
+		Motivo:      "WinFsp não encontrado. Necessário para montar unidades virtuais.",
 	}
 }

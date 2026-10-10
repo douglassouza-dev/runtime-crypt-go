@@ -30,7 +30,7 @@ func TestTrancarQueFalhaMantemASenhaEDevolveErro(t *testing.T) {
 	if err == nil {
 		t.Fatal("Trancar deveria devolver erro quando a desmontagem não termina")
 	}
-	if !strings.Contains(err.Error(), "nao terminou") {
+	if !strings.Contains(err.Error(), "não terminou") {
 		t.Errorf("o erro deveria trazer o motivo: %q", err)
 	}
 	if g.Senhas.Obter("cofre") != "segredo" {

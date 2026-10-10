@@ -3,6 +3,7 @@ package gui
 import (
 	"errors"
 	"fmt"
+	"log"
 	"runtime"
 	"strings"
 	"sync/atomic"
@@ -308,15 +309,49 @@ func (a *Acoes) AlternarAutoIniciar() {
 	}
 }
 
+// Textos de "Verificar WinFsp/FUSE".
+const (
+	TituloDriverOk      = "WinFsp/FUSE"
+	TextoDriverOk       = "WinFsp/FUSE está instalado e funcionando."
+	TituloDriverAusente = "WinFsp/FUSE Ausente"
+	DicaFuseLinux       = "Instale o pacote fuse3 pelo gerenciador do seu sistema."
+)
+
+// AvisoDriver é o diálogo de "Verificar WinFsp/FUSE". Sem o driver, o texto
+// é a frase da 027 (`Não montou: falta instalar o WinFsp.`), e no Windows e
+// no macOS vem o botão da 027 (`Baixar WinFsp`, `Baixar macFUSE`).
+type AvisoDriver struct {
+	Titulo, Texto string
+	Tipo          TipoMensagem
+	Botao, Url    string
+}
+
+// AvisoVerificarDriver monta o diálogo para o sistema goos.
+func AvisoVerificarDriver(instalado bool, goos string) AvisoDriver {
+	if instalado {
+		return AvisoDriver{Titulo: TituloDriverOk, Texto: TextoDriverOk, Tipo: MsgInfo}
+	}
+	rotulo, url := frases.BotaoDriverDoSistema(goos)
+	texto := frases.TextoDriverAusente(goos)
+	if goos == "linux" {
+		// No Linux não há botão de baixar; fica a dica de antes.
+		texto += "\n\n" + DicaFuseLinux
+	}
+	return AvisoDriver{Titulo: TituloDriverAusente, Texto: texto, Tipo: MsgAviso, Botao: rotulo, Url: url}
+}
+
 // VerificarFuse diz se o WinFsp/FUSE está instalado.
 func (a *Acoes) VerificarFuse() {
-	info := plataforma.VerificarWinfsp()
-	if info.Instalado {
-		DialogoMensagem(a.jp.Janela(), "WinFsp/FUSE", "WinFsp/FUSE está instalado e funcionando.", MsgInfo)
+	av := AvisoVerificarDriver(plataforma.VerificarWinfsp().Instalado, runtime.GOOS)
+	if av.Url == "" {
+		DialogoMensagem(a.jp.Janela(), av.Titulo, av.Texto, av.Tipo)
 		return
 	}
-	DialogoMensagem(a.jp.Janela(), "WinFsp/FUSE Ausente",
-		fmt.Sprintf("%s\n\nBaixe em: %s", info.Motivo, info.UrlDownload), MsgAviso)
+	DialogoMensagemComBotao(a.jp.Janela(), av.Titulo, av.Texto, av.Tipo, av.Botao, func() {
+		if err := abrirSiteDriver(av.Url); err != nil {
+			log.Printf("não deu para abrir %s: %v", av.Url, err)
+		}
+	})
 }
 
 // Sobre mostra a versão e a licença.

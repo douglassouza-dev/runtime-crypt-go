@@ -25,7 +25,7 @@ func TestFrasesDoCofre(t *testing.T) {
 	sumiu := cofre(core.EstadoFalhou)
 	sumiu.Caiu, sumiu.Motivo, sumiu.Letra, sumiu.PontoMontagem = true, core.MotivoPontoSumiu, "W", `W:\`
 	semResposta := cofre(core.EstadoFalhou)
-	semResposta.Caiu, semResposta.Motivo, semResposta.Letra = true, "ponto de montagem nao respondeu em 2s", "X"
+	semResposta.Caiu, semResposta.Motivo, semResposta.Letra = true, "ponto de montagem não respondeu em 2s", "X"
 
 	casos := []struct {
 		c            core.CofreStatus
@@ -121,7 +121,7 @@ func TestFrasesComPasta(t *testing.T) {
 	casos := map[string]core.CofreStatus{
 		"Destrancado • " + mostrado:                    com(core.EstadoMontado, false, ""),
 		"Caiu: a pasta " + mostrado + " sumiu":         com(core.EstadoFalhou, true, core.MotivoPontoSumiu),
-		"Caiu: a pasta " + mostrado + " não respondeu": com(core.EstadoFalhou, true, "ponto de montagem nao respondeu em 2s"),
+		"Caiu: a pasta " + mostrado + " não respondeu": com(core.EstadoFalhou, true, "ponto de montagem não respondeu em 2s"),
 		"Caiu: o rclone parou":                         com(core.EstadoFalhou, true, core.MotivoProcessoTerminou),
 	}
 	for quer, c := range casos {
@@ -141,7 +141,7 @@ func TestFrasesComPasta(t *testing.T) {
 // No Windows: a unidade, como antes.
 func TestFrasesComUnidade(t *testing.T) {
 	c := cofre(core.EstadoFalhou)
-	c.Letra, c.PontoMontagem, c.Caiu, c.Motivo = "V", `V:\`, true, "ponto de montagem nao respondeu em 2s"
+	c.Letra, c.PontoMontagem, c.Caiu, c.Motivo = "V", `V:\`, true, "ponto de montagem não respondeu em 2s"
 	if got := DoCofre(c); got != `Caiu: a unidade V:\ não respondeu` {
 		t.Errorf("DoCofre = %q", got)
 	}
