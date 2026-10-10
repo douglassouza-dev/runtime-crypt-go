@@ -12,6 +12,9 @@ import (
 	"github.com/eufrauzino/runtime-crypt-go/internal/gui/frases"
 )
 
+// TextoCampoSenha é o texto de exemplo do campo de senha (aprovado pela UI).
+const TextoCampoSenha = "Senha"
+
 // TextoSenhaErrada aparece embaixo do campo quando a senha não confere
 // (demanda 030, aprovado pela UI).
 const TextoSenhaErrada = "Senha errada."
@@ -71,7 +74,7 @@ func novoDialogoSenha(janelaPai fyne.Window, nomeCofre string, acao string, conf
 	d := &dialogoSenha{janela: janelaPai, conferir: conferir, fim: fim, naTela: fyne.Do}
 
 	d.entrySenha = widget.NewPasswordEntry()
-	d.entrySenha.SetPlaceHolder("Digite a senha...")
+	d.entrySenha.SetPlaceHolder(TextoCampoSenha)
 
 	// Ícone
 	lblIcone := canvas.NewText("🔐", CorVerde)

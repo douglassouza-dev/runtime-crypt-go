@@ -234,3 +234,13 @@ func TestDialogoSenhaEnterConfere(t *testing.T) {
 		t.Fatal("Enter deveria confirmar")
 	}
 }
+
+func TestDialogoSenhaTextoDoCampo(t *testing.T) {
+	d, _, _, _ := novoDialogoSenhaTeste(t, nil)
+	if d.entrySenha.PlaceHolder != "Senha" {
+		t.Errorf("texto de exemplo = %q, quer \"Senha\"", d.entrySenha.PlaceHolder)
+	}
+	if !d.entrySenha.Password {
+		t.Error("o campo esconde a senha")
+	}
+}
