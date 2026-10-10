@@ -32,6 +32,10 @@ type InfoMontagem struct {
 
 	// rc fala com o controle remoto deste rclone (demanda 025).
 	rc *clienteRC
+
+	// cacheVfs é a pasta de cache deste rclone: depois de uma queda, é lá
+	// que se conta o que não subiu (demanda 026).
+	cacheVfs string
 }
 
 // controleMontagem guarda as marcas da demanda 010 de uma montagem.
@@ -413,6 +417,7 @@ func (g *GerenciadorMontagem) montar(remoto string, letra string, senha string, 
 		fim:      make(chan struct{}),
 		controle: &controleMontagem{},
 		rc:       rc,
+		cacheVfs: pastaCacheRclone(args, env),
 	}
 	go g.acompanhar(info)
 

@@ -32,6 +32,7 @@ func main() {
 	}
 
 	janela.CallbackCofre = func(cofre core.CofreStatus) { go acoes.Cofre(cofre.Nome) }
+	janela.CallbackTrancar = func(cofre core.CofreStatus) { go acoes.Trancar(cofre.Nome) }
 	janela.CallbackNovoCofre = func() { go acoes.NovoCofre() }
 	janela.CallbackImportarCofre = func() { go acoes.ImportarCofre() }
 	janela.CallbackConfigVfs = func() { go gui.DialogoConfigVfs(janela.Janela(), gerenciador) }

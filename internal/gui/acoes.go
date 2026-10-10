@@ -57,8 +57,9 @@ func (a *Acoes) EscolherPasta(remotoBase, tituloProvedor string) (string, bool) 
 }
 
 // Cofre age conforme o estado do cofre no core (demanda 018): tranca o
-// destrancado; destranca o trancado ou o que não subiu/caiu ("Tentar de
-// novo"); ignora o que está destrancando.
+// destrancado; destranca o trancado, o que não subiu ("Tentar de novo") e o
+// que caiu ("Destrancar de novo", 026: o rclone retoma os envios que ficaram
+// no cache); ignora o que está destrancando.
 func (a *Acoes) Cofre(nome string) {
 	e := a.g.EstadoDoCofre(nome)
 	switch e.Estado {
@@ -72,6 +73,18 @@ func (a *Acoes) Cofre(nome string) {
 	default:
 		a.jp.LimparFalhaTrancar(nome)
 		a.destrancar(nome)
+	}
+}
+
+// Trancar é o botão Trancar do cofre que caiu (demanda 026). Também serve
+// para o montado, como o clique no botão principal.
+func (a *Acoes) Trancar(nome string) {
+	e := a.g.EstadoDoCofre(nome)
+	switch {
+	case e.Estado == core.EstadoFalhou && e.Caiu:
+		a.trancar(nome)
+	case e.Estado == core.EstadoMontado && e.Enviando == 0:
+		a.trancar(nome)
 	}
 }
 
