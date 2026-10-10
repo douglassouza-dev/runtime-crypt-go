@@ -3,6 +3,7 @@ package gui
 import (
 	"errors"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -401,6 +402,17 @@ func criarCardCofre(cofre core.CofreStatus, falhaTrancar string, aoClicar, aoTra
 		btnTrancar.Importance = widget.MediumImportance
 		botoes = container.NewHBox(btnAcao, btnTrancar)
 	}
+	// Demanda 027: sem o driver de montagem, "Baixar WinFsp"/"Baixar macFUSE"
+	// abre o site oficial.
+	if rotulo, url := frases.BotaoBaixarDriver(cofre); url != "" {
+		btnBaixar := widget.NewButton(rotulo, func() {
+			if err := abrirSiteDriver(url); err != nil {
+				log.Printf("não deu para abrir %s: %v", url, err)
+			}
+		})
+		btnBaixar.Importance = widget.MediumImportance
+		botoes = container.NewHBox(btnAcao, btnBaixar)
+	}
 
 	// Layout do card
 	cardConteudo := container.NewHBox(
@@ -438,3 +450,6 @@ func criarCardCofre(cofre core.CofreStatus, falhaTrancar string, aoClicar, aoTra
 
 	return container.NewStack(cardBg, container.NewPadded(corpo))
 }
+
+// abrirSiteDriver abre o site do driver de montagem. Os testes trocam.
+var abrirSiteDriver = core.AbrirNavegador

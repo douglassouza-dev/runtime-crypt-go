@@ -137,7 +137,7 @@ func TestEstadoMontagemQueNuncaSubiuFalhouSemCaiu(t *testing.T) {
 	g.caminhoPonto = func(letra string) string { return filepath.Join(raiz, letra) }
 	g.pontoExiste = caminhoExiste // a pasta temporária faz o papel da unidade
 	f.falhar()
-	t.Setenv("RCLONE_FALSO_STDERR", "2026/10/09 10:00:00 CRITICAL: Fatal error: cannot find winfsp")
+	t.Setenv("RCLONE_FALSO_STDERR", "2026/10/09 10:00:00 CRITICAL: Fatal error: mount stopped before calling Init")
 
 	if ok, _, _ := g.MontarUnidade("cofre", "V", "", nil); ok {
 		t.Fatal("deveria falhar")
@@ -145,7 +145,7 @@ func TestEstadoMontagemQueNuncaSubiuFalhouSemCaiu(t *testing.T) {
 	e := estadoDoRemoto(t, g, "cofre")
 
 	// Demanda 027: o motivo é a frase da tela, com a falha classificada.
-	if e.Estado != EstadoFalhou || e.Caiu || e.Motivo != "o rclone falhou, detalhes no log" || e.Rclone == nil || !strings.Contains(e.Rclone.Saida, "cannot find winfsp") {
+	if e.Estado != EstadoFalhou || e.Caiu || e.Motivo != "o rclone falhou, detalhes no log" || e.Rclone == nil || !strings.Contains(e.Rclone.Saida, "mount stopped") {
 		t.Errorf("estado = %+v, quer falhou (nunca subiu) com a falha classificada", e)
 	}
 
