@@ -46,11 +46,24 @@ func TestMontagemVivaContinuaListadaEMortaSaiEmAte2s(t *testing.T) {
 	}
 	t.Logf("saiu da lista em %v", time.Since(inicio))
 
+	// Demanda 010: a montagem morta não some em silêncio. Ela fica no Status
+	// como falhou, com o motivo, até alguém trancar ou destrancar de novo.
+	// O processo morto tem precedência sobre o ponto que sumiu junto. O Wait
+	// pode voltar um pouco depois de o ponto sumir; espera o fim dele.
 	g.mu.Lock()
-	_, noMapa := g.montagens["V"]
+	info := g.montagens["V"]
 	g.mu.Unlock()
-	if noMapa {
-		t.Error("a montagem morta deveria sair do mapa, não só da leitura")
+	if info == nil {
+		t.Fatal("a montagem morta não pode sumir do mapa (demanda 010)")
+	}
+	select {
+	case <-info.fim:
+	case <-time.After(5 * time.Second):
+		t.Fatal("o Wait do processo morto não voltou")
+	}
+	st := g.Status()
+	if len(st) != 1 || st[0].Estado != EstadoFalhou || st[0].Motivo != MotivoProcessoTerminou {
+		t.Errorf("Status = %+v, quer V falhou com %q", st, MotivoProcessoTerminou)
 	}
 }
 
@@ -81,14 +94,18 @@ func TestLetraLiberadaDepoisQueOProcessoMorre(t *testing.T) {
 	}
 	p, _ := os.FindProcess(pidDaMontagem(t, g, "V"))
 	p.Kill()
-	if !esperarAte(2*time.Second, func() bool { return len(g.Status()) == 0 }) {
-		t.Fatal("montagem morta continua no Status")
+	if !esperarAte(2*time.Second, func() bool { return len(g.ObterMontagens()) == 0 }) {
+		t.Fatal("montagem morta continua em ObterMontagens")
 	}
 
 	ok, msg, _ := g.MontarUnidade("cofre", "V", "", nil)
 
 	if !ok {
 		t.Fatalf("a letra V deveria estar livre de novo: %q", msg)
+	}
+	// Demanda 010: a nova montagem toma o lugar da que falhou.
+	if st := g.Status(); len(st) != 1 || st[0].Estado != EstadoMontado {
+		t.Errorf("Status = %+v, quer só a nova montagem, montada", st)
 	}
 	g.DesmontarUnidade("V")
 }
