@@ -15,6 +15,7 @@ Leitura feita sobre o commit `c301180` da `master`. Tudo aqui descreve o que o c
 | [analise-de-melhorias.md](analise-de-melhorias.md) | Análise de melhorias, priorizada |
 | [demanda/](demanda/index.md) | Demandas numeradas. Nenhum PR de código sem demanda |
 | [adr/](adr/index.md) | Decisões de arquitetura |
+| [testes/](testes/README.md) | Roteiro de testes em tela, para fazer com o programa aberto |
 
 ## Como a leitura foi verificada
 
