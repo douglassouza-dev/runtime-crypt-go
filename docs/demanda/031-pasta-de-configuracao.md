@@ -61,7 +61,7 @@ Nome da pasta: `RuntimeCrypto`, o nome do app na bandeja, em `~/RuntimeCrypto` e
 - [ ] Teste: no modo só leitura, criar cofre recusa sem chamar o rclone.
 - [ ] Teste: janela vazia mostra `Nenhum cofre ainda.` no modo só leitura e a dica de sempre no normal.
 - [ ] Rótulos da bandeja com acento e `…` (aprovado): `Novo Cofre…`, `Configurações`, `Configurações VFS…`.
-- [ ] Cópia aprovada que vai junto: seletor de pasta `Carregando pastas…` (sem emoji); bandeja `Abrir ao ligar o computador` em todos os sistemas (era `Auto-iniciar com Windows`). O placeholder `Senha` (era `Digite a senha...`) fica para depois da #38, que reescreve o mesmo diálogo.
+- [ ] Cópia aprovada que vai junto: seletor de pasta `Carregando pastas…` (sem emoji); bandeja `Abrir ao ligar o computador` em todos os sistemas (era `Auto-iniciar com Windows`). O placeholder `Senha` (era `Digite a senha...`) entrou pela #44.
 - [ ] Teste: a janela mostra a faixa com o texto aprovado e os três botões desabilitados; sem o modo, sem faixa.
 - [ ] Linux: executável com `vaults.json` ao lado, `XDG_CONFIG_HOME` vazio de app → o arquivo aparece em `RuntimeCrypto/`, o log também, o antigo fica igual.
 - [ ] Na tela (Windows, instalado em Program Files): o mesmo roteiro.
