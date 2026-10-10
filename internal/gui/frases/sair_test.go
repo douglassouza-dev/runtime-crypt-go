@@ -14,9 +14,9 @@ func TestAvisoAoSair(t *testing.T) {
 		ps   []core.PendenciaCofre
 		quer string
 	}{
-		{[]core.PendenciaCofre{{Nome: "fotos", N: 2}}, "2 arquivos de fotos ainda não subiram. Eles sobem quando você destrancar de novo."},
-		{[]core.PendenciaCofre{{Nome: "fotos", N: 1}}, "1 arquivo de fotos ainda não subiu. Ele sobe quando você destrancar de novo."},
-		{[]core.PendenciaCofre{{Nome: "docs", N: 1}, {Nome: "fotos", N: 3}}, "1 arquivo de docs ainda não subiu.\n3 arquivos de fotos ainda não subiram.\nEles sobem quando você destrancar de novo."},
+		{[]core.PendenciaCofre{{Nome: "fotos", N: 2}}, "2 arquivos de fotos\nEles sobem quando você destrancar de novo."},
+		{[]core.PendenciaCofre{{Nome: "fotos", N: 1}}, "1 arquivo de fotos\nEle sobe quando você destrancar de novo."},
+		{[]core.PendenciaCofre{{Nome: "docs", N: 1}, {Nome: "fotos", N: 3}}, "1 arquivo de docs\n3 arquivos de fotos\nEles sobem quando você destrancar de novo."},
 	}
 	for _, c := range casos {
 		got := AvisoAoSair(c.ps)
@@ -37,5 +37,11 @@ func TestFalhaAoEnviar(t *testing.T) {
 	}
 	if got := FalhaAoEnviar(tr); got != "docs: Não trancou: 1 arquivo ainda não subiu" {
 		t.Errorf("%q", got)
+	}
+}
+
+func TestTituloSairAprovado(t *testing.T) {
+	if TituloSair != "Arquivos que ainda não subiram" {
+		t.Errorf("TituloSair = %q", TituloSair)
 	}
 }

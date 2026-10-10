@@ -203,8 +203,7 @@ func cortar(texto string, n int) string {
 const (
 	TextoEnviarAgora = "Enviar agora"
 	TextoSair        = "Sair"
-	// TituloSair é o título do diálogo (proposta; a cópia aprovada não traz
-	// título).
+	// TituloSair é o título do diálogo (aprovado pela UI).
 	TituloSair      = "Arquivos que ainda não subiram"
 	sobemDeNovo     = "Eles sobem quando você destrancar de novo."
 	sobeDeNovo      = "Ele sobe quando você destrancar de novo."
@@ -212,30 +211,26 @@ const (
 	naoDestrancouEn = "%s: Não destrancou: %s"
 )
 
-// Pendencia é a linha de um cofre: "2 arquivos de X ainda não subiram." ou
-// "1 arquivo de X ainda não subiu."
+// Pendencia é a linha de um cofre: "2 arquivos de X" ou "1 arquivo de X".
+// O "ainda não subiram" está no título do diálogo.
 func Pendencia(p core.PendenciaCofre) string {
-	if p.N == 1 {
-		return fmt.Sprintf("1 arquivo de %s ainda não subiu.", p.Nome)
-	}
-	return fmt.Sprintf("%s de %s ainda não subiram.", core.Arquivos(p.N), p.Nome)
+	return fmt.Sprintf("%s de %s", core.Arquivos(p.N), p.Nome)
 }
 
-// AvisoAoSair é o texto do diálogo. Com um cofre, uma frase só; com vários,
-// uma linha por cofre e "Eles sobem…" no fim (com mais de um cofre há mais
-// de um arquivo).
+// AvisoAoSair é o texto do diálogo (aprovado pela UI): uma linha por cofre,
+// com um cofre ou vários, e no fim "Eles sobem quando você destrancar de
+// novo." Só quando há um arquivo ao todo (um cofre, 1 arquivo) o fim vai para
+// o singular, "Ele sobe…" (aprovado), pela regra de singular da 026/028.
 func AvisoAoSair(ps []core.PendenciaCofre) string {
-	if len(ps) == 1 {
-		if ps[0].N == 1 {
-			return Pendencia(ps[0]) + " " + sobeDeNovo
-		}
-		return Pendencia(ps[0]) + " " + sobemDeNovo
-	}
 	linhas := make([]string, 0, len(ps)+1)
 	for _, p := range ps {
 		linhas = append(linhas, Pendencia(p))
 	}
-	return strings.Join(append(linhas, sobemDeNovo), "\n")
+	fim := sobemDeNovo
+	if len(ps) == 1 && ps[0].N == 1 {
+		fim = sobeDeNovo
+	}
+	return strings.Join(append(linhas, fim), "\n")
 }
 
 // FalhaAoEnviar é a linha de um cofre que "Enviar agora" não trancou, com a
