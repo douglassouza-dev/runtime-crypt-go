@@ -37,6 +37,18 @@ jobs:
           sudo apt-get install -y --no-install-recommends \
             libgl1-mesa-dev xorg-dev libgtk-3-dev libayatana-appindicator3-dev
 
+      # Formatação: só no Linux. No Windows o checkout troca LF por CRLF e o
+      # gofmt marcaria todo arquivo.
+      - name: gofmt -l .
+        if: runner.os == 'Linux'
+        run: |
+          nao_formatados="$(gofmt -l .)"
+          if [ -n "$nao_formatados" ]; then
+            echo "Arquivos fora do gofmt:"
+            echo "$nao_formatados"
+            exit 1
+          fi
+
       - name: go vet ./...
         run: go vet ./...
 
