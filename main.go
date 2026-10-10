@@ -30,9 +30,12 @@ func main() {
 
 	janela := gui.NovaJanelaPrincipal(aplicacao, gerenciador)
 	acoes := gui.NovasAcoes(gerenciador, janela)
+	// Demanda 028: antes de sair, avisa de arquivos que não subiram.
 	sair := func() {
-		gerenciador.Encerrar()
-		aplicacao.Quit()
+		go acoes.Sair(func() {
+			gerenciador.Encerrar()
+			aplicacao.Quit()
+		})
 	}
 
 	janela.CallbackCofre = func(cofre core.CofreStatus) { go acoes.Cofre(cofre.Nome) }
