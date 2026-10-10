@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"sort"
 	"strings"
@@ -124,6 +125,13 @@ type GerenciadorMontagem struct {
 	// falhasMontagem guarda, por remoto, o motivo curto da última tentativa
 	// que nunca chegou a montar (demanda 018). Sai na próxima tentativa.
 	falhasMontagem map[string]string
+
+	// raizPontos é a pasta onde ficam os pontos de montagem fora do Windows
+	// (demanda 013): <raizPontos>/<nome do cofre>. Os testes trocam.
+	raizPontos string
+	// desmontarPonto desfaz uma montagem FUSE que ficou presa depois de o
+	// processo terminar (fusermount -u / umount). Os testes trocam.
+	desmontarPonto func(caminho string) error
 }
 
 // EsperaEncerrarPadrao é a espera por pedido de encerramento: cobre o
@@ -136,8 +144,60 @@ const EsperaEncerrarPadrao = 5 * time.Second
 // (registrarDemoraPonto).
 const LimitePontoPadrao = 2 * time.Second
 
-// pontoDaLetra é o caminhoPonto de produção: "V" → "V:\\".
-func pontoDaLetra(letra string) string { return letra + ":\\" }
+// pontoDaLetra é o caminhoPonto de produção. No Windows a "letra" é a letra
+// da unidade ("V" → "V:\\"); fora dele é a própria pasta (demanda 013).
+func pontoDaLetra(letra string) string {
+	if runtime.GOOS == "windows" {
+		return letra + ":\\"
+	}
+	return letra
+}
+
+// normalizarPonto deixa a letra (Windows) ou a pasta (Linux/macOS) na forma
+// usada como chave do mapa de montagens.
+func normalizarPonto(letra string) string {
+	if runtime.GOOS == "windows" {
+		return strings.ToUpper(strings.TrimRight(letra, ":\\"))
+	}
+	if letra == "" {
+		return ""
+	}
+	return filepath.Clean(letra)
+}
+
+// argumentoMount é o ponto como o `rclone mount` recebe: "V:" no Windows, a
+// pasta fora dele.
+func argumentoMount(letra string) string {
+	if runtime.GOOS == "windows" {
+		return letra + ":"
+	}
+	return letra
+}
+
+// PastaPontosPadrao é onde ficam os pontos de montagem fora do Windows
+// (demanda 013): ~/RuntimeCrypto. Não é configurável por cofre.
+func PastaPontosPadrao() string {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		home = os.TempDir()
+	}
+	return filepath.Join(home, "RuntimeCrypto")
+}
+
+// pastaDoCofre é o ponto de montagem padrão do remoto fora do Windows. Uma
+// barra no nome vira "_", para o ponto ficar dentro de raizPontos.
+func (g *GerenciadorMontagem) pastaDoCofre(remoto string) string {
+	nome := strings.Map(func(r rune) rune {
+		if r == '/' || r == '\\' {
+			return '_'
+		}
+		return r
+	}, strings.TrimSuffix(remoto, ":"))
+	if nome == "" || nome == "." || nome == ".." {
+		nome = "_" + nome
+	}
+	return filepath.Join(g.raizPontos, nome)
+}
 
 // sinalizarProcesso é o sinalizar de produção.
 func sinalizarProcesso(p *os.Process, forcar bool) error {
@@ -153,7 +213,7 @@ func NovoGerenciadorMontagem(executavel string, configVfs *ConfigVfs) *Gerenciad
 		montagens:   make(map[string]*InfoMontagem),
 		executavel:  executavel,
 		configVfs:   configVfs,
-		pontoExiste: caminhoExiste,
+		pontoExiste: pontoAtivo,
 		sinalizar:   sinalizarProcesso,
 
 		caminhoPonto: pontoDaLetra,
@@ -163,6 +223,9 @@ func NovoGerenciadorMontagem(executavel string, configVfs *ConfigVfs) *Gerenciad
 
 		montando:       make(map[string]bool),
 		falhasMontagem: make(map[string]string),
+
+		raizPontos:     PastaPontosPadrao(),
+		desmontarPonto: desmontarPontoFuse,
 	}
 }
 
@@ -224,6 +287,13 @@ func (g *GerenciadorMontagem) montar(remoto string, letra string, senha string, 
 	}
 	g.mu.Unlock()
 
+	criarPasta := false
+	if letra == "" && runtime.GOOS != "windows" {
+		// Demanda 013: fora do Windows o ponto padrão é uma pasta, criada
+		// aqui e removida (se vazia) depois de desmontar.
+		letra = g.pastaDoCofre(remoto)
+		criarPasta = true
+	}
 	if letra == "" {
 		disponiveis := ObterLetrasDisponiveis(g.letrasOcupadas())
 		if len(disponiveis) == 0 {
@@ -232,7 +302,7 @@ func (g *GerenciadorMontagem) montar(remoto string, letra string, senha string, 
 		letra = disponiveis[0]
 	}
 
-	letra = strings.ToUpper(strings.TrimRight(letra, ":\\"))
+	letra = normalizarPonto(letra)
 
 	g.mu.Lock()
 	if _, existe := g.montagens[letra]; existe {
@@ -241,7 +311,19 @@ func (g *GerenciadorMontagem) montar(remoto string, letra string, senha string, 
 	}
 	g.mu.Unlock()
 
-	pontoMontagem := letra + ":"
+	if criarPasta {
+		if err := os.MkdirAll(letra, 0o700); err != nil {
+			return false, fmt.Sprintf("Nao deu para criar a pasta %s: %v", letra, err), "", fmt.Sprintf("não deu para criar a pasta %s", letra)
+		}
+		// Se não montar, a pasta criada (vazia) sai.
+		defer func() {
+			if !ok {
+				g.removerPastaVazia(letra)
+			}
+		}()
+	}
+
+	pontoMontagem := argumentoMount(letra)
 
 	args := []string{"mount", remoto, pontoMontagem}
 	args = append(args, g.configVfs.ConstruirArgs(configVfsOverride)...)
@@ -454,7 +536,7 @@ func (g *GerenciadorMontagem) acompanhar(info *InfoMontagem) {
 // Wait). Só devolve true quando o processo terminou e o ponto de montagem
 // sumiu; fora isso devolve false com o motivo.
 func (g *GerenciadorMontagem) DesmontarUnidade(letra string) (bool, string) {
-	letra = strings.ToUpper(strings.TrimRight(letra, ":\\"))
+	letra = normalizarPonto(letra)
 
 	g.mu.Lock()
 	info, existe := g.montagens[letra]
@@ -500,11 +582,36 @@ func (g *GerenciadorMontagem) DesmontarUnidade(letra string) (bool, string) {
 	g.mu.Unlock()
 
 	ponto := g.caminhoPonto(letra)
-	if !esperarCondicao(g.esperaEncerrar, func() bool { return !g.pontoExiste(ponto) }) {
-		return false, fmt.Sprintf("Unidade %s: o rclone terminou, mas %s continua visivel. Confira no Explorador antes de considerar o cofre trancado.", letra, ponto)
+	livre := esperarCondicao(g.esperaEncerrar, func() bool { return !g.pontoExiste(ponto) })
+	if !livre && runtime.GOOS != "windows" {
+		// Demanda 013: o processo saiu e a montagem FUSE ficou (ex.: rclone
+		// morto com Kill). fusermount -u / umount solta a pasta.
+		if err := g.desmontarPonto(ponto); err != nil {
+			motivos = append(motivos, err.Error())
+		}
+		livre = esperarCondicao(g.esperaEncerrar, func() bool { return !g.pontoExiste(ponto) })
+	}
+	if !livre {
+		msg := fmt.Sprintf("Unidade %s: o rclone terminou, mas %s continua visivel. Confira no Explorador antes de considerar o cofre trancado.", letra, ponto)
+		if len(motivos) > 0 {
+			msg += " (" + strings.Join(motivos, "; ") + ")"
+		}
+		return false, msg
+	}
+	if runtime.GOOS != "windows" {
+		g.removerPastaVazia(ponto)
 	}
 
 	return true, fmt.Sprintf("Unidade %s: desmontada com sucesso.", letra)
+}
+
+// removerPastaVazia tira a pasta do ponto de montagem se ela estiver vazia e
+// dentro de raizPontos (demanda 013). Pasta com arquivos fica.
+func (g *GerenciadorMontagem) removerPastaVazia(ponto string) {
+	if filepath.Dir(filepath.Clean(ponto)) != filepath.Clean(g.raizPontos) {
+		return
+	}
+	_ = os.Remove(ponto) // só remove pasta vazia
 }
 
 // esperarCondicao repete cond até ela valer ou o limite passar.
@@ -636,7 +743,7 @@ func registrarDemoraPonto(caminho string, demora time.Duration, respondeu bool) 
 // limparFalhas desmonta as montagens que falharam deste remoto e a da letra
 // pedida, se ela falhou. Montagens saudáveis ficam como estão.
 func (g *GerenciadorMontagem) limparFalhas(remoto string, letra string) {
-	letra = strings.ToUpper(strings.TrimRight(letra, ":\\"))
+	letra = normalizarPonto(letra)
 	for _, st := range g.Status() {
 		if st.Estado != EstadoFalhou {
 			continue

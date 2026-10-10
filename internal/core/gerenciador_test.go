@@ -19,6 +19,7 @@ func novoGerenciadorFalso(t *testing.T) (*GerenciadorRClone, *rcloneFalso) {
 	f := novoRcloneFalso(t)
 	g := NovoGerenciadorEm(t.TempDir(), f.exe)
 	g.Montagens.pontoExiste = pontoPeloFalso(f)
+	g.Montagens.raizPontos = t.TempDir()
 	return g, f
 }
 

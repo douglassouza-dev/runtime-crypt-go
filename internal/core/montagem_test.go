@@ -1,6 +1,8 @@
 package core
 
 import (
+	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -14,7 +16,20 @@ func novoMontadorFalso(t *testing.T) (*GerenciadorMontagem, *rcloneFalso) {
 	f := novoRcloneFalso(t)
 	g := NovoGerenciadorMontagem(f.exe, NovoConfigVfs())
 	g.pontoExiste = pontoPeloFalso(f)
+	g.raizPontos = t.TempDir()
 	return g, f
+}
+
+// pontoDeTeste devolve como pedir um ponto de montagem, a chave que o mapa
+// usa e o argumento do `rclone mount`: no Windows a letra "v:" (V, V:); fora
+// dele uma pasta (demanda 013).
+func pontoDeTeste(t *testing.T) (pedido, chave, arg string) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		return "v:", "V", "V:"
+	}
+	p := filepath.Join(t.TempDir(), "cofre")
+	return p, p, p
 }
 
 // pontoPeloFalso simula o WinFsp/FUSE: o ponto "X:\" existe enquanto houver
@@ -59,10 +74,11 @@ func TestNovoGerenciadorMontagemComecaVazio(t *testing.T) {
 
 func TestMontarUnidadeSucesso(t *testing.T) {
 	g, f := novoMontadorFalso(t)
+	pedido, chave, arg := pontoDeTeste(t)
 
-	ok, msg, letra := g.MontarUnidade("cofre", "v:", "senha", nil)
+	ok, msg, letra := g.MontarUnidade("cofre", pedido, "senha", nil)
 
-	if !ok || letra != "V" || !strings.Contains(msg, "V:") {
+	if !ok || letra != chave || !strings.Contains(msg, chave) {
 		t.Fatalf("ok=%v msg=%q letra=%q", ok, msg, letra)
 	}
 	cs := f.esperarChamadas(1, 5*time.Second)
@@ -71,7 +87,7 @@ func TestMontarUnidadeSucesso(t *testing.T) {
 	}
 	args := cs[0].Args
 	for _, seq := range [][]string{
-		{"mount", "cofre:", "V:"},
+		{"mount", "cofre:", arg},
 		{"--volname", "RuntimeCrypto (cofre)"},
 		{"--no-checksum"},
 		{"--no-modtime"},
@@ -87,7 +103,7 @@ func TestMontarUnidadeSucesso(t *testing.T) {
 	if !cs[0].TemSenhaEnv {
 		t.Error("hoje a senha vai em RCLONE_CONFIG_PASS no ambiente do mount")
 	}
-	g.DesmontarUnidade("V")
+	g.DesmontarUnidade(chave)
 }
 
 func TestMontarUnidadeRecusa(t *testing.T) {
@@ -106,19 +122,32 @@ func TestMontarUnidadeRecusa(t *testing.T) {
 	}
 }
 
-func TestMontarUnidadeSemLetraForaDoWindows(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("no Windows a letra livre vem do sistema")
-	}
+// Sem letra pedida: no Windows vem uma letra livre do sistema; fora dele, a
+// pasta <raizPontos>/<cofre>, criada antes de montar (demanda 013).
+func TestMontarUnidadeSemLetraEscolheOPonto(t *testing.T) {
 	g, f := novoMontadorFalso(t)
 
-	ok, msg, _ := g.MontarUnidade("cofre", "", "", nil)
+	ok, msg, letra := g.MontarUnidade("cofre", "", "", nil)
 
-	if ok || !strings.Contains(msg, "Nenhuma letra") {
-		t.Errorf("ok=%v msg=%q", ok, msg)
+	if !ok {
+		t.Fatalf("ok=%v msg=%q", ok, msg)
 	}
-	if n := len(f.chamadas()); n != 0 {
-		t.Errorf("não deveria iniciar o rclone; houve %d chamadas", n)
+	defer g.DesmontarUnidade(letra)
+	cs := f.esperarChamadas(1, 5*time.Second)
+	if len(cs) != 1 || !argsContem(cs[0].Args, "mount", "cofre:", argumentoMount(letra)) {
+		t.Fatalf("chamadas = %+v", cs)
+	}
+	if runtime.GOOS == "windows" {
+		if len(letra) != 1 || !strings.Contains(strings.Join(LetrasPreferidas, ""), letra) {
+			t.Errorf("letra = %q, quer uma de %v", letra, LetrasPreferidas)
+		}
+		return
+	}
+	if letra != filepath.Join(g.raizPontos, "cofre") {
+		t.Errorf("ponto = %q, quer %s", letra, filepath.Join(g.raizPontos, "cofre"))
+	}
+	if info, err := os.Stat(letra); err != nil || !info.IsDir() {
+		t.Errorf("a pasta do ponto deveria existir: %v", err)
 	}
 }
 
@@ -142,14 +171,16 @@ func TestMontarUnidadeProcessoQueSaiFalhaRapido(t *testing.T) {
 
 func TestDesmontarUnidade(t *testing.T) {
 	g, _ := novoMontadorFalso(t)
-	if ok, msg, _ := g.MontarUnidade("cofre", "V", "", nil); !ok {
+	pedido, chave, _ := pontoDeTeste(t)
+	if ok, msg, _ := g.MontarUnidade("cofre", pedido, "", nil); !ok {
 		t.Fatal(msg)
 	}
-	pid := pidDaMontagem(t, g, "V")
+	pid := pidDaMontagem(t, g, chave)
 
-	ok, msg := g.DesmontarUnidade("v:\\")
+	// Com barra no fim, como o usuário escreveria.
+	ok, msg := g.DesmontarUnidade(pedido + string(filepath.Separator))
 
-	if !ok || !strings.Contains(msg, "V:") {
+	if !ok || !strings.Contains(msg, chave) {
 		t.Errorf("ok=%v msg=%q", ok, msg)
 	}
 	if processoVivoNoSO(pid) {
@@ -198,7 +229,7 @@ func TestStatusMantemMontagemViva(t *testing.T) {
 
 	st := g.Status()
 
-	if len(st) != 1 || st[0].Letra != "V" || st[0].Remoto != "cofre:" || !st[0].Ativo || st[0].PontoMontagem != "V:\\" {
+	if len(st) != 1 || st[0].Letra != "V" || st[0].Remoto != "cofre:" || !st[0].Ativo || st[0].PontoMontagem != pontoDaLetra("V") {
 		t.Errorf("Status = %+v", st)
 	}
 }

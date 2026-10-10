@@ -248,7 +248,8 @@ func (g *GerenciadorRClone) ConectarCofre(d DadosConectarCofre, ui Interacao) (r
 
 // Destrancar monta o cofre. Usa a senha da sessão se houver; senão chama
 // pedirSenha (ok=false: o usuário cancelou, ErrCancelado). Se a montagem
-// falha, a senha sai da sessão. Devolve a letra montada.
+// falha, a senha sai da sessão. Devolve o ponto de montagem: `V:\` no
+// Windows, a pasta em Linux e macOS (demanda 013).
 func (g *GerenciadorRClone) Destrancar(nome string, pedirSenha func() (string, bool)) (string, error) {
 	senha := g.Senhas.Obter(nome)
 	if senha == "" {
@@ -264,7 +265,7 @@ func (g *GerenciadorRClone) Destrancar(nome string, pedirSenha func() (string, b
 		g.Senhas.Limpar(nome)
 		return "", errors.New(msg)
 	}
-	return letra, nil
+	return g.Montagens.caminhoPonto(letra), nil
 }
 
 // EstaMontado diz se o cofre está montado agora.
