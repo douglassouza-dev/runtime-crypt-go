@@ -1080,12 +1080,13 @@ Só entram as demandas com PR de código na `master`. As que ainda não têm có
 
 ## Diferenças de texto conhecidas
 
-Desde o PR "textos e assistente" (#49), as mensagens da `master` têm acento. Este roteiro espera os textos novos. Mudaram além do acento:
+Desde o PR "textos e assistente" (#49), as mensagens da `master` têm acento. Este roteiro espera os textos novos, aprovados pela UI. Mudaram além do acento:
 
 | Onde | Antes | Agora |
 |---|---|---|
 | Criar sem rclone (T-082) | `RClone nao disponivel.` | `O rclone não está instalado.` |
 | Verificar WinFsp sem WinFsp (T-088) | `WinFsp nao encontrado. Necessario para montar unidades virtuais.` e `Baixe em: …` | `Não montou: falta instalar o WinFsp.` com o botão `Baixar WinFsp` |
-| Unidade que não fica pronta (o roteiro não provoca) | `Timeout: A unidade nao ficou pronta em …` | `Tempo esgotado: a unidade não ficou pronta em …` |
+| Unidade que não fica pronta (o roteiro não provoca) | `Timeout: A unidade nao ficou pronta em …` | `Não montou: a unidade não ficou pronta em 45 s.` (no card, `Não destrancou: a unidade não ficou pronta em 45 s`) |
+| Verificar WinFsp/FUSE sem FUSE, no Linux (T-090 não provoca) | `FUSE nao encontrado. Instale com: sudo apt install fuse3` | `Não montou: falta instalar o FUSE.` e `Instale o pacote fuse3 pelo gerenciador do seu sistema.`, sem botão |
 
 Se um texto aparecer sem acento, anote em `Resultado:`: é um erro.
