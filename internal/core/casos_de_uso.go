@@ -136,6 +136,9 @@ func (g *GerenciadorRClone) autorizar(prov *Provedor, ui Interacao) (string, err
 			}
 			return st.Token, nil
 		}
+		if st.Falha != nil {
+			return "", st.Falha
+		}
 		if st.Erro != "" {
 			return "", fmt.Errorf("Autorização não concluída: %s", st.Erro)
 		}
@@ -161,13 +164,13 @@ func (g *GerenciadorRClone) criarRemotoBase(c *CriacaoCofre, prov *Provedor, ui 
 			return "", noPasso(PassoAutorizando, err)
 		}
 		ui.Passo(PassoCriandoRemoto)
-		if ok, msg := c.CriarRemoto(nomeBase, prov.Id, map[string]string{"token": token}); !ok {
-			return "", noPasso(PassoCriandoRemoto, errors.New(msg))
+		if err := c.CriarRemoto(nomeBase, prov.Id, map[string]string{"token": token}); err != nil {
+			return "", noPasso(PassoCriandoRemoto, err)
 		}
 	case prov.Id == "local_path":
 		ui.Passo(PassoCriandoRemoto)
-		if ok, msg := c.CriarRemoto(nomeBase, "local", map[string]string{"remote": ""}); !ok {
-			return "", noPasso(PassoCriandoRemoto, errors.New(msg))
+		if err := c.CriarRemoto(nomeBase, "local", map[string]string{"remote": ""}); err != nil {
+			return "", noPasso(PassoCriandoRemoto, err)
 		}
 	}
 	return nomeBase, nil
@@ -192,8 +195,8 @@ func (g *GerenciadorRClone) CriarCofre(d DadosNovoCofre, ui Interacao) (remotoBa
 	}
 	remotoBase = nomeBase + ":"
 	ui.Passo(PassoCriandoRemoto)
-	if ok, msg := criacao.CriarCrypt(remotoBase, d.Senha, d.Senha, nil); !ok {
-		return "", noPasso(PassoCriandoRemoto, errors.New(msg))
+	if err := criacao.CriarCrypt(remotoBase, d.Senha, d.Senha, nil); err != nil {
+		return "", noPasso(PassoCriandoRemoto, err)
 	}
 	ui.Passo(PassoGravando)
 	if ok, msg := criacao.Concluir(d.Provedor.Id, d.Provedor.Nome, remotoBase); !ok {
@@ -235,8 +238,8 @@ func (g *GerenciadorRClone) ConectarCofre(d DadosConectarCofre, ui Interacao) (r
 	remotoBase = nomeBase + ":" + caminho
 
 	ui.Passo(PassoCriandoRemoto)
-	if ok, msg := criacao.CriarCrypt(remotoBase, d.Senha, senha2, nil); !ok {
-		return "", noPasso(PassoCriandoRemoto, errors.New(msg))
+	if err := criacao.CriarCrypt(remotoBase, d.Senha, senha2, nil); err != nil {
+		return "", noPasso(PassoCriandoRemoto, err)
 	}
 	ui.Passo(PassoGravando)
 	if ok, msg := criacao.Concluir(d.Provedor.Id, d.Provedor.Nome, remotoBase); !ok {
@@ -263,6 +266,9 @@ func (g *GerenciadorRClone) Destrancar(nome string, pedirSenha func() (string, b
 	ok, msg, letra := g.Montagens.MontarUnidade(nome, "", senha, nil)
 	if !ok || letra == "" {
 		g.Senhas.Limpar(nome)
+		if e := g.Montagens.falhaRclone(nome); e != nil {
+			return "", e
+		}
 		return "", errors.New(msg)
 	}
 	return g.Montagens.caminhoPonto(letra), nil

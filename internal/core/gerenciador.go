@@ -120,88 +120,26 @@ func (g *GerenciadorRClone) ObscurecerSenha(senha string) (string, error) {
 		ocultar:    true,
 	}.rodar()
 	if err != nil {
-		return "", err
+		return "", erroComMotivoDoRclone(err)
 	}
 	return strings.TrimSpace(string(saida)), nil
 }
 
-// CriarRemoto cria um remoto na configuração do rclone.
+// CriarRemoto cria um remoto na configuração do rclone. A mensagem de falha
+// é a frase da tela (demanda 027); o texto do rclone vai para o log.
 func (g *GerenciadorRClone) CriarRemoto(nome string, tipo string, params map[string]string) (bool, string) {
-	if !g.EstaDisponivel() {
-		return false, "RClone nao disponivel."
-	}
-
-	args := []string{"config", "create", nome, tipo}
-	for chave, valor := range params {
-		if valor != "" {
-			args = append(args, chave, valor)
-		}
-	}
-
-	saida, err := chamadaRclone{
-		executavel: g.Executavel,
-		args:       args,
-		limite:     limiteConfigCreate,
-		combinada:  true,
-	}.rodar()
-	if err != nil {
-		if errors.Is(err, ErrTempoEsgotado) {
-			return false, err.Error()
-		}
-		msg := strings.TrimSpace(string(saida))
-		if msg == "" {
-			msg = "Erro desconhecido."
-		}
-		return false, msg
+	if err := g.criarRemoto(nome, tipo, params); err != nil {
+		return false, err.Error()
 	}
 	return true, fmt.Sprintf("Remoto '%s' criado com sucesso.", nome)
 }
 
 // CriarCrypt cria um remoto crypt com as senhas ofuscadas.
 func (g *GerenciadorRClone) CriarCrypt(nome string, remotoBase string, senha string, senha2 string, configCrypt map[string]string) (bool, string) {
-	if !g.EstaDisponivel() {
-		return false, "RClone nao disponivel."
-	}
-
-	cfg := make(map[string]string)
-	for k, v := range ConfiguracoesCryptPadrao {
-		cfg[k] = v
-	}
-	if configCrypt != nil {
-		for k, v := range configCrypt {
-			if v != "" {
-				cfg[k] = v
-			}
-		}
-	}
-
-	senhaObs, err := g.ObscurecerSenha(senha)
-	if err != nil {
+	if err := g.criarCrypt(nome, remotoBase, senha, senha2, configCrypt); err != nil {
 		return false, err.Error()
 	}
-
-	var senha2Obs string
-	if senha2 != "" {
-		senha2Obs, err = g.ObscurecerSenha(senha2)
-		if err != nil {
-			return false, err.Error()
-		}
-	} else {
-		senha2Obs = senhaObs
-	}
-
-	params := map[string]string{
-		"remote":                    remotoBase,
-		"password":                  senhaObs,
-		"password2":                 senha2Obs,
-		"filename_encryption":       cfg["filename_encryption"],
-		"directory_name_encryption": cfg["directory_name_encryption"],
-	}
-	if cfg["no_data_encryption"] == "true" {
-		params["no_data_encryption"] = "true"
-	}
-
-	return g.CriarRemoto(nome, "crypt", params)
+	return true, fmt.Sprintf("Remoto '%s' criado com sucesso.", nome)
 }
 
 // ImportarCrypt importa um cofre crypt existente (mesma lógica de CriarCrypt).
@@ -227,11 +165,10 @@ func (g *GerenciadorRClone) RemoverRemoto(nome string) (bool, string) {
 		if errors.Is(err, ErrTempoEsgotado) {
 			return false, err.Error()
 		}
-		msg := strings.TrimSpace(string(saida))
-		if msg == "" {
-			msg = "Erro ao remover."
+		if strings.TrimSpace(string(saida)) == "" {
+			return false, "Erro ao remover."
 		}
-		return false, msg
+		return false, novoErroRclone("config delete", string(saida), err).Error()
 	}
 	return true, fmt.Sprintf("Remoto '%s' removido.", nomeLimpo)
 }

@@ -88,6 +88,14 @@ func (a *Acoes) Trancar(nome string) {
 	}
 }
 
+// provedorDe é o nome do provedor do cofre, para as frases de erro (027).
+func (a *Acoes) provedorDe(nome string) string {
+	if c := a.g.Cofres.Obter(nome); c != nil {
+		return c.ProvedorNome
+	}
+	return ""
+}
+
 func (a *Acoes) destrancar(nome string) {
 	a.jp.Mostrar()
 	// "Destrancando…" aparece assim que a montagem começa (demanda 018).
@@ -101,7 +109,7 @@ func (a *Acoes) destrancar(nome string) {
 		return
 	case err != nil:
 		DialogoMensagem(a.jp.Janela(), "Erro ao Destrancar",
-			fmt.Sprintf("Falha ao montar '%s':\n%s", nome, err), MsgErro)
+			fmt.Sprintf("Falha ao montar '%s':\n%s", nome, TextoErro(err, a.provedorDe(nome))), MsgErro)
 	default:
 		// Demanda 013: o Explorador abre o ponto real (letra ou pasta).
 		texto := fmt.Sprintf("'%s' montado em %s\n\nO Explorador de Arquivos foi aberto.", nome, ponto)

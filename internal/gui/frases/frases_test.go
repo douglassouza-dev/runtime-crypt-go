@@ -180,3 +180,18 @@ func TestBotaoTrancarSoNoCofreQueCaiu(t *testing.T) {
 		t.Error("Trancar extra só no cofre que caiu")
 	}
 }
+
+// Demanda 027: o motivo de "não destrancou" que veio do rclone é a frase fixa,
+// com o provedor; o texto em inglês não aparece.
+func TestNaoDestrancouComFalhaDoRclone(t *testing.T) {
+	c := core.CofreStatus{Cofre: core.Cofre{Nome: "a", ProvedorNome: "Google Drive"}, Estado: core.EstadoFalhou,
+		Motivo: "sem conexão com o provedor",
+		Rclone: &core.ErroRclone{Falha: core.FalhaConexao, Saida: "dial tcp: connection refused"}}
+	if got := DoCofre(c); got != "Não destrancou: sem conexão com o Google Drive" {
+		t.Errorf("DoCofre = %q", got)
+	}
+	c.Rclone = &core.ErroRclone{Falha: core.FalhaOutra, Saida: "CRITICAL: cannot find winfsp"}
+	if got := DoCofre(c); got != "Não destrancou: o rclone falhou, detalhes no log" {
+		t.Errorf("DoCofre = %q", got)
+	}
+}

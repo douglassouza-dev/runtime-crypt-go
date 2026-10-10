@@ -173,14 +173,19 @@ func TestCriarRemoto(t *testing.T) {
 	}
 }
 
-func TestCriarRemotoDevolveStderrDoRclone(t *testing.T) {
+// Demanda 027: o stderr do rclone vai para o log; a mensagem é a da tela.
+func TestCriarRemotoLevaStderrDoRcloneAoLog(t *testing.T) {
 	g, f := novoGerenciadorFalso(t)
 	f.falhar()
+	registro := capturarLog(t)
 
 	ok, msg := g.CriarRemoto("x", "drive", nil)
 
-	if ok || !strings.Contains(msg, "CRITICAL: falha do rclone falso") {
+	if ok || msg != "o rclone falhou, detalhes no log" {
 		t.Errorf("ok=%v msg=%q", ok, msg)
+	}
+	if !strings.Contains(registro.String(), "CRITICAL: falha do rclone falso") {
+		t.Errorf("o texto do rclone deveria estar no log: %q", registro.String())
 	}
 }
 
@@ -271,7 +276,7 @@ func TestRemoverRemoto(t *testing.T) {
 	}
 
 	f.falhar()
-	if ok, msg := g.RemoverRemoto("cofre"); ok || !strings.Contains(msg, "CRITICAL") {
+	if ok, msg := g.RemoverRemoto("cofre"); ok || strings.Contains(msg, "CRITICAL") || msg == "" {
 		t.Errorf("falha: ok=%v msg=%q", ok, msg)
 	}
 }
@@ -293,10 +298,12 @@ func TestListarRemotosSoCrypt(t *testing.T) {
 	}
 }
 
-// Demanda 009: erro do rclone volta como erro, com o motivo que ele escreveu.
+// Demanda 009: erro do rclone volta como erro. Demanda 027: *ErroRclone, com
+// o que ele escreveu em Saida (e no log).
 func TestListagensDeRemotosDevolvemErroDoRclone(t *testing.T) {
 	g, f := novoGerenciadorFalso(t)
 	f.falhar()
+	capturarLog(t)
 
 	erros := map[string]error{}
 	_, erros["ListarRemotos"] = g.ListarRemotos()
@@ -304,7 +311,8 @@ func TestListagensDeRemotosDevolvemErroDoRclone(t *testing.T) {
 	_, erros["ListarRemotosDetalhado"] = g.ListarRemotosDetalhado()
 	_, erros["ObterConfigRemoto"] = g.ObterConfigRemoto("cofre")
 	for nome, err := range erros {
-		if err == nil || !strings.Contains(err.Error(), "falha do rclone falso") {
+		var erc *ErroRclone
+		if !errors.As(err, &erc) || !strings.Contains(erc.Saida, "falha do rclone falso") {
 			t.Errorf("%s: err = %v, quer o motivo do rclone", nome, err)
 		}
 	}
@@ -437,8 +445,11 @@ func TestListarDiretoriosRemotoErroDoRcloneDevolveErro(t *testing.T) {
 	if got != nil {
 		t.Errorf("com erro, dirs deveria ser nil; veio %q", got)
 	}
-	if quer := "CRITICAL: Failed to lsjson: couldn't list directory: invalid_grant"; err.Error() != quer {
-		t.Errorf("motivo = %q, quer %q", err.Error(), quer)
+	// Demanda 027: o motivo é a frase da tela; o texto original fica no erro
+	// (Saida) e no log.
+	var erc *ErroRclone
+	if !errors.As(err, &erc) || erc.Falha != FalhaAutorizacao || err.Error() != "autorização expirou" {
+		t.Errorf("motivo = %q (%#v), quer autorização expirou", err.Error(), erc)
 	}
 	var saida *exec.ExitError
 	if !errors.As(err, &saida) {
