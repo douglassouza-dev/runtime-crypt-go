@@ -3,7 +3,8 @@
 - Estado: Aberta
 - Risco: Médio · uso, segredos
 - Onde: `internal/gui/wizards.go:DialogoNovoCofre`, `DialogoImportarCofre`; `internal/core/casos_de_uso.go:DadosNovoCofre`, `DadosConectarCofre`, `autorizar`, `criarRemotoBase`; `internal/core/oauth.go:GerenciadorOAuth.Iniciar`; `internal/core/criar_remoto.go:argsConfigCreate`; `internal/core/falhas_rclone.go:padroesFalhaRclone`
-- Depende de: 027, 029; ADR-0006 para onde o `client_secret` fica guardado (ver "Onde fica o client secret"); "editar cofre" para cofres que já existem (não existe no app nem como demanda, ver "Cofres que já existem")
+- Depende de: 027, 029; ADR-0006 para onde o `client_secret` fica guardado (ver "Onde fica o client secret")
+- Vale só para cofres novos. Cofres que já existem trocam de app pela [033](033-editar-cofre.md) (tela de editar cofre).
 
 ## Contexto
 
@@ -71,7 +72,7 @@ O que o Google e o rclone devolvem em cada caso (das fontes abaixo; o texto exat
 
 | Caso | Onde aparece | O que o rclone faz | O que o app faz (depois) |
 |---|---|---|---|
-| Client ID que não existe ou foi digitado errado | No navegador, página do Google: `Error 401: invalid_client`, `The OAuth client was not found.` ([fórum](https://forum.rclone.org/t/error-401-during-google-oauth-authentication-setting-up-google-drive/14832), [fórum](https://forum.rclone.org/t/new-installation-of-1-56-2-failing-with-invalid-client-on-macos/26899)) | Nada. Fica em `Waiting for code...` | Hoje espera os 2 min de `esperaTokenOAuth` e mostra `Autorização não concluída em 2m0s.` Ver pergunta 3 |
+| Client ID que não existe ou foi digitado errado | No navegador, página do Google: `Error 401: invalid_client`, `The OAuth client was not found.` ([fórum](https://forum.rclone.org/t/error-401-during-google-oauth-authentication-setting-up-google-drive/14832), [fórum](https://forum.rclone.org/t/new-installation-of-1-56-2-failing-with-invalid-client-on-macos/26899)) | Nada. Fica em `Waiting for code...` | Hoje espera os 2 min de `esperaTokenOAuth` e mostra `Autorização não concluída em 2m0s.` Ver pergunta 2 |
 | Client secret errado | Depois do login, o rclone imprime `failed to get token: oauth2: cannot fetch token: 401 Unauthorized` com `"error": "invalid_client"` e `"error_description": "Unauthorized"` ([fórum](https://forum.rclone.org/t/config-problems-success-but-oauth-token-error/28363)) | Sai sem token | `Não deu para autorizar: o Google recusou esse app.` |
 | Cliente apagado no projeto | `deleted_client`: "The OAuth client being used to make the request has been deleted" ([Google, OAuth para apps desktop](https://developers.google.com/identity/protocols/oauth2/native-app)) | No navegador ou na troca do código | A mesma frase, se chegar ao rclone |
 | Usuário não está entre os test users, ou o login é recusado | `access_denied` ([Google, OAuth para apps desktop](https://developers.google.com/identity/protocols/oauth2/native-app)); a página de bloqueio fica no navegador | Fica esperando, ou sai sem token | Como hoje |
@@ -88,23 +89,20 @@ O Google diz: "A Google Cloud Platform project with an OAuth consent screen conf
 No app isso quer dizer:
 
 - Sete dias depois de criar o cofre, montar e listar começam a falhar com `invalid_grant`. A tela mostra `autorização expirou` (027).
-- **O app não tem como autorizar de novo** um cofre que já existe. Até existir "editar cofre", o cofre fica inutilizável depois de 7 dias.
+- **O app não tem como autorizar de novo** um cofre que já existe. Até a 033 (`Reconectar`), o cofre fica inutilizável depois de 7 dias.
 - Por isso o guia do usuário manda publicar o app (`PUBLISH APP`, estado "In production"). O rclone diz que, para uso pessoal, dá para deixar o app sem verificação, aceitar a tela de aviso e publicar "to avoid the weekly grant expiry".
 - Aviso perto dos campos (**proposta**, falta aprovar): `Publique o app no Google Cloud. Em modo de teste, o acesso vence em 7 dias.`
 - O app não consegue saber se o projeto está em Testing antes de vencer. O token não traz essa informação.
 
-### Cofres que já existem
+### Cofres que já existem: fica para a 033
 
-Regra aprovada pela UI: um cofre que já existe também troca para o app próprio pela edição do cofre, que pede autorização de novo.
+Esta demanda vale só para cofres novos, criados ou importados pelos wizards. O app não tem tela de editar cofre hoje (ver 031), e trocar o app de um cofre que já existe exige autorizar de novo. Isso fica na [033](033-editar-cofre.md), que cria a tela de editar cofre com os mesmos campos desta demanda e o botão `Reconectar`.
 
-- **Essa tela não existe.** O app não tem "editar cofre" hoje (ver 031), e não há demanda para isso. Esta demanda não inventa a tela.
-- Opções: (a) abrir uma demanda "editar cofre" antes, e esta depende dela para cofres que já existem; (b) incluir aqui um escopo mínimo, só "trocar o app do Google", sem tela de edição geral. Pergunta 1.
-- O que o core faria, nas duas opções:
-  - o cofre precisa estar trancado (sem `rclone mount` usando o remoto);
-  - `rclone authorize drive <id> <secret>`;
-  - grava `client_id`, `client_secret` e o token novo juntos no `<nome>_base`, com `config update -- ...` (o comando exato fica para conferir).
-- Só trocar o par sem token novo não basta. O anúncio do rclone pede `rclone config reconnect` depois de pôr o par: "This part is important otherwise rclone won't actually use your new client_id/client_secret." Um token antigo com um par novo dá `invalid_client` na renovação ([fórum](https://forum.rclone.org/t/google-drive-wont-reconnect-after-resetting-credentials/32706)).
-- O remoto crypt e a senha não mudam: só o `<nome>_base` muda.
+O que a 033 precisa saber daqui:
+
+- Trocar só o par, sem token novo, não basta. O anúncio do rclone pede `rclone config reconnect` depois de pôr o par: "This part is important otherwise rclone won't actually use your new client_id/client_secret." Um token antigo com um par novo dá `invalid_client` na renovação ([fórum](https://forum.rclone.org/t/google-drive-wont-reconnect-after-resetting-credentials/32706)).
+- O par e o token novo vão juntos para o `<nome>_base`. O remoto crypt e a senha não mudam.
+- A validação, a classe `FalhaAppRecusado` e a frase do OAuth são as desta demanda.
 
 ### Onde fica o client secret
 
@@ -138,7 +136,7 @@ Na hora de autorizar, o Google mostra uma tela de "app não verificado". O rclon
 - Mudar `scope` (por exemplo `drive.file`). Com `drive.file`, o rclone só vê o que ele mesmo criou ([rclone, Scopes](https://rclone.org/drive/#scopes)). Isso quebra "Importar Cofre Existente" para cofres criados fora do app.
 - Ajustar `--drive-pacer-min-sleep` (padrão 100ms), `--drive-pacer-burst` (padrão 100) ou `--tpslimit` ([rclone, opções do drive](https://rclone.org/drive/#drive-pacer-min-sleep), [rclone, --tpslimit](https://rclone.org/docs/#tpslimit-float)). Pode virar outra demanda, mas só com medição.
 - Service account.
-- A tela de editar cofre (ver "Cofres que já existem" e pergunta 1).
+- Cofres que já existem e a tela de editar cofre: [033](033-editar-cofre.md).
 - Avisar quem ainda usa o app compartilhado. Pode virar outra demanda quando a data do desligamento for anunciada.
 - OneDrive e Dropbox. O rclone tem o mesmo recurso, mas o caminho é outro:
   - **OneDrive:** o rclone diz que o Client ID padrão "are shared by all rclone users" e que criar um próprio ajuda "in case the default one does not work well for you. For example, you might see throttling." Exige registrar um app no Azure, com conta que pede telefone, endereço e cartão, e um secret que expira (o guia sugere 24 meses) ([rclone, OneDrive](https://rclone.org/onedrive/#getting-your-own-client-id-and-key)).
@@ -148,7 +146,7 @@ Na hora de autorizar, o Google mostra uma tela de "app não verificado". O rclon
 ## Riscos
 
 - O app compartilhado do rclone vai parar em 2026. Com o link fechado, um cofre novo do Drive vai deixar de funcionar quando isso acontecer. Esta demanda não resolve isso sozinha.
-- Projeto em Testing: o cofre para de funcionar em 7 dias, e o app não tem como autorizar de novo (ver acima).
+- Projeto em Testing: o cofre para de funcionar em 7 dias, e o app só vai poder autorizar de novo com a 033.
 - Client ID errado não gera erro para o rclone: o usuário fica 2 minutos esperando, com a página de erro do Google no navegador.
 - O rclone está mudando o fluxo do app compartilhado (aviso e pergunta no `rclone config`). O `rclone authorize drive` sem par pode passar a escrever um aviso a mais ou mudar a saída que `GerenciadorOAuth` lê. Precisa de teste com o rclone que o app distribui.
 - Cobrança pelo Google no projeto do usuário, se ele passar da cota, a partir de quando o Google publicar as regras.
@@ -156,12 +154,11 @@ Na hora de autorizar, o Google mostra uma tela de "app não verificado". O rclon
 
 ## Perguntas em aberto
 
-1. **Cofres que já existem (Douglas e UI):** a regra aprovada fala em editar o cofre, mas essa tela não existe. Abrimos uma demanda "editar cofre" primeiro, ou esta demanda inclui só "trocar o app do Google" num cofre trancado? Onde fica esse botão?
-2. **Client secret (Douglas):** espera o ADR-0006 ou grava no `rclone.conf` como o token e segue o ADR depois?
-3. **Client ID errado (UI):** o Google mostra o erro no navegador e o rclone não fica sabendo. Depois dos 2 minutos, a tela mostra `Autorização não concluída em 2m0s.` (como hoje) ou a frase aprovada `Não deu para autorizar: o Google recusou esse app.` quando o par foi preenchido? Dá para encurtar essa espera?
-4. **Obrigatório (Douglas):** com o desligamento do app compartilhado em 2026, o link continua opcional ou passa a ser o padrão para o Google Drive?
-5. **Aviso dos 7 dias (UI):** a frase proposta sobre publicar o app entra, e onde?
-6. **Frases de validação (UI):** as três frases marcadas como proposta.
+1. **Client secret (Douglas):** espera o ADR-0006 ou grava no `rclone.conf` como o token e segue o ADR depois?
+2. **Client ID errado (UI):** o Google mostra o erro no navegador e o rclone não fica sabendo. Depois dos 2 minutos, a tela mostra `Autorização não concluída em 2m0s.` (como hoje) ou a frase aprovada `Não deu para autorizar: o Google recusou esse app.` quando o par foi preenchido? Dá para encurtar essa espera?
+3. **Obrigatório (Douglas):** com o desligamento do app compartilhado em 2026, o link continua opcional ou passa a ser o padrão para o Google Drive?
+4. **Aviso dos 7 dias (UI):** a frase proposta sobre publicar o app entra, e onde?
+5. **Frases de validação (UI):** as três frases marcadas como proposta.
 
 ## Pronto quando
 
