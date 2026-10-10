@@ -3,6 +3,7 @@
 package plataforma
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -50,21 +51,29 @@ func AdicionarAutoIniciar() error {
 	return chave.SetStringValue(nomeRegistro, valor)
 }
 
-// RemoverAutoIniciar remove o programa do auto-início do Windows.
+// RemoverAutoIniciar remove o programa do auto-início do Windows. Valor que
+// já não existe não é erro; qualquer outra falha volta para quem chamou
+// (demanda 009).
 func RemoverAutoIniciar() error {
 	chave, err := registry.OpenKey(
 		registry.CURRENT_USER,
 		chaveAutoIniciar,
 		registry.SET_VALUE,
 	)
+	if errors.Is(err, registry.ErrNotExist) {
+		return nil // sem a chave Run, não há o que remover
+	}
 	if err != nil {
-		return nil // Se não conseguir abrir, não há o que remover
+		return fmt.Errorf("erro ao abrir registro: %w", err)
 	}
 	defer chave.Close()
 
 	err = chave.DeleteValue(nomeRegistro)
+	if errors.Is(err, registry.ErrNotExist) {
+		return nil
+	}
 	if err != nil {
-		return nil // Se não existe, ok
+		return fmt.Errorf("erro ao remover do registro: %w", err)
 	}
 	return nil
 }

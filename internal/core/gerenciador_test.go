@@ -1,7 +1,9 @@
 package core
 
 import (
+	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -108,9 +110,16 @@ func TestSemRcloneTodasAsFuncoesRecusam(t *testing.T) {
 	if ok, _ := g.RemoverRemoto("a"); ok {
 		t.Error("RemoverRemoto deveria falhar")
 	}
-	if g.ListarRemotos() != nil || g.ListarTodosRemotos() != nil || g.ListarRemotosDetalhado() != nil ||
-		g.ObterConfigRemoto("a") != nil || g.ListarDiretoriosRemoto("a", "") != nil {
-		t.Error("listagens sem rclone deveriam devolver nil")
+	erros := map[string]error{}
+	_, erros["ListarRemotos"] = g.ListarRemotos()
+	_, erros["ListarTodosRemotos"] = g.ListarTodosRemotos()
+	_, erros["ListarRemotosDetalhado"] = g.ListarRemotosDetalhado()
+	_, erros["ObterConfigRemoto"] = g.ObterConfigRemoto("a")
+	_, erros["ListarDiretoriosRemoto"] = g.ListarDiretoriosRemoto("a", "")
+	for nome, err := range erros {
+		if !errors.Is(err, ErrRcloneIndisponivel) {
+			t.Errorf("%s sem rclone: err = %v, quer ErrRcloneIndisponivel", nome, err)
+		}
 	}
 }
 
@@ -276,18 +285,27 @@ func TestListarRemotosSoCrypt(t *testing.T) {
 	g, f := novoGerenciadorFalso(t)
 	f.escrever("dump.json", dumpExemplo)
 
-	got := g.ListarRemotos()
+	got, err := g.ListarRemotos()
 
-	if len(got) != 2 || !contem(got, "cofre:") || !contem(got, "outro:") {
+	if err != nil || len(got) != 2 || !contem(got, "cofre:") || !contem(got, "outro:") {
 		t.Errorf("ListarRemotos = %v", got)
 	}
 }
 
-func TestListarRemotosErroViraNil(t *testing.T) {
+// Demanda 009: erro do rclone volta como erro, com o motivo que ele escreveu.
+func TestListagensDeRemotosDevolvemErroDoRclone(t *testing.T) {
 	g, f := novoGerenciadorFalso(t)
 	f.falhar()
-	if got := g.ListarRemotos(); got != nil {
-		t.Errorf("hoje erro vira nil (demanda 009 muda), veio %v", got)
+
+	erros := map[string]error{}
+	_, erros["ListarRemotos"] = g.ListarRemotos()
+	_, erros["ListarTodosRemotos"] = g.ListarTodosRemotos()
+	_, erros["ListarRemotosDetalhado"] = g.ListarRemotosDetalhado()
+	_, erros["ObterConfigRemoto"] = g.ObterConfigRemoto("cofre")
+	for nome, err := range erros {
+		if err == nil || !strings.Contains(err.Error(), "falha do rclone falso") {
+			t.Errorf("%s: err = %v, quer o motivo do rclone", nome, err)
+		}
 	}
 }
 
@@ -295,9 +313,9 @@ func TestListarTodosRemotos(t *testing.T) {
 	g, f := novoGerenciadorFalso(t)
 	f.escrever("dump.json", dumpExemplo)
 
-	got := g.ListarTodosRemotos()
+	got, err := g.ListarTodosRemotos()
 
-	if strings.Join(got, ",") != "cofre:,gdrive:,outro:" {
+	if err != nil || strings.Join(got, ",") != "cofre:,gdrive:,outro:" {
 		t.Errorf("ListarTodosRemotos = %v", got)
 	}
 }
@@ -306,9 +324,9 @@ func TestListarRemotosDetalhado(t *testing.T) {
 	g, f := novoGerenciadorFalso(t)
 	f.escrever("dump.json", dumpExemplo)
 
-	got := g.ListarRemotosDetalhado()
+	got, err := g.ListarRemotosDetalhado()
 
-	if len(got) != 3 {
+	if err != nil || len(got) != 3 {
 		t.Fatalf("len = %d: %+v", len(got), got)
 	}
 	for _, r := range got {
@@ -325,13 +343,13 @@ func TestObterConfigRemoto(t *testing.T) {
 	g, f := novoGerenciadorFalso(t)
 	f.escrever("dump.json", dumpExemplo)
 
-	cfg := g.ObterConfigRemoto("cofre:")
+	cfg, err := g.ObterConfigRemoto("cofre:")
 
-	if cfg == nil || cfg["remote"] != "gdrive:cofre" {
-		t.Errorf("cfg = %v", cfg)
+	if err != nil || cfg["remote"] != "gdrive:cofre" {
+		t.Errorf("cfg = %v, err = %v", cfg, err)
 	}
-	if g.ObterConfigRemoto("naoexiste") != nil {
-		t.Error("remoto inexistente deveria devolver nil")
+	if cfg, err := g.ObterConfigRemoto("naoexiste"); cfg != nil || !errors.Is(err, ErrRemotoNaoEncontrado) {
+		t.Errorf("remoto inexistente: cfg = %v, err = %v", cfg, err)
 	}
 }
 
@@ -351,9 +369,9 @@ func TestListarDiretoriosRemoto(t *testing.T) {
 	g, f := novoGerenciadorFalso(t)
 	f.escrever("lsjson.json", `[{"Path":"zeta","Name":"zeta","Size":-1,"IsDir":true},{"Path":"alfa","Name":"alfa","Size":-1,"IsDir":true}]`)
 
-	got := g.ListarDiretoriosRemoto("gdrive", "/fotos")
+	got, err := g.ListarDiretoriosRemoto("gdrive", "/fotos")
 
-	if strings.Join(got, ",") != "alfa,zeta" {
+	if err != nil || strings.Join(got, ",") != "alfa,zeta" {
 		t.Errorf("dirs = %v", got)
 	}
 	if args := f.chamadas()[0].Args; !argsContem(args, "lsjson", "--dirs-only", "gdrive:fotos") {
@@ -368,7 +386,10 @@ func TestListarDiretoriosRemotoFormatoRealDoRclone(t *testing.T) {
 	g, f := novoGerenciadorFalso(t)
 	f.escrever("lsjson.json", lsjsonReal)
 
-	got := g.ListarDiretoriosRemoto("gdrive", "")
+	got, err := g.ListarDiretoriosRemoto("gdrive", "")
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	quer := []string{"  dois  espaços", "-rascunho", "2024 fotos", "alfa", "ação", "minha pasta"}
 	if len(got) != len(quer) {
@@ -385,8 +406,8 @@ func TestListarDiretoriosRemotoIgnoraArquivos(t *testing.T) {
 	g, f := novoGerenciadorFalso(t)
 	f.escrever("lsjson.json", `[{"Name":"pasta","IsDir":true},{"Name":"arquivo.txt","IsDir":false}]`)
 
-	if got := g.ListarDiretoriosRemoto("gdrive", ""); strings.Join(got, "|") != "pasta" {
-		t.Errorf("dirs = %q", got)
+	if got, err := g.ListarDiretoriosRemoto("gdrive", ""); err != nil || strings.Join(got, "|") != "pasta" {
+		t.Errorf("dirs = %q, err = %v", got, err)
 	}
 }
 
@@ -394,16 +415,56 @@ func TestListarDiretoriosRemotoPastaVazia(t *testing.T) {
 	g, f := novoGerenciadorFalso(t)
 	f.escrever("lsjson.json", "[]\n")
 
-	if got := g.ListarDiretoriosRemoto("gdrive", ""); len(got) != 0 {
-		t.Errorf("dirs = %q", got)
+	got, err := g.ListarDiretoriosRemoto("gdrive", "")
+	if err != nil || got == nil || len(got) != 0 {
+		t.Errorf("pasta vazia: dirs = %q, err = %v; quer lista vazia sem erro", got, err)
 	}
 }
 
-func TestListarDiretoriosRemotoErroViraNil(t *testing.T) {
+// Demanda 009: executável falso que sai com código 1 devolve erro, com a
+// última linha do stderr como motivo e sem a data do log.
+func TestListarDiretoriosRemotoErroDoRcloneDevolveErro(t *testing.T) {
 	g, f := novoGerenciadorFalso(t)
 	f.falhar()
-	if got := g.ListarDiretoriosRemoto("gdrive:", ""); got != nil {
-		t.Errorf("hoje erro vira nil (demanda 009 muda), veio %v", got)
+	t.Setenv(envFalsoStderr, "2026/10/09 23:10:00 CRITICAL: Failed to lsjson: couldn't list directory: invalid_grant")
+
+	got, err := g.ListarDiretoriosRemoto("gdrive:", "")
+
+	if err == nil {
+		t.Fatalf("esperava erro, veio dirs = %q", got)
+	}
+	if got != nil {
+		t.Errorf("com erro, dirs deveria ser nil; veio %q", got)
+	}
+	if quer := "CRITICAL: Failed to lsjson: couldn't list directory: invalid_grant"; err.Error() != quer {
+		t.Errorf("motivo = %q, quer %q", err.Error(), quer)
+	}
+	var saida *exec.ExitError
+	if !errors.As(err, &saida) {
+		t.Errorf("o erro deveria embrulhar o *exec.ExitError: %T", err)
+	}
+}
+
+func TestListarDiretoriosRemotoSaidaIlegivelDevolveErro(t *testing.T) {
+	g, f := novoGerenciadorFalso(t)
+	f.escrever("lsjson.json", "isto não é json")
+
+	if got, err := g.ListarDiretoriosRemoto("gdrive", ""); err == nil {
+		t.Errorf("saída ilegível deveria dar erro; veio %q", got)
+	}
+}
+
+// Mesmo critério de `rg -n "return nil$" internal/core/gerenciador.go`, sem
+// depender do rg instalado.
+func TestGerenciadorSemRetornoNilDisfarcado(t *testing.T) {
+	dados, err := os.ReadFile("gerenciador.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, linha := range strings.Split(strings.ReplaceAll(string(dados), "\r\n", "\n"), "\n") {
+		if strings.HasSuffix(linha, "return nil") {
+			t.Errorf("gerenciador.go:%d: %q", i+1, strings.TrimSpace(linha))
+		}
 	}
 }
 

@@ -1,6 +1,8 @@
 package gui
 
 import (
+	"fmt"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
@@ -13,11 +15,126 @@ import (
 // TextoPastaSemSubpastas é a linha mostrada quando a pasta não tem subpastas.
 const TextoPastaSemSubpastas = "Nenhuma subpasta aqui."
 
+// Linha e botão mostrados quando a listagem falha (demanda 009). Erro nunca
+// aparece como TextoPastaSemSubpastas.
+const (
+	TextoErroListagem = "Não deu para listar as pastas: %s"
+	TextoTentarDeNovo = "Tentar de novo"
+)
+
+// linhaErroListagem é a linha de erro com o motivo e o botão que lista de
+// novo a mesma pasta.
+func linhaErroListagem(err error, tentarDeNovo func()) fyne.CanvasObject {
+	lbl := widget.NewLabel(fmt.Sprintf(TextoErroListagem, err.Error()))
+	lbl.Wrapping = fyne.TextWrapWord
+	lbl.Importance = widget.DangerImportance
+	btn := widget.NewButton(TextoTentarDeNovo, tentarDeNovo)
+	return container.NewBorder(nil, nil, nil, btn, lbl)
+}
+
+// listaPastas é a lista do seletor: mostra as subpastas de caminho no remoto,
+// a linha de pasta vazia ou a linha de erro com "Tentar de novo".
+type listaPastas struct {
+	nomeRemoto string
+	listar     func(nomeRemoto, caminho string) ([]string, error)
+	lista      *fyne.Container
+	lblCaminho *canvas.Text
+	caminho    string
+
+	// carregada, se não for nil, é chamada no fim de cada carga, depois de a
+	// lista ser atualizada. Os testes usam para esperar a goroutine.
+	carregada func()
+}
+
+func novaListaPastas(nomeRemoto string, listar func(nomeRemoto, caminho string) ([]string, error)) *listaPastas {
+	lblCaminho := canvas.NewText("  "+nomeRemoto+":/", CorTexto)
+	lblCaminho.TextSize = 12
+	return &listaPastas{
+		nomeRemoto: nomeRemoto,
+		listar:     listar,
+		lista:      container.NewVBox(),
+		lblCaminho: lblCaminho,
+	}
+}
+
+// entrar desce para a subpasta nome e lista de novo.
+func (l *listaPastas) entrar(nome string) {
+	if l.caminho != "" {
+		l.caminho = l.caminho + "/" + nome
+	} else {
+		l.caminho = nome
+	}
+	l.carregar()
+}
+
+// voltar sobe uma pasta e lista de novo.
+func (l *listaPastas) voltar() {
+	if l.caminho == "" {
+		return
+	}
+	partes := splitCaminho(l.caminho)
+	if len(partes) <= 1 {
+		l.caminho = ""
+	} else {
+		l.caminho = joinCaminho(partes[:len(partes)-1])
+	}
+	l.carregar()
+}
+
+// carregar lista l.caminho numa goroutine e troca o conteúdo da lista pelo
+// resultado.
+func (l *listaPastas) carregar() {
+	l.lista.RemoveAll()
+
+	lblCarregando := canvas.NewText("🔄 Carregando pastas...", CorTextoSec)
+	lblCarregando.TextSize = 12
+	l.lista.Add(lblCarregando)
+	l.lista.Refresh()
+
+	exibicao := l.caminho
+	if exibicao == "" {
+		exibicao = "/"
+	}
+	l.lblCaminho.Text = "  " + l.nomeRemoto + ":" + exibicao
+	l.lblCaminho.Refresh()
+
+	caminho := l.caminho
+	go func() {
+		dirs, err := l.listar(l.nomeRemoto, caminho)
+
+		// Atualizar UI na thread Fyne
+		l.lista.RemoveAll()
+
+		if err != nil {
+			// Demanda 009: o erro aparece com o motivo, e "Tentar de novo"
+			// lista de novo a mesma pasta (l.caminho não muda).
+			l.lista.Add(linhaErroListagem(err, l.carregar))
+		} else if len(dirs) == 0 {
+			// Uma linha só, sem botão: a pasta atual continua escolhível
+			// pelo caminho do topo e por "Selecionar esta pasta" (demanda 021).
+			lblVazio := canvas.NewText(TextoPastaSemSubpastas, CorTextoSec)
+			lblVazio.TextSize = 12
+			l.lista.Add(lblVazio)
+		} else {
+			for _, nomePasta := range dirs {
+				np := nomePasta // captura
+				btn := widget.NewButton("📁  "+np, func() { l.entrar(np) })
+				btn.Importance = widget.LowImportance
+				btn.Alignment = widget.ButtonAlignLeading
+				l.lista.Add(btn)
+			}
+		}
+		l.lista.Refresh()
+		if l.carregada != nil {
+			l.carregada()
+		}
+	}()
+}
+
 // DialogoSeletorPastaRemota exibe um navegador visual de pastas em um remoto rclone.
 // Retorna o caminho selecionado ou "" se cancelado.
 func DialogoSeletorPastaRemota(janelaPai fyne.Window, gerenciador *core.GerenciadorRClone, nomeRemoto string, tituloProvedor string) *string {
 	resultado := make(chan *string, 1)
-	caminhoAtual := ""
 
 	// Header
 	lblIcone := canvas.NewText("📂", CorVerde)
@@ -29,83 +146,16 @@ func DialogoSeletorPastaRemota(janelaPai fyne.Window, gerenciador *core.Gerencia
 	lblTitulo.TextStyle = fyne.TextStyle{Bold: true}
 	lblTitulo.Alignment = fyne.TextAlignCenter
 
-	// Barra de caminho
-	lblCaminho := canvas.NewText("  "+nomeRemoto+":/", CorTexto)
-	lblCaminho.TextSize = 12
-
-	// Lista de pastas
-	containerLista := container.NewVBox()
-	scrollLista := container.NewVScroll(containerLista)
+	// Barra de caminho e lista de pastas
+	pastas := novaListaPastas(nomeRemoto, gerenciador.ListarDiretoriosRemoto)
+	lblCaminho := pastas.lblCaminho
+	scrollLista := container.NewVScroll(pastas.lista)
 	scrollLista.SetMinSize(fyne.NewSize(0, 280))
 
 	var dialogo *widget.PopUp
 
-	// Função de carregamento
-	var carregarPastas func()
-	carregarPastas = func() {
-		containerLista.RemoveAll()
-
-		// Label "carregando"
-		lblCarregando := canvas.NewText("🔄 Carregando pastas...", CorTextoSec)
-		lblCarregando.TextSize = 12
-		containerLista.Add(lblCarregando)
-		containerLista.Refresh()
-
-		// Atualizar caminho
-		exibicao := caminhoAtual
-		if exibicao == "" {
-			exibicao = "/"
-		}
-		lblCaminho.Text = "  " + nomeRemoto + ":" + exibicao
-		lblCaminho.Refresh()
-
-		// Carregar em goroutine
-		go func() {
-			dirs := gerenciador.ListarDiretoriosRemoto(nomeRemoto, caminhoAtual)
-
-			// Atualizar UI na thread Fyne
-			containerLista.RemoveAll()
-
-			if len(dirs) == 0 {
-				// Uma linha só, sem botão: a pasta atual continua escolhível
-				// pelo caminho do topo e por "Selecionar esta pasta" (demanda 021).
-				lblVazio := canvas.NewText(TextoPastaSemSubpastas, CorTextoSec)
-				lblVazio.TextSize = 12
-				containerLista.Add(lblVazio)
-			} else {
-				for _, nomePasta := range dirs {
-					np := nomePasta // captura
-					btn := widget.NewButton("📁  "+np, func() {
-						// Entrar na pasta (duplo clique simulado com clique normal)
-						if caminhoAtual != "" {
-							caminhoAtual = caminhoAtual + "/" + np
-						} else {
-							caminhoAtual = np
-						}
-						carregarPastas()
-					})
-					btn.Importance = widget.LowImportance
-					btn.Alignment = widget.ButtonAlignLeading
-					containerLista.Add(btn)
-				}
-			}
-			containerLista.Refresh()
-		}()
-	}
-
 	// Botão voltar
-	btnVoltar := widget.NewButton("⬆ Voltar", func() {
-		if caminhoAtual == "" {
-			return
-		}
-		partes := splitCaminho(caminhoAtual)
-		if len(partes) <= 1 {
-			caminhoAtual = ""
-		} else {
-			caminhoAtual = joinCaminho(partes[:len(partes)-1])
-		}
-		carregarPastas()
-	})
+	btnVoltar := widget.NewButton("⬆ Voltar", pastas.voltar)
 
 	// Dica
 	lblDica := canvas.NewText("💡 Clique para entrar em uma pasta.\nClique 'Selecionar esta pasta' para usar a pasta atual.", CorTextoSec)
@@ -120,7 +170,7 @@ func DialogoSeletorPastaRemota(janelaPai fyne.Window, gerenciador *core.Gerencia
 	})
 
 	btnSelecionar := widget.NewButton("✓  Selecionar esta pasta", func() {
-		cam := caminhoAtual
+		cam := pastas.caminho
 		resultado <- &cam
 		if dialogo != nil {
 			dialogo.Hide()
@@ -158,7 +208,7 @@ func DialogoSeletorPastaRemota(janelaPai fyne.Window, gerenciador *core.Gerencia
 	dialogo.Show()
 
 	// Carregar inicial
-	carregarPastas()
+	pastas.carregar()
 
 	return <-resultado
 }

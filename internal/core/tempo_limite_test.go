@@ -159,23 +159,22 @@ func TestTempoLimiteConfigDump(t *testing.T) {
 }
 
 func TestTempoLimiteListarRemotos(t *testing.T) {
-	for nome, chamar := range map[string]func(g *GerenciadorRClone) bool{
-		"ListarRemotos":          func(g *GerenciadorRClone) bool { return g.ListarRemotos() == nil },
-		"ListarRemotosDetalhado": func(g *GerenciadorRClone) bool { return g.ListarRemotosDetalhado() == nil },
-		"ObterConfigRemoto":      func(g *GerenciadorRClone) bool { return g.ObterConfigRemoto("cofre") == nil },
-		"ListarTodosRemotos":     func(g *GerenciadorRClone) bool { return g.ListarTodosRemotos() == nil },
-		"ListarDiretoriosRemoto": func(g *GerenciadorRClone) bool { return g.ListarDiretoriosRemoto("gdrive", "") == nil },
+	for nome, chamar := range map[string]func(g *GerenciadorRClone) error{
+		"ListarRemotos":          func(g *GerenciadorRClone) error { _, err := g.ListarRemotos(); return err },
+		"ListarRemotosDetalhado": func(g *GerenciadorRClone) error { _, err := g.ListarRemotosDetalhado(); return err },
+		"ObterConfigRemoto":      func(g *GerenciadorRClone) error { _, err := g.ObterConfigRemoto("cofre"); return err },
+		"ListarTodosRemotos":     func(g *GerenciadorRClone) error { _, err := g.ListarTodosRemotos(); return err },
+		"ListarDiretoriosRemoto": func(g *GerenciadorRClone) error { _, err := g.ListarDiretoriosRemoto("gdrive", ""); return err },
 	} {
 		t.Run(nome, func(t *testing.T) {
 			g, f := preparaDorminhoco(t)
 			inicio := time.Now()
 
-			vazio := chamar(g)
+			err := chamar(g)
 
 			dentroDoLimite(t, inicio)
-			if !vazio {
-				t.Error("esperava nil depois do tempo esgotado")
-			}
+			// Demanda 009: tempo esgotado volta como erro, não como lista vazia.
+			eTempoEsgotado(t, err)
 			semProcessoVivo(t, f)
 		})
 	}

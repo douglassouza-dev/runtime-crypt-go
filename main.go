@@ -99,11 +99,7 @@ func main() {
 				janelaPrincipal.Mostrar()
 				janelaPrincipal.CallbackSobre()
 			case tray.AcaoAutoIniciar:
-				if plataforma.VerificarAutoIniciar() {
-					plataforma.RemoverAutoIniciar()
-				} else {
-					plataforma.AdicionarAutoIniciar()
-				}
+				go alternarAutoIniciar(janelaPrincipal)
 			case tray.AcaoSair:
 				gerenciador.Encerrar()
 				aplicacao.Quit()
@@ -114,7 +110,7 @@ func main() {
 	// Auto-montar cofres configurados
 	go func() {
 		time.Sleep(1500 * time.Millisecond)
-		autoMontarCofres(gerenciador)
+		autoMontarCofres(gerenciador, janelaPrincipal)
 	}()
 
 	// Mostrar janela e iniciar mainloop
@@ -155,13 +151,12 @@ func destravarCofre(gerenciador *core.GerenciadorRClone, jp *gui.JanelaPrincipal
 	sucesso, msg, letra := gerenciador.Montagens.MontarUnidade(nome, "", senha, nil)
 
 	if sucesso && letra != "" {
-		core.AbrirExplorador(letra + ":\\")
-		gui.DialogoMensagem(
-			jp.Janela(),
-			"Cofre Destrancado",
-			fmt.Sprintf("'%s' montado em %s:\\\n\nO Explorador de Arquivos foi aberto.", nome, letra),
-			gui.MsgInfo,
-		)
+		texto := fmt.Sprintf("'%s' montado em %s:\\\n\nO Explorador de Arquivos foi aberto.", nome, letra)
+		if err := core.AbrirExplorador(letra + ":\\"); err != nil {
+			// Demanda 009: a falha ao abrir o Explorador chega ao usuário.
+			texto = fmt.Sprintf("'%s' montado em %s:\\\n\nNão deu para abrir o Explorador: %v", nome, letra, err)
+		}
+		gui.DialogoMensagem(jp.Janela(), "Cofre Destrancado", texto, gui.MsgInfo)
 	} else {
 		gerenciador.Senhas.Limpar(nome)
 		gui.DialogoMensagem(
@@ -228,9 +223,7 @@ func acaoNovoCofre(gerenciador *core.GerenciadorRClone, jp *gui.JanelaPrincipal)
 		time.Sleep(1 * time.Second)
 		status := gerenciador.OAuth.ObterStatus()
 		if status.URL != "" {
-			core.AbrirNavegador(status.URL)
-			gui.DialogoMensagem(jp.Janela(), "Autorização",
-				"O navegador foi aberto para autorização.\nApós concluir, volte para esta janela.", gui.MsgInfo)
+			avisarAutorizacao(jp, status.URL)
 		}
 
 		// Polling de token
@@ -326,9 +319,7 @@ func acaoImportarCofre(gerenciador *core.GerenciadorRClone, jp *gui.JanelaPrinci
 		time.Sleep(1 * time.Second)
 		status := gerenciador.OAuth.ObterStatus()
 		if status.URL != "" {
-			core.AbrirNavegador(status.URL)
-			gui.DialogoMensagem(jp.Janela(), "Autorização",
-				"O navegador foi aberto para autorização.\nApós concluir, volte para esta janela.", gui.MsgInfo)
+			avisarAutorizacao(jp, status.URL)
 		}
 
 		for i := 0; i < 120; i++ {
@@ -397,15 +388,46 @@ func acaoVerificarFuse(jp *gui.JanelaPrincipal) {
 }
 
 // autoMontarCofres monta automaticamente cofres configurados para auto-montagem.
-func autoMontarCofres(gerenciador *core.GerenciadorRClone) {
+// Uma falha aparece para o usuário com o nome do cofre (demanda 009).
+func autoMontarCofres(gerenciador *core.GerenciadorRClone, jp *gui.JanelaPrincipal) {
 	for _, cofre := range gerenciador.ListarCofres() {
 		if cofre.AutoMontar && cofre.TemSenha && !cofre.Montado {
 			senha := gerenciador.Senhas.Obter(cofre.Nome)
 			if senha != "" {
-				gerenciador.Montagens.MontarUnidade(cofre.Nome, "", senha, nil)
+				if ok, msg, _ := gerenciador.Montagens.MontarUnidade(cofre.Nome, "", senha, nil); !ok {
+					gui.DialogoMensagem(jp.Janela(), "Erro ao Auto-montar",
+						fmt.Sprintf("Falha ao montar '%s':\n%s", cofre.Nome, msg), gui.MsgErro)
+				}
 			}
 		}
 	}
+}
+
+// alternarAutoIniciar liga ou desliga o auto-início e mostra o erro, se houver
+// (demanda 009).
+func alternarAutoIniciar(jp *gui.JanelaPrincipal) {
+	var err error
+	if plataforma.VerificarAutoIniciar() {
+		err = plataforma.RemoverAutoIniciar()
+	} else {
+		err = plataforma.AdicionarAutoIniciar()
+	}
+	if err != nil {
+		jp.Mostrar()
+		gui.DialogoMensagem(jp.Janela(), "Erro no Auto-iniciar", err.Error(), gui.MsgErro)
+	}
+}
+
+// avisarAutorizacao abre o navegador na URL do OAuth. Se não abrir, mostra a
+// URL para o usuário abrir à mão (demanda 009).
+func avisarAutorizacao(jp *gui.JanelaPrincipal, url string) {
+	if err := core.AbrirNavegador(url); err != nil {
+		gui.DialogoMensagem(jp.Janela(), "Autorização",
+			fmt.Sprintf("Não deu para abrir o navegador: %v\n\nAbra este endereço no navegador:\n%s\n\nApós concluir, volte para esta janela.", err, url), gui.MsgAviso)
+		return
+	}
+	gui.DialogoMensagem(jp.Janela(), "Autorização",
+		"O navegador foi aberto para autorização.\nApós concluir, volte para esta janela.", gui.MsgInfo)
 }
 
 // temaRuntime implementa o tema escuro do RuntimeCrypto para Fyne.
