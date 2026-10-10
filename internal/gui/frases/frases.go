@@ -13,8 +13,10 @@ import (
 
 // Frases do estado do cofre.
 const (
-	Trancado      = "Trancado"
-	Destrancando  = "Destrancando…"
+	Trancado     = "Trancado"
+	Destrancando = "Destrancando…"
+	// Enviando: o Trancar espera a VFS enviar os arquivos (demanda 025).
+	Enviando      = "Enviando %d arquivos…"
 	DestrancadoEm = "Destrancado • %s"
 	// NaoDestrancou: a montagem nunca subiu.
 	NaoDestrancou = "Não destrancou: %s"
@@ -78,6 +80,9 @@ func DoCofre(c core.CofreStatus) string {
 	case core.EstadoMontando:
 		return Destrancando
 	case core.EstadoMontado:
+		if c.Enviando > 0 {
+			return fmt.Sprintf(Enviando, c.Enviando)
+		}
 		if p := Ponto(c); p != "" {
 			return fmt.Sprintf(DestrancadoEm, p)
 		}

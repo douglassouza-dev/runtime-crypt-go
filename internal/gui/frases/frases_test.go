@@ -150,3 +150,19 @@ func TestFrasesComUnidade(t *testing.T) {
 		t.Errorf("DoCofre = %q", got)
 	}
 }
+
+// Demanda 025: enquanto o Trancar espera o envio.
+func TestFraseEnviando(t *testing.T) {
+	c := cofre(core.EstadoMontado)
+	c.Letra, c.PontoMontagem, c.Enviando = "V", `V:\`, 3
+	if got := DoCofre(c); got != "Enviando 3 arquivos…" {
+		t.Errorf("DoCofre = %q", got)
+	}
+	if tip := Tooltip([]core.CofreStatus{c}); !strings.Contains(tip, "Enviando 3 arquivos…") {
+		t.Errorf("tooltip = %q", tip)
+	}
+	c.Enviando = 0
+	if got := DoCofre(c); got != `Destrancado • V:\` {
+		t.Errorf("sem envio: %q", got)
+	}
+}
