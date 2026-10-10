@@ -210,3 +210,7 @@ func FalhaAoEnviar(f core.FalhaEnvio) string {
 	}
 	return fmt.Sprintf(naoTrancouEnvio, f.Nome, f.Err.Error())
 }
+
+// SomenteLeitura é a faixa do topo da janela quando a pasta de configuração
+// não pode ser usada (031). Com o caminho: aprovada; sem: proposta.
+func SomenteLeitura(pasta string) string { return core.TextoPastaConfig(pasta) }

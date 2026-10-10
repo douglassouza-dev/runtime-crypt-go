@@ -424,3 +424,8 @@ func (g *GerenciadorRClone) Encerrar() {
 	g.Senhas.LimparTodas()
 	g.OAuth.Abortar()
 }
+
+// SomenteLeitura diz que a pasta de configuração não pode ser usada (031):
+// destrancar e trancar cofres que já existem funcionam; criar ou importar
+// cofre e mudar a VFS ficam bloqueados.
+func (g *GerenciadorRClone) SomenteLeitura() bool { return g.ErroPastaConfig != nil }

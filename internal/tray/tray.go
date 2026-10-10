@@ -76,6 +76,11 @@ func (g *GerenciadorTray) aoIniciar() {
 	mAutoIniciar := mConfig.AddSubMenuItem("Auto-iniciar com Windows", "")
 	mConfigVfs := mConfig.AddSubMenuItem("Configuracoes VFS...", "")
 	mVerificarFuse := mConfig.AddSubMenuItem("Verificar WinFsp/FUSE", "")
+	// Demanda 031: sem pasta de configuração, o que grava fica desabilitado.
+	if g.gerenciador.SomenteLeitura() {
+		mNovo.Disable()
+		mConfigVfs.Disable()
+	}
 
 	systray.AddSeparator()
 	mSobre := systray.AddMenuItem("Sobre", "Sobre o RuntimeCrypto")

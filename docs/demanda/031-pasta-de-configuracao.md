@@ -2,7 +2,7 @@
 
 - Estado: Aberta
 - Risco: Alto · dados
-- Onde: `internal/core/gerenciador.go:NovoGerenciador`; `internal/core/pasta_config.go` (novo); `internal/core/cofres.go`; `internal/core/vfs.go`; `main.go`; `internal/gui/acoes.go:AvisosDaAbertura`.
+- Onde: `internal/core/gerenciador.go:NovoGerenciador`; `internal/core/pasta_config.go` (novo); `internal/core/cofres.go`; `internal/core/vfs.go`; `main.go`; `internal/core/criacao.go:IniciarCriacaoCofre`; `internal/gui/janela_principal.go` (faixa); `internal/gui/acoes.go`, `internal/gui/config_vfs.go`, `internal/tray/tray.go` (ações desabilitadas).
 - Depende de: 007, 012, 027
 
 ## Contexto
@@ -33,11 +33,14 @@ Nome da pasta: `RuntimeCrypto`, o nome do app na bandeja, em `~/RuntimeCrypto` e
   - a cópia vai para o log.
 - O log não é copiado: o novo começa na pasta nova; os antigos ficam onde estão.
 - Ler nunca grava: abrir o app não muda a data do `vaults.json` nem do `vfs.json`.
-- Se a pasta nova não pode ser criada ou gravada (ou a cópia falha), ou se não dá para saber a pasta do usuário:
-  - a tela avisa na abertura (proposta, aguarda a UI): título `Pasta de configuração`, texto `Não deu para usar a pasta de configuração ({pasta}): mudanças nos cofres e nas configurações não serão salvas.` (sem o caminho quando ele não é conhecido);
-  - cada arquivo é lido da pasta nova se existir lá, senão da pasta do executável, só para leitura;
-  - nada é gravado em lugar nenhum: criar, remover ou editar cofre e mudar a VFS recusam com a mesma frase; nem a cópia `.corrompido` é gravada;
-  - o log não vai para arquivo (nunca para a pasta do executável).
+- Modo só leitura: quando a pasta nova não pode ser criada ou gravada, a cópia falha ou não dá para saber a pasta do usuário.
+  - Faixa fixa no topo da janela principal, sem título, visível o tempo todo nesse modo (aprovada): `Mudanças não serão salvas: não deu para gravar em {pasta}.` Sem o caminho (proposta): `Mudanças não serão salvas: não deu para gravar na pasta de configuração.` Não há diálogo.
+  - Cada arquivo é lido da pasta nova se existir lá, senão da pasta do executável, só para leitura.
+  - Funcionam normalmente: destrancar e trancar cofres que já existem, a espera do envio (025), destrancar de novo (026) e `Enviar agora` ao sair (028). Nenhum desses caminhos grava `vaults.json`, `vfs.json` ou outro arquivo na pasta de configuração ou na do executável (conferido no código e por teste). O que eles criam fica fora do app: a pasta de montagem `~/RuntimeCrypto/{nome}` (Linux e macOS), o cache da VFS do rclone e, se o provedor renovar o token, o `rclone.conf` do rclone.
+  - Ficam desabilitados (não falham ao clicar): `Adicionar Cofre`, `Importar Cofre Existente` e `Configurações` na janela; `Novo Cofre...` e `Configuracoes VFS...` na bandeja. No core, criar ou importar recusa antes de chamar o rclone (o `rclone.conf` não é tocado), e gravar cofres ou VFS recusa com a frase da faixa. Remover e editar cofre não existem no app hoje.
+  - Nada é gravado em lugar nenhum, nem a cópia `.corrompido`.
+  - O log não vai para arquivo (nunca para a pasta do executável).
+  - `Auto-iniciar` continua habilitado: grava fora da pasta de configuração (atalho do sistema).
 - `NovoGerenciadorEm` (testes) continua usando uma pasta só para tudo, sem cópia.
 
 ## O que fica de fora
@@ -53,5 +56,8 @@ Nome da pasta: `RuntimeCrypto`, o nome do app na bandeja, em `~/RuntimeCrypto` e
 - [ ] Teste: abrir com os arquivos na pasta nova não muda a data deles.
 - [ ] Teste: pasta nova impossível de criar, pasta nova sem gravação (Unix), pasta do usuário desconhecida e cópia que falha no rename → frase, leitura do antigo, gravações recusadas, nada novo na pasta do executável.
 - [ ] Teste: `vaults.json` antigo corrompido com a pasta nova inutilizável não deixa `.corrompido` na pasta do executável.
+- [ ] Teste: no modo só leitura, destrancar, trancar, `Enviar agora` (028) e `Encerrar` de um cofre existente funcionam com o rclone falso, e a pasta de configuração e a do executável ficam iguais (nomes, datas, tamanhos).
+- [ ] Teste: no modo só leitura, criar cofre recusa sem chamar o rclone.
+- [ ] Teste: a janela mostra a faixa com o texto aprovado e os três botões desabilitados; sem o modo, sem faixa.
 - [ ] Linux: executável com `vaults.json` ao lado, `XDG_CONFIG_HOME` vazio de app → o arquivo aparece em `RuntimeCrypto/`, o log também, o antigo fica igual.
 - [ ] Na tela (Windows, instalado em Program Files): o mesmo roteiro.

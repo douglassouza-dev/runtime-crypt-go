@@ -201,7 +201,7 @@ func TestPastaNovaSemGravacaoNaoVoltaParaAPastaDoExecutavel(t *testing.T) {
 	if !errors.As(g.ErroPastaConfig, &e) {
 		t.Fatalf("ErroPastaConfig = %v", g.ErroPastaConfig)
 	}
-	quer := "Não deu para usar a pasta de configuração (" + filepath.Join(arquivo, NomePastaConfig) + "): mudanças nos cofres e nas configurações não serão salvas."
+	quer := "Mudanças não serão salvas: não deu para gravar em " + filepath.Join(arquivo, NomePastaConfig) + "."
 	if g.ErroPastaConfig.Error() != quer {
 		t.Errorf("frase = %q", g.ErroPastaConfig.Error())
 	}

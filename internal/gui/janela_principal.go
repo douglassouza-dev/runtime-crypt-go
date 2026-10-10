@@ -37,6 +37,10 @@ type JanelaPrincipal struct {
 	CallbackVerificarFuse func()
 	CallbackSobre         func()
 	CallbackSair          func()
+
+	// Demanda 031: guardados para os testes conferirem o modo só leitura.
+	btnNovo, btnImportar, btnConfig *widget.Button
+	faixa                           fyne.CanvasObject
 }
 
 // NovaJanelaPrincipal cria e configura a janela principal.
@@ -108,6 +112,7 @@ func (jp *JanelaPrincipal) construirInterface() {
 		}
 	})
 	btnImportar.Importance = widget.LowImportance
+	jp.btnNovo, jp.btnImportar = btnNovo, btnImportar
 
 	areaCentral := container.NewVBox(
 		jp.containerCofres,
@@ -123,6 +128,7 @@ func (jp *JanelaPrincipal) construirInterface() {
 		}
 	})
 	btnConfig.Importance = widget.LowImportance
+	jp.btnConfig = btnConfig
 
 	btnSobre := widget.NewButton("ℹ  Sobre", func() {
 		if jp.CallbackSobre != nil {
@@ -146,7 +152,17 @@ func (jp *JanelaPrincipal) construirInterface() {
 	footer := container.NewStack(footerBg, container.NewPadded(footerConteudo))
 
 	// === LAYOUT FINAL ===
-	conteudo := container.NewBorder(header, footer, nil, nil, scrollCentral)
+	// Demanda 031: sem pasta de configuração, faixa fixa no topo e o que
+	// grava fica desabilitado. Destrancar e trancar seguem normais.
+	var topo fyne.CanvasObject = header
+	if jp.gerenciador.SomenteLeitura() {
+		jp.faixa = faixaSomenteLeitura(jp.gerenciador.DiretorioConfig)
+		topo = container.NewVBox(header, jp.faixa)
+		btnNovo.Disable()
+		btnImportar.Disable()
+		btnConfig.Disable()
+	}
+	conteudo := container.NewBorder(topo, footer, nil, nil, scrollCentral)
 	jp.janela.SetContent(conteudo)
 
 	// Primeira renderização
@@ -388,4 +404,14 @@ func criarCardCofre(cofre core.CofreStatus, falhaTrancar string, aoClicar, aoTra
 	}
 
 	return container.NewStack(cardBg, container.NewPadded(corpo))
+}
+
+// faixaSomenteLeitura é a faixa fixa do topo quando a pasta de configuração
+// não pode ser usada (031), sem título.
+func faixaSomenteLeitura(pasta string) fyne.CanvasObject {
+	texto := widget.NewLabel(frases.SomenteLeitura(pasta))
+	texto.Wrapping = fyne.TextWrapWord
+	texto.TextStyle = fyne.TextStyle{Bold: true}
+	fundo := canvas.NewRectangle(CorAviso)
+	return container.NewStack(fundo, container.NewPadded(texto))
 }

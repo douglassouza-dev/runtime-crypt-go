@@ -230,6 +230,9 @@ func TextoCofrePronto(titulo, nome, provedor, remotoBase string) string {
 // NovoCofre roda o wizard e o caso de uso CriarCofre.
 func (a *Acoes) NovoCofre() {
 	a.jp.Mostrar()
+	if a.g.SomenteLeitura() {
+		return // 031: o botão está desabilitado; a bandeja também
+	}
 	r := DialogoNovoCofre(a.jp.Janela())
 	if !r.Sucesso {
 		return
@@ -253,6 +256,9 @@ func (a *Acoes) NovoCofre() {
 // ImportarCofre roda o wizard e o caso de uso ConectarCofre.
 func (a *Acoes) ImportarCofre() {
 	a.jp.Mostrar()
+	if a.g.SomenteLeitura() {
+		return // 031
+	}
 	r := DialogoImportarCofre(a.jp.Janela())
 	if !r.Sucesso {
 		return
@@ -321,16 +327,9 @@ func (a *Acoes) Sobre() {
 		core.Versao), MsgInfo)
 }
 
-// TituloPastaConfig é o título do aviso da 031 (proposta).
-const TituloPastaConfig = "Pasta de configuração"
-
 // AvisosDaAbertura mostra o erro de vaults.json (demanda 007) e os avisos de
 // vfs.json (demanda 012), se houver.
 func (a *Acoes) AvisosDaAbertura() {
-	// Demanda 031: a pasta de configuração não pode ser usada.
-	if a.g.ErroPastaConfig != nil {
-		DialogoMensagem(a.jp.Janela(), TituloPastaConfig, a.g.ErroPastaConfig.Error(), MsgErro)
-	}
 	if a.g.ErroCofres != nil {
 		DialogoMensagem(a.jp.Janela(), "Erro ao ler os cofres", a.g.ErroCofres.Error(), MsgErro)
 	}

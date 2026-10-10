@@ -46,13 +46,13 @@ type ErroPastaConfig struct {
 func (e *ErroPastaConfig) Error() string { return TextoPastaConfig(e.Pasta) }
 func (e *ErroPastaConfig) Unwrap() error { return e.Err }
 
-// TextoPastaConfig é a frase da tela (proposta, aguarda a UI).
+// TextoPastaConfig é a faixa fixa do topo da janela nesse modo (aprovada) e
+// também o motivo das ações recusadas. Sem o caminho, a variante é proposta.
 func TextoPastaConfig(pasta string) string {
-	const fim = ": mudanças nos cofres e nas configurações não serão salvas."
 	if pasta == "" {
-		return "Não deu para usar a pasta de configuração" + fim
+		return "Mudanças não serão salvas: não deu para gravar na pasta de configuração."
 	}
-	return fmt.Sprintf("Não deu para usar a pasta de configuração (%s)%s", pasta, fim)
+	return fmt.Sprintf("Mudanças não serão salvas: não deu para gravar em %s.", pasta)
 }
 
 // PastaConfig é o resultado de preparar a pasta de configuração.
