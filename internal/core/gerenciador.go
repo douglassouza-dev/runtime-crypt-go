@@ -7,18 +7,19 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 )
 
 // GerenciadorRClone é a struct principal que coordena todas as operações.
 type GerenciadorRClone struct {
-	Executavel  string
+	Executavel   string
 	DiretorioApp string
-	Cofres      *GerenciadorCofres
-	Montagens   *GerenciadorMontagem
-	Senhas      *CacheSenhas
-	OAuth       *GerenciadorOAuth
-	Vfs         *ConfigVfs
+	Cofres       *GerenciadorCofres
+	Montagens    *GerenciadorMontagem
+	Senhas       *CacheSenhas
+	OAuth        *GerenciadorOAuth
+	Vfs          *ConfigVfs
 
 	// ErroCofres vem preenchido quando vaults.json existe mas não pôde ser
 	// lido. A tela mostra este erro na abertura (demanda 007).
@@ -190,11 +191,11 @@ func (g *GerenciadorRClone) CriarCrypt(nome string, remotoBase string, senha str
 	}
 
 	params := map[string]string{
-		"remote":                     remotoBase,
-		"password":                   senhaObs,
-		"password2":                  senha2Obs,
-		"filename_encryption":        cfg["filename_encryption"],
-		"directory_name_encryption":  cfg["directory_name_encryption"],
+		"remote":                    remotoBase,
+		"password":                  senhaObs,
+		"password2":                 senha2Obs,
+		"filename_encryption":       cfg["filename_encryption"],
+		"directory_name_encryption": cfg["directory_name_encryption"],
 	}
 	if cfg["no_data_encryption"] == "true" {
 		params["no_data_encryption"] = "true"
@@ -235,8 +236,15 @@ func (g *GerenciadorRClone) RemoverRemoto(nome string) (bool, string) {
 	return true, fmt.Sprintf("Remoto '%s' removido.", nomeLimpo)
 }
 
+// ErrRcloneIndisponivel é devolvido pelas listagens quando o rclone não foi
+// encontrado.
+var ErrRcloneIndisponivel = errors.New("rclone nao disponivel")
+
+// ErrRemotoNaoEncontrado é devolvido por ObterConfigRemoto quando o remoto não
+// existe no rclone.conf.
+var ErrRemotoNaoEncontrado = errors.New("remoto nao encontrado")
+
 // configDump roda `rclone config dump` com tempo limite e devolve o JSON lido.
-// As funções públicas que usam isto ainda trocam o erro por nil (demanda 009).
 func (g *GerenciadorRClone) configDump() (map[string]map[string]interface{}, error) {
 	saida, err := chamadaRclone{
 		executavel: g.Executavel,
@@ -244,46 +252,42 @@ func (g *GerenciadorRClone) configDump() (map[string]map[string]interface{}, err
 		limite:     limiteConfigLocal,
 	}.rodar()
 	if err != nil {
-		return nil, err
+		return nil, erroComMotivoDoRclone(err)
 	}
 	var config map[string]map[string]interface{}
 	if err := json.Unmarshal(saida, &config); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("saida de `rclone config dump` ilegivel: %w", err)
 	}
 	return config, nil
 }
 
-// ListarRemotos retorna apenas os remotos do tipo crypt.
-func (g *GerenciadorRClone) ListarRemotos() []string {
+// ListarRemotos retorna apenas os remotos do tipo crypt. Erro do rclone volta
+// como erro, nunca como lista vazia (demanda 009).
+func (g *GerenciadorRClone) ListarRemotos() ([]string, error) {
 	if !g.EstaDisponivel() {
-		return nil
+		return nil, ErrRcloneIndisponivel
 	}
 
 	config, err := g.configDump()
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
-	var remotos []string
+	remotos := []string{}
 	for nome, cfg := range config {
 		if tipo, ok := cfg["type"].(string); ok && tipo == "crypt" {
 			remotos = append(remotos, nome+":")
 		}
 	}
-	return remotos
+	return remotos, nil
 }
 
 // ListarTodosRemotos retorna todos os remotos configurados.
-func (g *GerenciadorRClone) ListarTodosRemotos() []string {
+func (g *GerenciadorRClone) ListarTodosRemotos() ([]string, error) {
 	if !g.EstaDisponivel() {
-		return nil
+		return nil, ErrRcloneIndisponivel
 	}
-
-	remotos, err := g.listarTodosRemotos()
-	if err != nil {
-		return nil
-	}
-	return remotos
+	return g.listarTodosRemotos()
 }
 
 // listarTodosRemotos roda `rclone listremotes` com tempo limite.
@@ -294,10 +298,10 @@ func (g *GerenciadorRClone) listarTodosRemotos() ([]string, error) {
 		limite:     limiteConfigLocal,
 	}.rodar()
 	if err != nil {
-		return nil, err
+		return nil, erroComMotivoDoRclone(err)
 	}
 
-	var remotos []string
+	remotos := []string{}
 	for _, linha := range strings.Split(string(saida), "\n") {
 		linha = strings.TrimSpace(linha)
 		if linha != "" {
@@ -318,18 +322,18 @@ type RemotoDetalhado struct {
 }
 
 // ListarRemotosDetalhado retorna todos os remotos com tipo, config e status de montagem.
-func (g *GerenciadorRClone) ListarRemotosDetalhado() []RemotoDetalhado {
+func (g *GerenciadorRClone) ListarRemotosDetalhado() ([]RemotoDetalhado, error) {
 	if !g.EstaDisponivel() {
-		return nil
+		return nil, ErrRcloneIndisponivel
 	}
 
 	config, err := g.configDump()
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	montagensAtivas := g.Montagens.ObterMontagens()
-	var lista []RemotoDetalhado
+	lista := []RemotoDetalhado{}
 
 	for nome, cfg := range config {
 		tipo := ""
@@ -354,33 +358,37 @@ func (g *GerenciadorRClone) ListarRemotosDetalhado() []RemotoDetalhado {
 		}
 		lista = append(lista, item)
 	}
-	return lista
+	return lista, nil
 }
 
-// ObterConfigRemoto retorna a configuração de um remoto específico.
-func (g *GerenciadorRClone) ObterConfigRemoto(nome string) map[string]interface{} {
+// ObterConfigRemoto retorna a configuração de um remoto específico. Remoto
+// inexistente devolve ErrRemotoNaoEncontrado.
+func (g *GerenciadorRClone) ObterConfigRemoto(nome string) (map[string]interface{}, error) {
 	if !g.EstaDisponivel() {
-		return nil
+		return nil, ErrRcloneIndisponivel
 	}
 
 	nome = strings.TrimSuffix(nome, ":")
 	config, err := g.configDump()
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
 	if cfg, ok := config[nome]; ok {
-		return cfg
+		return cfg, nil
 	}
-	return nil
+	return nil, fmt.Errorf("%w: %s", ErrRemotoNaoEncontrado, nome)
 }
 
 // ListarDiretoriosRemoto lista os subdiretórios de um remoto com o nome exato
 // de cada um (demanda 021). Usa `rclone lsjson --dirs-only`, que entrega o
 // nome em JSON (campo Name), em vez de recortar as colunas alinhadas do `lsd`.
-func (g *GerenciadorRClone) ListarDiretoriosRemoto(nomeRemoto string, caminho string) []string {
+//
+// Pasta vazia devolve lista vazia e nil. Erro do rclone, tempo esgotado ou
+// saída ilegível devolvem erro com o motivo (demanda 009).
+func (g *GerenciadorRClone) ListarDiretoriosRemoto(nomeRemoto string, caminho string) ([]string, error) {
 	if !g.EstaDisponivel() {
-		return nil
+		return nil, ErrRcloneIndisponivel
 	}
 
 	if !strings.HasSuffix(nomeRemoto, ":") {
@@ -399,27 +407,16 @@ func (g *GerenciadorRClone) ListarDiretoriosRemoto(nomeRemoto string, caminho st
 		ocultar:    true,
 	}.rodar()
 	if err != nil {
-		return nil
+		return nil, erroComMotivoDoRclone(err)
 	}
 
 	dirs, err := lerNomesLsjson(saida)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("saida de `rclone lsjson` ilegivel: %w", err)
 	}
 
-	// Ordenar
-	sort := func(a []string) {
-		for i := 0; i < len(a); i++ {
-			for j := i + 1; j < len(a); j++ {
-				if a[i] > a[j] {
-					a[i], a[j] = a[j], a[i]
-				}
-			}
-		}
-	}
-	sort(dirs)
-
-	return dirs
+	sort.Strings(dirs)
+	return dirs, nil
 }
 
 // itemLsjson é o pedaço de `rclone lsjson` que interessa ao seletor.
