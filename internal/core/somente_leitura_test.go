@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 )
@@ -89,6 +90,9 @@ func TestSomenteLeituraDestrancarETrancarNaoGravam(t *testing.T) {
 			}
 			antiga, config := c.preparar(t)
 			f := novoRcloneFalso(t)
+			// Desde a 030 destrancar confere a senha no `config dump` (só lê).
+			// "segredo" ofuscada pelo rclone 1.75.2.
+			f.escrever("dump.json", `{"cofre":{"type":"crypt","remote":"cofre_base:","password":"d_zwfc_mykmNxc5ydxnoZGw0NiwI0JM"}}`)
 			g := novoGerenciadorPadrao(antiga, f.exe)
 			g.Montagens.pontoExiste = pontoPeloFalso(f)
 			g.Montagens.raizPontos = t.TempDir()
@@ -119,6 +123,15 @@ func TestSomenteLeituraDestrancarETrancarNaoGravam(t *testing.T) {
 			}
 			g.Encerrar()
 
+			conferiu := false
+			for _, ch := range f.chamadas() {
+				if strings.Contains(strings.Join(ch.Args, " "), "config dump") {
+					conferiu = true
+				}
+			}
+			if !conferiu {
+				t.Error("a senha deveria ser conferida no config dump também no modo só leitura")
+			}
 			mesmaFoto(t, "pasta do executável", fotoAntiga, fotoPasta(t, antiga))
 			mesmaFoto(t, "pasta de configuração", fotoConfig, fotoPasta(t, config))
 		})
