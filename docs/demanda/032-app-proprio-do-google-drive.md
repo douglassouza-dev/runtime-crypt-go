@@ -40,6 +40,9 @@ Ou seja: além de "via expressa", o app próprio vai ser o único caminho para c
 - No passo do Google Drive dos dois wizards (`Criar Novo Cofre` e `Importar Cofre Existente`), aparece um link discreto: `Usar meu próprio app do Google`.
 - Ao abrir o link, aparecem dois campos, `Client ID` e `Client secret`, e um link para o guia do rclone: https://rclone.org/drive/#making-your-own-client-id.
 - Texto de ajuda: `Recomendado se você envia muitos arquivos. Evita os limites do app compartilhado.` Sem números.
+- Embaixo dos campos do app próprio: `Se o app estiver em modo de teste, a autorização vence em 7 dias.`
+- Enquanto espera o OAuth: `Aguardando autorização no navegador…`, com o botão `Cancelar`. `Cancelar` encerra o `rclone authorize` (`GerenciadorOAuth.Abortar`) e desfaz o que foi criado (006).
+- Se o tempo acaba com o app próprio preenchido: `Não deu para autorizar: o Google não respondeu. Confira o Client ID.` Sem o app próprio, a frase de hoje continua.
 - Com o link fechado, o fluxo fica exatamente como hoje: as mesmas chamadas ao rclone, com os mesmos argumentos.
 - OneDrive, Dropbox, S3 e Pasta Local não mostram o link.
 - ID ou secret recusados pelo Google aparecem no passo do OAuth como `Não deu para autorizar: o Google recusou esse app.`
@@ -72,7 +75,7 @@ O que o Google e o rclone devolvem em cada caso (das fontes abaixo; o texto exat
 
 | Caso | Onde aparece | O que o rclone faz | O que o app faz (depois) |
 |---|---|---|---|
-| Client ID que não existe ou foi digitado errado | No navegador, página do Google: `Error 401: invalid_client`, `The OAuth client was not found.` ([fórum](https://forum.rclone.org/t/error-401-during-google-oauth-authentication-setting-up-google-drive/14832), [fórum](https://forum.rclone.org/t/new-installation-of-1-56-2-failing-with-invalid-client-on-macos/26899)) | Nada. Fica em `Waiting for code...` | Hoje espera os 2 min de `esperaTokenOAuth` e mostra `Autorização não concluída em 2m0s.` Ver pergunta 2 |
+| Client ID que não existe ou foi digitado errado | No navegador, página do Google: `Error 401: invalid_client`, `The OAuth client was not found.` ([fórum](https://forum.rclone.org/t/error-401-during-google-oauth-authentication-setting-up-google-drive/14832), [fórum](https://forum.rclone.org/t/new-installation-of-1-56-2-failing-with-invalid-client-on-macos/26899)) | Nada. Fica em `Waiting for code...` | Espera os 2 min de `esperaTokenOAuth`, com `Aguardando autorização no navegador…` e `Cancelar`. No fim: `Não deu para autorizar: o Google não respondeu. Confira o Client ID.` (aprovado) |
 | Client secret errado | Depois do login, o rclone imprime `failed to get token: oauth2: cannot fetch token: 401 Unauthorized` com `"error": "invalid_client"` e `"error_description": "Unauthorized"` ([fórum](https://forum.rclone.org/t/config-problems-success-but-oauth-token-error/28363)) | Sai sem token | `Não deu para autorizar: o Google recusou esse app.` |
 | Cliente apagado no projeto | `deleted_client`: "The OAuth client being used to make the request has been deleted" ([Google, OAuth para apps desktop](https://developers.google.com/identity/protocols/oauth2/native-app)) | No navegador ou na troca do código | A mesma frase, se chegar ao rclone |
 | Usuário não está entre os test users, ou o login é recusado | `access_denied` ([Google, OAuth para apps desktop](https://developers.google.com/identity/protocols/oauth2/native-app)); a página de bloqueio fica no navegador | Fica esperando, ou sai sem token | Como hoje |
@@ -91,7 +94,8 @@ No app isso quer dizer:
 - Sete dias depois de criar o cofre, montar e listar começam a falhar com `invalid_grant`. A tela mostra `autorização expirou` (027).
 - **O app não tem como autorizar de novo** um cofre que já existe. Até a 033 (`Reconectar`), o cofre fica inutilizável depois de 7 dias.
 - Por isso o guia do usuário manda publicar o app (`PUBLISH APP`, estado "In production"). O rclone diz que, para uso pessoal, dá para deixar o app sem verificação, aceitar a tela de aviso e publicar "to avoid the weekly grant expiry".
-- Aviso perto dos campos (**proposta**, falta aprovar): `Publique o app no Google Cloud. Em modo de teste, o acesso vence em 7 dias.`
+- Aviso embaixo dos campos do app próprio (aprovado): `Se o app estiver em modo de teste, a autorização vence em 7 dias.`
+- Quando vence, a falha de autorização do cofre (027) leva ao `Reconectar` da [033](033-editar-cofre.md).
 - O app não consegue saber se o projeto está em Testing antes de vencer. O token não traz essa informação.
 
 ### Cofres que já existem: fica para a 033
@@ -155,10 +159,10 @@ Na hora de autorizar, o Google mostra uma tela de "app não verificado". O rclon
 ## Perguntas em aberto
 
 1. **Client secret (Douglas):** espera o ADR-0006 ou grava no `rclone.conf` como o token e segue o ADR depois?
-2. **Client ID errado (UI):** o Google mostra o erro no navegador e o rclone não fica sabendo. Depois dos 2 minutos, a tela mostra `Autorização não concluída em 2m0s.` (como hoje) ou a frase aprovada `Não deu para autorizar: o Google recusou esse app.` quando o par foi preenchido? Dá para encurtar essa espera?
-3. **Obrigatório (Douglas):** com o desligamento do app compartilhado em 2026, o link continua opcional ou passa a ser o padrão para o Google Drive?
-4. **Aviso dos 7 dias (UI):** a frase proposta sobre publicar o app entra, e onde?
-5. **Frases de validação (UI):** as três frases marcadas como proposta.
+2. **Obrigatório (Douglas):** com o desligamento do app compartilhado em 2026, o link continua opcional ou passa a ser o padrão para o Google Drive?
+3. **Frases de validação (UI):** as três frases marcadas como proposta.
+
+Já decididas pela UI: a espera com `Cancelar`, a frase do tempo esgotado e o aviso dos 7 dias.
 
 ## Pronto quando
 
@@ -167,7 +171,8 @@ Na hora de autorizar, o Google mostra uma tela de "app não verificado". O rclon
 - [ ] Teste: só um campo preenchido, ID fora do formato e caractere de controle recusam sem chamar o rclone.
 - [ ] Teste: o falso imprime a saída de `invalid_client` no `authorize` → `FalhaAppRecusado`, a tela mostra `Não deu para autorizar: o Google recusou esse app.`, e nenhum remoto fica no `rclone.conf` falso. A mesma saída fora do `authorize` não vira `autorização expirou` por engano nem a frase do OAuth.
 - [ ] Teste: o log (`runtimecrypto.log`) e as frases da tela não contêm o ID nem o secret.
-- [ ] Teste da tela: o link só aparece para Google Drive, nos dois wizards; abre os dois campos, o texto de ajuda e o link do guia; o secret é campo de senha.
+- [ ] Teste da tela: o link só aparece para Google Drive, nos dois wizards; abre os dois campos, o texto de ajuda, o aviso dos 7 dias e o link do guia; o secret é campo de senha.
+- [ ] Teste: durante o OAuth aparece `Aguardando autorização no navegador…`; `Cancelar` encerra o `authorize` e não deixa remoto; com o app próprio, o tempo esgotado mostra `Não deu para autorizar: o Google não respondeu. Confira o Client ID.`
 - [ ] Conferido com o rclone real (versão que o app distribui): `rclone authorize drive <id> <secret>` imprime URL e token como `GerenciadorOAuth` espera; resposta registrada sobre variáveis de ambiente.
 - [ ] Na tela, no Windows, com um projeto próprio em "In production": criar cofre, destrancar, gravar e listar; `rclone config show <nome>_base` mostra `client_id`.
 - [ ] Na tela: client secret errado mostra a frase aprovada e não deixa remoto.

@@ -38,7 +38,7 @@ A ordem segue o risco à estabilidade e aos segredos. A migração para Wails (0
 | [030](030-senha-errada-nao-destranca.md) | Senha errada não destranca | Alto · segredos | 027 | Aberta |
 | [031](031-pasta-de-configuracao.md) | vaults.json e log na pasta de configuração do usuário | Alto · dados | 007, 012, 027 | Aberta |
 | [032](032-app-proprio-do-google-drive.md) | App próprio do Google (client ID e client secret) no Google Drive | Médio · uso, segredos | 027, 029, ADR-0006 | Aberta |
-| [033](033-editar-cofre.md) | Editar cofre: nome, app do Google, reconectar e remover | Alto · dados, segredos | 006, 026, 031, 032 | Aberta |
+| [033](033-editar-cofre.md) | Editar cofre: nome, app do Google, reconectar e remover (deste computador ou também do provedor) | Alto · dados, segredos | 006, 026, 028, 031, 032 | Aberta |
 
 ## Ordem sugerida de execução
 
@@ -101,6 +101,7 @@ flowchart LR
     adr6 -.-> d032
     d006 --> d033["033 editar cofre"]
     d026 --> d033
+    d028 --> d033
     d031 --> d033
     d032 --> d033
 ```
