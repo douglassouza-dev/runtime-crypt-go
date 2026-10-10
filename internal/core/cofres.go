@@ -34,8 +34,10 @@ type CofreStatus struct {
 	Letra         string `json:"letra"`
 	PontoMontagem string `json:"ponto_montagem,omitempty"`
 	// Enviando: arquivos que faltam subir enquanto o Trancar espera (025).
-	Enviando int  `json:"enviando,omitempty"`
-	TemSenha bool `json:"tem_senha"`
+	Enviando int `json:"enviando,omitempty"`
+	// Rclone: falha do rclone já classificada, para a tela (demanda 027).
+	Rclone   *ErroRclone `json:"-"`
+	TemSenha bool        `json:"tem_senha"`
 }
 
 // EstaMontado diz se o cofre está no estado montado.
@@ -221,6 +223,7 @@ func (g *GerenciadorCofres) Listar(estados map[string]EstadoRemoto, senhas *Cach
 			status.Letra = e.Letra
 			status.PontoMontagem = e.PontoMontagem
 			status.Enviando = e.Enviando
+			status.Rclone = e.Rclone
 		}
 		resultado = append(resultado, status)
 	}

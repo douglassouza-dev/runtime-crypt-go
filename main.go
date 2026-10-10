@@ -19,6 +19,10 @@ var iconeBytes []byte
 
 func main() {
 	gerenciador := core.NovoGerenciador()
+	// Demanda 027: o texto do rclone vai para o log, que precisa existir.
+	if registro, err := core.AbrirLog(gerenciador.DiretorioApp); err == nil {
+		defer registro.Close()
+	}
 	canalAcoes := make(chan tray.AcaoTray, 32)
 
 	aplicacao := app.NewWithID("com.eufrauzino.runtime-crypto")

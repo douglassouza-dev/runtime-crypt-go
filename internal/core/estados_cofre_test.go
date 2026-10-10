@@ -144,8 +144,9 @@ func TestEstadoMontagemQueNuncaSubiuFalhouSemCaiu(t *testing.T) {
 	}
 	e := estadoDoRemoto(t, g, "cofre")
 
-	if e.Estado != EstadoFalhou || e.Caiu || e.Motivo != "CRITICAL: Fatal error: cannot find winfsp" {
-		t.Errorf("estado = %+v, quer falhou (nunca subiu) com a última linha do rclone", e)
+	// Demanda 027: o motivo é a frase da tela, com a falha classificada.
+	if e.Estado != EstadoFalhou || e.Caiu || e.Motivo != "o rclone falhou, detalhes no log" || e.Rclone == nil || !strings.Contains(e.Rclone.Saida, "cannot find winfsp") {
+		t.Errorf("estado = %+v, quer falhou (nunca subiu) com a falha classificada", e)
 	}
 
 	// Tentar de novo tira a falha: se agora sobe, fica montado.

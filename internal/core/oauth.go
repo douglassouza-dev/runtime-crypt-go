@@ -17,6 +17,9 @@ type StatusOAuth struct {
 	// Erro vem preenchido quando o rclone authorize foi encerrado por tempo
 	// esgotado (demanda 008).
 	Erro string `json:"erro,omitempty"`
+	// Falha vem quando o authorize saiu com uma mensagem do rclone, já
+	// classificada (demanda 027).
+	Falha *ErroRclone `json:"-"`
 }
 
 // GerenciadorOAuth controla o fluxo de autorização OAuth via rclone authorize.
@@ -28,6 +31,7 @@ type GerenciadorOAuth struct {
 	token string
 	url   string
 	erro  string
+	falha *ErroRclone
 	mu    sync.Mutex
 }
 
@@ -44,6 +48,7 @@ func (g *GerenciadorOAuth) Iniciar(executavel string, tipo string) bool {
 	g.token = ""
 	g.url = ""
 	g.erro = ""
+	g.falha = nil
 	g.mu.Unlock()
 
 	// O contexto mata o authorize se o usuário nunca terminar o login.
@@ -149,7 +154,9 @@ func (g *GerenciadorOAuth) Iniciar(executavel string, tipo string) bool {
 			// vez de esperar o tempo todo.
 			g.erro = "o rclone authorize terminou sem token"
 			if l := reDataLog.ReplaceAllString(ultimaLinha, ""); l != "" {
-				g.erro += ": " + l
+				// Demanda 027: o texto do rclone só vai para o log.
+				g.falha = novoErroRclone("authorize", l, nil)
+				g.erro += ": " + g.falha.Error()
 			}
 		}
 		g.mu.Unlock()
@@ -168,6 +175,7 @@ func (g *GerenciadorOAuth) ObterStatus() StatusOAuth {
 		Token:     g.token,
 		Concluido: g.token != "",
 		Erro:      g.erro,
+		Falha:     g.falha,
 	}
 }
 

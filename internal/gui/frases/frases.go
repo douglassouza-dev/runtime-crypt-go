@@ -56,6 +56,10 @@ func Ponto(c core.CofreStatus) string {
 // aconteceram.
 func Motivo(c core.CofreStatus) string {
 	if !c.Caiu {
+		// Demanda 027: falha do rclone vira a frase fixa, com o provedor.
+		if c.Rclone != nil {
+			return core.TextoFalhaRclone(c.Rclone.Falha, c.ProvedorNome)
+		}
 		return c.Motivo
 	}
 	switch {

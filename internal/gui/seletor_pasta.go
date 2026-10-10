@@ -2,6 +2,7 @@ package gui
 
 import (
 	"fmt"
+	"strings"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
@@ -24,18 +25,30 @@ const (
 
 // linhaErroListagem é a linha de erro com o motivo e o botão que lista de
 // novo a mesma pasta.
-func linhaErroListagem(err error, tentarDeNovo func()) fyne.CanvasObject {
-	lbl := widget.NewLabel(fmt.Sprintf(TextoErroListagem, err.Error()))
+func linhaErroListagem(err error, provedor string, tentarDeNovo func()) fyne.CanvasObject {
+	lbl := widget.NewLabel(fmt.Sprintf(TextoErroListagem, TextoErro(err, provedor)))
 	lbl.Wrapping = fyne.TextWrapWord
 	lbl.Importance = widget.DangerImportance
 	btn := widget.NewButton(TextoTentarDeNovo, tentarDeNovo)
 	return container.NewBorder(nil, nil, nil, btn, lbl)
 }
 
+// TopoSeletor é o topo do seletor: "{Provedor} /{caminho}" (demanda 027).
+func TopoSeletor(provedor, caminho string) string {
+	texto := "/" + strings.Trim(caminho, "/")
+	if provedor != "" {
+		texto = provedor + " " + texto
+	}
+	return "  " + texto
+}
+
 // listaPastas é a lista do seletor: mostra as subpastas de caminho no remoto,
 // a linha de pasta vazia ou a linha de erro com "Tentar de novo".
 type listaPastas struct {
 	nomeRemoto string
+	// provedor é o nome que a tela mostra no topo (demanda 027); o
+	// nomeRemoto ({nome}_base) não aparece.
+	provedor   string
 	listar     func(nomeRemoto, caminho string) ([]string, error)
 	lista      *fyne.Container
 	lblCaminho *canvas.Text
@@ -46,11 +59,12 @@ type listaPastas struct {
 	carregada func()
 }
 
-func novaListaPastas(nomeRemoto string, listar func(nomeRemoto, caminho string) ([]string, error)) *listaPastas {
-	lblCaminho := canvas.NewText("  "+nomeRemoto+":/", CorTexto)
+func novaListaPastas(nomeRemoto, provedor string, listar func(nomeRemoto, caminho string) ([]string, error)) *listaPastas {
+	lblCaminho := canvas.NewText(TopoSeletor(provedor, ""), CorTexto)
 	lblCaminho.TextSize = 12
 	return &listaPastas{
 		nomeRemoto: nomeRemoto,
+		provedor:   provedor,
 		listar:     listar,
 		lista:      container.NewVBox(),
 		lblCaminho: lblCaminho,
@@ -91,11 +105,7 @@ func (l *listaPastas) carregar() {
 	l.lista.Add(lblCarregando)
 	l.lista.Refresh()
 
-	exibicao := l.caminho
-	if exibicao == "" {
-		exibicao = "/"
-	}
-	l.lblCaminho.Text = "  " + l.nomeRemoto + ":" + exibicao
+	l.lblCaminho.Text = TopoSeletor(l.provedor, l.caminho)
 	l.lblCaminho.Refresh()
 
 	caminho := l.caminho
@@ -115,7 +125,7 @@ func (l *listaPastas) mostrar(dirs []string, err error) {
 	if err != nil {
 		// Demanda 009: o erro aparece com o motivo, e "Tentar de novo"
 		// lista de novo a mesma pasta (l.caminho não muda).
-		l.lista.Add(linhaErroListagem(err, l.carregar))
+		l.lista.Add(linhaErroListagem(err, l.provedor, l.carregar))
 	} else if len(dirs) == 0 {
 		// Uma linha só, sem botão: a pasta atual continua escolhível
 		// pelo caminho do topo e por "Selecionar esta pasta" (demanda 021).
@@ -153,7 +163,7 @@ func DialogoSeletorPastaRemota(janelaPai fyne.Window, gerenciador *core.Gerencia
 	lblTitulo.Alignment = fyne.TextAlignCenter
 
 	// Barra de caminho e lista de pastas
-	pastas := novaListaPastas(nomeRemoto, gerenciador.ListarDiretoriosRemoto)
+	pastas := novaListaPastas(nomeRemoto, tituloProvedor, gerenciador.ListarDiretoriosRemoto)
 	lblCaminho := pastas.lblCaminho
 	scrollLista := container.NewVScroll(pastas.lista)
 	scrollLista.SetMinSize(fyne.NewSize(0, 280))

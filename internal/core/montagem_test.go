@@ -159,15 +159,17 @@ func TestMontarUnidadeProcessoQueSaiFalhaRapido(t *testing.T) {
 	g.pontoExiste = func(string) bool { return false }
 	f.falhar()
 	t.Setenv(envFalsoStderr, "CRITICAL: teste")
+	registro := capturarLog(t)
 
 	inicio := time.Now()
 	ok, msg, _ := g.MontarUnidade("cofre", "V", "", nil)
 
-	if ok || time.Since(inicio) > 2*time.Second || !strings.Contains(msg, "CRITICAL: teste") {
+	// Demanda 027: a mensagem não traz o texto do rclone; o log traz.
+	if ok || time.Since(inicio) > 2*time.Second || msg != "Falha ao montar: o rclone falhou, detalhes no log" {
 		t.Errorf("ok=%v em %v msg=%q", ok, time.Since(inicio), msg)
 	}
-	if !strings.Contains(msg, "codigo 1") {
-		t.Errorf("a mensagem deveria trazer o código de saída: %q", msg)
+	if !strings.Contains(registro.String(), "CRITICAL: teste") {
+		t.Errorf("o log deveria trazer o texto do rclone: %q", registro.String())
 	}
 	semMontagemNemProcesso(t, g, f)
 }

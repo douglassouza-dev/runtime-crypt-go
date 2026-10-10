@@ -49,9 +49,9 @@ const TextoErroNoPasso = "Não deu para %s: %s"
 func mensagemErroPasso(err error, provedor string) string {
 	var ep *core.ErroPasso
 	if errors.As(err, &ep) {
-		return fmt.Sprintf(TextoErroNoPasso, verboPasso(ep.Passo, provedor), TextoErro(ep.Err))
+		return fmt.Sprintf(TextoErroNoPasso, verboPasso(ep.Passo, provedor), TextoErro(ep.Err, provedor))
 	}
-	return TextoErro(err)
+	return TextoErro(err, provedor)
 }
 
 // Textos de erros do core que diriam "remoto" na tela (018).
@@ -61,14 +61,19 @@ const (
 )
 
 // TextoErro traduz para a tela os erros do core que têm texto próprio aqui.
-func TextoErro(err error) string {
+// Demanda 027: falha do rclone vira a frase fixa, com o nome do provedor.
+func TextoErro(err error, provedor string) string {
 	var nome *core.ErroNomeNoRclone
 	if errors.As(err, &nome) {
 		return fmt.Sprintf(TextoNomeNoRclone, nome.Nome)
 	}
 	var conf *core.ErroConferirRclone
 	if errors.As(err, &conf) {
-		return fmt.Sprintf(TextoConferirRclone, conf.Err)
+		return fmt.Sprintf(TextoConferirRclone, TextoErro(conf.Err, provedor))
+	}
+	var rc *core.ErroRclone
+	if errors.As(err, &rc) {
+		return core.TextoFalhaRclone(rc.Falha, provedor)
 	}
 	return err.Error()
 }

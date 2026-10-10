@@ -254,6 +254,7 @@ func TestCriarCofreOAuthCanceladoParaNoPassoAutorizando(t *testing.T) {
 	esperaTokenOAuth = time.Minute
 	t.Setenv(envFalsoAuthFalha, "2026/10/09 10:00:00 Failed to get token: access_denied")
 	ui := &interacaoFalsa{}
+	registro := capturarLog(t)
 
 	inicio := time.Now()
 	_, err := g.CriarCofre(DadosNovoCofre{
@@ -264,8 +265,10 @@ func TestCriarCofreOAuthCanceladoParaNoPassoAutorizando(t *testing.T) {
 	if !errors.As(err, &ep) || ep.Passo != PassoAutorizando {
 		t.Fatalf("erro = %#v, quer ErroPasso no passo autorizando", err)
 	}
-	if !strings.Contains(err.Error(), "access_denied") {
-		t.Errorf("o erro deveria trazer o motivo do rclone: %v", err)
+	// Demanda 027: o motivo do rclone vai para o log; o erro traz a frase.
+	var erc *ErroRclone
+	if !errors.As(err, &erc) || strings.Contains(err.Error(), "access_denied") || !strings.Contains(registro.String(), "access_denied") {
+		t.Errorf("erro = %v, log = %q", err, registro.String())
 	}
 	if d := time.Since(inicio); d > 10*time.Second {
 		t.Errorf("levou %v; deveria parar quando o authorize sai", d)

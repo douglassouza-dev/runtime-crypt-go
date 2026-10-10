@@ -145,6 +145,9 @@ type GerenciadorMontagem struct {
 	// falhasMontagem guarda, por remoto, o motivo curto da última tentativa
 	// que nunca chegou a montar (demanda 018). Sai na próxima tentativa.
 	falhasMontagem map[string]string
+	// falhasRclone guarda a falha do rclone classificada (demanda 027) quando
+	// o motivo veio do stderr dele.
+	falhasRclone map[string]*ErroRclone
 
 	// raizPontos é a pasta onde ficam os pontos de montagem fora do Windows
 	// (demanda 013): <raizPontos>/<nome do cofre>. Os testes trocam.
@@ -256,6 +259,7 @@ func NovoGerenciadorMontagem(executavel string, configVfs *ConfigVfs) *Gerenciad
 
 		montando:       make(map[string]bool),
 		falhasMontagem: make(map[string]string),
+		falhasRclone:   make(map[string]*ErroRclone),
 
 		raizPontos:     PastaPontosPadrao(),
 		desmontarPonto: desmontarPontoFuse,
@@ -287,15 +291,19 @@ func (g *GerenciadorMontagem) MontarUnidade(remoto string, letra string, senha s
 	}
 	g.montando[remoto] = true
 	delete(g.falhasMontagem, remoto)
+	delete(g.falhasRclone, remoto)
 	g.mu.Unlock()
 
-	ok, msg, letraMontada, motivo := g.montar(remoto, letra, senha, configVfsOverride)
+	ok, msg, letraMontada, motivo, erroRc := g.montar(remoto, letra, senha, configVfsOverride)
 
 	// A falha entra antes de o remoto sair de montando: a tela nunca vê
 	// desmontado entre os dois.
 	g.mu.Lock()
 	if !ok && motivo != "" {
 		g.falhasMontagem[remoto] = motivo
+		if erroRc != nil {
+			g.falhasRclone[remoto] = erroRc
+		}
 	}
 	delete(g.montando, remoto)
 	g.mu.Unlock()
@@ -304,9 +312,9 @@ func (g *GerenciadorMontagem) MontarUnidade(remoto string, letra string, senha s
 
 // montar é o corpo de MontarUnidade. motivo é a frase curta de por que não
 // montou ("" quando montou, ou quando o remoto já estava montado).
-func (g *GerenciadorMontagem) montar(remoto string, letra string, senha string, configVfsOverride map[string]string) (ok bool, msg string, letraMontada string, motivo string) {
+func (g *GerenciadorMontagem) montar(remoto string, letra string, senha string, configVfsOverride map[string]string) (ok bool, msg string, letraMontada string, motivo string, erroRc *ErroRclone) {
 	if g.executavel == "" {
-		return false, "RClone nao disponivel.", "", "o rclone não está disponível"
+		return false, "RClone nao disponivel.", "", "o rclone não está disponível", nil
 	}
 
 	// Demanda 010: uma montagem que falhou continua no mapa até alguém agir.
@@ -319,7 +327,7 @@ func (g *GerenciadorMontagem) montar(remoto string, letra string, senha string, 
 	for _, info := range g.montagens {
 		if info.Remoto == remoto {
 			g.mu.Unlock()
-			return false, fmt.Sprintf("Este cofre ja esta montado em %s", TextoPonto(g.caminhoPonto(info.Letra))), "", ""
+			return false, fmt.Sprintf("Este cofre ja esta montado em %s", TextoPonto(g.caminhoPonto(info.Letra))), "", "", nil
 		}
 	}
 	g.mu.Unlock()
@@ -334,7 +342,7 @@ func (g *GerenciadorMontagem) montar(remoto string, letra string, senha string, 
 	if letra == "" {
 		disponiveis := ObterLetrasDisponiveis(g.letrasOcupadas())
 		if len(disponiveis) == 0 {
-			return false, "Nenhuma letra de unidade disponivel.", "", "nenhuma letra de unidade livre"
+			return false, "Nenhuma letra de unidade disponivel.", "", "nenhuma letra de unidade livre", nil
 		}
 		letra = disponiveis[0]
 	}
@@ -345,13 +353,13 @@ func (g *GerenciadorMontagem) montar(remoto string, letra string, senha string, 
 	if _, existe := g.montagens[letra]; existe {
 		g.mu.Unlock()
 		rotulo := RotuloPonto(g.caminhoPonto(letra))
-		return false, fmt.Sprintf("%s ja esta em uso.", maiuscula(rotulo)), "", rotulo + " já está em uso"
+		return false, fmt.Sprintf("%s ja esta em uso.", maiuscula(rotulo)), "", rotulo + " já está em uso", nil
 	}
 	g.mu.Unlock()
 
 	if criarPasta {
 		if err := os.MkdirAll(letra, 0o700); err != nil {
-			return false, fmt.Sprintf("Nao deu para criar a pasta %s: %v", TextoPonto(letra), err), "", fmt.Sprintf("não deu para criar a pasta %s", TextoPonto(letra))
+			return false, fmt.Sprintf("Nao deu para criar a pasta %s: %v", TextoPonto(letra), err), "", fmt.Sprintf("não deu para criar a pasta %s", TextoPonto(letra)), nil
 		}
 		// Se não montar, a pasta criada (vazia) sai.
 		defer func() {
@@ -379,7 +387,7 @@ func (g *GerenciadorMontagem) montar(remoto string, letra string, senha string, 
 	// ainda há envio pendente.
 	rc, err := novoClienteRC()
 	if err != nil {
-		return false, fmt.Sprintf("Nao deu para preparar o controle do rclone: %v", err), "", "não deu para preparar o controle do rclone: " + err.Error()
+		return false, fmt.Sprintf("Nao deu para preparar o controle do rclone: %v", err), "", "não deu para preparar o controle do rclone: " + err.Error(), nil
 	}
 	args = append(args, rc.args()...)
 
@@ -404,7 +412,7 @@ func (g *GerenciadorMontagem) montar(remoto string, letra string, senha string, 
 	cmd.Stderr = saidaErro
 
 	if err := cmd.Start(); err != nil {
-		return false, fmt.Sprintf("Erro ao iniciar rclone: %s", err.Error()), "", "o rclone não iniciou: " + err.Error()
+		return false, fmt.Sprintf("Erro ao iniciar rclone: %s", err.Error()), "", "o rclone não iniciou: " + err.Error(), nil
 	}
 
 	// A goroutine acompanhar (demanda 001) começa já aqui: o único Wait do
@@ -429,15 +437,16 @@ func (g *GerenciadorMontagem) montar(remoto string, letra string, senha string, 
 	for {
 		select {
 		case <-info.fim:
-			return false, mensagemFalhaMontagem(cmd, saidaErro), "", motivoFalhaMontagem(cmd, saidaErro)
+			return falhouMontagem(cmd, saidaErro)
 		case <-prazo.C:
 			cmd.Process.Kill()
 			<-info.fim
 			msg := fmt.Sprintf("Timeout: A unidade nao ficou pronta em %s.", limite)
 			if linhas := saidaErro.Texto(); linhas != "" {
-				msg += "\n\nSaida do rclone:\n" + linhas
+				// Demanda 027: o texto do rclone só vai para o log.
+				log.Printf("rclone mount %s (tempo esgotado): %s", remoto, linhas)
 			}
-			return false, msg, "", fmt.Sprintf("a unidade não ficou pronta em %s", limite)
+			return false, msg, "", fmt.Sprintf("a unidade não ficou pronta em %s", limite), nil
 		case <-time.After(intervalo):
 		}
 
@@ -464,26 +473,27 @@ func (g *GerenciadorMontagem) montar(remoto string, letra string, senha string, 
 			delete(g.montagens, letra)
 		}
 		g.mu.Unlock()
-		return false, mensagemFalhaMontagem(cmd, saidaErro), "", motivoFalhaMontagem(cmd, saidaErro)
+		return falhouMontagem(cmd, saidaErro)
 	}
 
-	return true, fmt.Sprintf("%s foi montada.", maiuscula(RotuloPonto(g.caminhoPonto(letra)))), letra, ""
+	return true, fmt.Sprintf("%s foi montada.", maiuscula(RotuloPonto(g.caminhoPonto(letra)))), letra, "", nil
 }
 
-// motivoFalhaMontagem é a versão curta de mensagemFalhaMontagem, para o card
-// (demanda 018): a última linha do stderr do rclone, sem a data, ou o código
-// de saída. Só chamar depois de info.fim fechado.
-func motivoFalhaMontagem(cmd *exec.Cmd, saidaErro *ultimasLinhas) string {
-	linhas := strings.Split(saidaErro.Texto(), "\n")
-	for i := len(linhas) - 1; i >= 0; i-- {
-		if l := strings.TrimSpace(reDataLog.ReplaceAllString(linhas[i], "")); l != "" {
-			return l
-		}
-	}
+// falhouMontagem é a volta de montar quando o rclone saiu antes de a unidade
+// aparecer. Demanda 027: o stderr vai para o log e a tela recebe a falha
+// classificada. Sem stderr, o motivo é o código de saída. Só chamar depois de
+// info.fim fechado.
+func falhouMontagem(cmd *exec.Cmd, saidaErro *ultimasLinhas) (bool, string, string, string, *ErroRclone) {
+	codigo := ""
 	if cmd.ProcessState != nil {
-		return fmt.Sprintf("o rclone encerrou (código %d)", cmd.ProcessState.ExitCode())
+		codigo = fmt.Sprintf(" (código %d)", cmd.ProcessState.ExitCode())
 	}
-	return "o rclone encerrou"
+	linhas := saidaErro.Texto()
+	if strings.TrimSpace(linhas) == "" {
+		return false, "Falha ao montar: o rclone encerrou" + codigo + " sem mensagem.", "", "o rclone encerrou" + codigo, nil
+	}
+	e := novoErroRclone("mount", linhas, nil)
+	return false, "Falha ao montar: " + e.Error(), "", e.Error(), e
 }
 
 // LimiteMontagemPadrao é quanto se espera a unidade aparecer. O WinFsp pode
@@ -497,19 +507,6 @@ var limiteMontagem = LimiteMontagemPadrao
 // linhasErroMontagem é quantas linhas finais do stderr do rclone entram na
 // mensagem de erro.
 const linhasErroMontagem = 20
-
-// mensagemFalhaMontagem explica a saída do rclone durante a montagem, com as
-// últimas linhas do stderr dele. Só chamar depois de info.fim fechado.
-func mensagemFalhaMontagem(cmd *exec.Cmd, saidaErro *ultimasLinhas) string {
-	msg := "Falha ao montar: o rclone encerrou"
-	if cmd.ProcessState != nil {
-		msg += fmt.Sprintf(" (codigo %d)", cmd.ProcessState.ExitCode())
-	}
-	if linhas := saidaErro.Texto(); linhas != "" {
-		return msg + ":\n" + linhas
-	}
-	return msg + " sem mensagem."
-}
 
 // ultimasLinhas é um io.Writer que guarda só as n últimas linhas escritas.
 type ultimasLinhas struct {
@@ -921,6 +918,9 @@ type EstadoRemoto struct {
 	// Enviando é quantos arquivos faltam subir enquanto Trancar espera
 	// (demanda 025); 0 fora disso.
 	Enviando int
+	// Rclone vem quando o motivo de "não destrancou" saiu do stderr do
+	// rclone (demanda 027); a tela usa TextoFalhaRclone com o provedor.
+	Rclone *ErroRclone
 }
 
 // EstadosPorRemoto devolve nome_remoto → estado de todo remoto que não está
@@ -931,7 +931,7 @@ func (g *GerenciadorMontagem) EstadosPorRemoto() map[string]EstadoRemoto {
 	resultado := make(map[string]EstadoRemoto)
 	g.mu.Lock()
 	for remoto, motivo := range g.falhasMontagem {
-		resultado[strings.TrimSuffix(remoto, ":")] = EstadoRemoto{Estado: EstadoFalhou, Motivo: motivo}
+		resultado[strings.TrimSuffix(remoto, ":")] = EstadoRemoto{Estado: EstadoFalhou, Motivo: motivo, Rclone: g.falhasRclone[remoto]}
 	}
 	g.mu.Unlock()
 
@@ -1005,4 +1005,15 @@ func ObterLetrasDisponiveis(ocupadasExtra []string) []string {
 func caminhoExiste(caminho string) bool {
 	_, err := os.Stat(caminho)
 	return err == nil
+}
+
+// falhaRclone devolve a falha classificada da última montagem do remoto que
+// não subiu, ou nil (demanda 027).
+func (g *GerenciadorMontagem) falhaRclone(remoto string) *ErroRclone {
+	if !strings.HasSuffix(remoto, ":") {
+		remoto += ":"
+	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.falhasRclone[remoto]
 }

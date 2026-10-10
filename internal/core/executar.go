@@ -123,33 +123,20 @@ func descreverComando(args []string) string {
 	return strings.TrimSpace(args[0])
 }
 
-// erroRclone é o erro de uma chamada que o rclone recusou: Error() devolve o
-// motivo que o próprio rclone escreveu no stderr, e Unwrap o erro original
-// (ex.: *exec.ExitError).
-type erroRclone struct {
-	motivo string
-	err    error
-}
-
-func (e *erroRclone) Error() string { return e.motivo }
-func (e *erroRclone) Unwrap() error { return e.err }
-
 // reDataLog é o prefixo de data e hora que o rclone põe em cada linha de log.
 var reDataLog = regexp.MustCompile(`^\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}(\.\d+)? `)
 
-// erroComMotivoDoRclone troca "exit status 1" pela última linha que o rclone
-// escreveu no stderr, sem a data. Tempo esgotado e erros sem stderr voltam
-// como estão (demanda 009).
+// erroComMotivoDoRclone troca "exit status 1" por um *ErroRclone com o
+// stderr classificado (demanda 027); o texto original vai para o log. Tempo
+// esgotado e erros sem stderr voltam como estão (demanda 009).
 func erroComMotivoDoRclone(err error) error {
 	var saida *exec.ExitError
 	if err == nil || !errors.As(err, &saida) {
 		return err
 	}
-	linhas := strings.Split(strings.ReplaceAll(string(saida.Stderr), "\r\n", "\n"), "\n")
-	for i := len(linhas) - 1; i >= 0; i-- {
-		if l := strings.TrimSpace(linhas[i]); l != "" {
-			return &erroRclone{motivo: reDataLog.ReplaceAllString(l, ""), err: err}
-		}
+	texto := strings.TrimSpace(strings.ReplaceAll(string(saida.Stderr), "\r\n", "\n"))
+	if texto == "" {
+		return err
 	}
-	return err
+	return novoErroRclone("falhou", texto, err)
 }

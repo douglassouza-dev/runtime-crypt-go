@@ -88,3 +88,15 @@ func TestDialogoDeSucessoSemRemoto(t *testing.T) {
 		}
 	}
 }
+
+// Demanda 027: falha do rclone no wizard vira a frase fixa com o provedor.
+func TestErroDoRcloneNoWizard(t *testing.T) {
+	err := &core.ErroPasso{Passo: core.PassoCriandoRemoto, Err: &core.ErroRclone{Falha: core.FalhaAutorizacao, Saida: `oauth2: "invalid_grant"`}}
+	if got := mensagemErroPasso(err, "OneDrive"); got != "Não deu para configurar o OneDrive: autorização expirou" {
+		t.Errorf("mensagem = %q", got)
+	}
+	conf := &core.ErroConferirRclone{Err: &core.ErroRclone{Falha: core.FalhaOutra, Saida: "CRITICAL: x"}}
+	if got := mensagemErroPasso(conf, "OneDrive"); got != "Não deu para conferir a configuração do rclone: o rclone falhou, detalhes no log" {
+		t.Errorf("mensagem = %q", got)
+	}
+}

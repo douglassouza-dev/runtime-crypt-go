@@ -97,18 +97,19 @@ func (c *CriacaoCofre) Nome() string { return c.nome }
 // CriarRemoto cria um remoto desta tentativa. O nome entra na lista de
 // desfazer mesmo se o rclone falhar, porque o nome foi conferido livre e uma
 // falha no meio pode ter gravado algo.
-func (c *CriacaoCofre) CriarRemoto(nomeRemoto, tipo string, params map[string]string) (bool, string) {
+// Devolve *ErroRclone quando o rclone recusou (demanda 027).
+func (c *CriacaoCofre) CriarRemoto(nomeRemoto, tipo string, params map[string]string) error {
 	if nomeRemoto != c.nome && nomeRemoto != NomeRemotoBase(c.nome) {
-		return false, fmt.Sprintf("Remoto '%s' nao pertence ao cofre '%s'.", nomeRemoto, c.nome)
+		return fmt.Errorf("Remoto '%s' nao pertence ao cofre '%s'.", nomeRemoto, c.nome)
 	}
 	c.lembrar(nomeRemoto)
-	return c.g.CriarRemoto(nomeRemoto, tipo, params)
+	return c.g.criarRemoto(nomeRemoto, tipo, params)
 }
 
 // CriarCrypt cria o remoto crypt `<nome>` desta tentativa.
-func (c *CriacaoCofre) CriarCrypt(remotoBase, senha, senha2 string, configCrypt map[string]string) (bool, string) {
+func (c *CriacaoCofre) CriarCrypt(remotoBase, senha, senha2 string, configCrypt map[string]string) error {
 	c.lembrar(c.nome)
-	return c.g.CriarCrypt(c.nome, remotoBase, senha, senha2, configCrypt)
+	return c.g.criarCrypt(c.nome, remotoBase, senha, senha2, configCrypt)
 }
 
 // Concluir grava o cofre em vaults.json. Se falhar, desfaz os remotos.

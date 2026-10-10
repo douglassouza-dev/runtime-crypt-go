@@ -85,14 +85,17 @@ func TestFalhaEmCriarCryptNaoDeixaRemotoBase(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if ok, msg := c.CriarRemoto("teste_base", "local", map[string]string{"remote": "x"}); !ok {
-		t.Fatal(msg)
+	if err := c.CriarRemoto("teste_base", "local", map[string]string{"remote": "x"}); err != nil {
+		t.Fatal(err)
 	}
 	if dados, _ := os.ReadFile(conf); !strings.Contains(string(dados), "[teste_base]") {
 		t.Fatalf("o passo 1 deveria ter criado teste_base:\n%s", dados)
 	}
-	if ok, msg := c.CriarCrypt("teste_base:", "s", "", nil); ok || !strings.Contains(msg, "falha simulada") {
-		t.Fatalf("CriarCrypt deveria falhar: ok=%v msg=%q", ok, msg)
+	registro := capturarLog(t)
+	err = c.CriarCrypt("teste_base:", "s", "", nil)
+	var erc *ErroRclone
+	if !errors.As(err, &erc) || !strings.Contains(registro.String(), "falha simulada") {
+		t.Fatalf("CriarCrypt deveria falhar com *ErroRclone e o texto no log: %v / log %q", err, registro.String())
 	}
 
 	c.Desfazer()
@@ -114,8 +117,8 @@ func TestConcluirFalhoDesfazOsRemotos(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	c.CriarRemoto("teste_base", "local", map[string]string{"remote": "x"})
-	c.CriarCrypt("teste_base:", "s", "", nil)
+	_ = c.CriarRemoto("teste_base", "local", map[string]string{"remote": "x"})
+	_ = c.CriarCrypt("teste_base:", "s", "", nil)
 	// Outra janela grava um cofre com o mesmo nome no meio da tentativa.
 	g.Cofres.Adicionar("teste", "drive", "Google Drive", "outro:")
 
@@ -132,8 +135,8 @@ func TestConcluirComSucessoNaoDesfaz(t *testing.T) {
 	conf := confFalso(t, "")
 
 	c, _ := g.IniciarCriacaoCofre("teste")
-	c.CriarRemoto("teste_base", "local", map[string]string{"remote": "x"})
-	c.CriarCrypt("teste_base:", "s", "", nil)
+	_ = c.CriarRemoto("teste_base", "local", map[string]string{"remote": "x"})
+	_ = c.CriarCrypt("teste_base:", "s", "", nil)
 	if ok, msg := c.Concluir("local_path", "Pasta Local", "teste_base:"); !ok {
 		t.Fatal(msg)
 	}
@@ -150,7 +153,7 @@ func TestCriacaoSoCriaRemotosDoProprioCofre(t *testing.T) {
 	confFalso(t, "")
 	c, _ := g.IniciarCriacaoCofre("teste")
 
-	if ok, _ := c.CriarRemoto("gdrive", "drive", nil); ok {
+	if err := c.CriarRemoto("gdrive", "drive", nil); err == nil {
 		t.Error("a tentativa do cofre 'teste' não pode criar o remoto 'gdrive'")
 	}
 	if houveConfigCreate(f) {

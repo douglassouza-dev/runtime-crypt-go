@@ -11,6 +11,8 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/test"
 	"fyne.io/fyne/v2/widget"
+
+	"github.com/eufrauzino/runtime-crypt-go/internal/core"
 )
 
 // Testes da demanda 009 no seletor de pasta: erro de listagem nunca vira
@@ -46,7 +48,7 @@ func (r *listagemRoteirizada) caminhos() []string {
 func novaListaDeTeste(t *testing.T, r *listagemRoteirizada) (*listaPastas, chan struct{}) {
 	t.Helper()
 	test.NewTempApp(t)
-	l := novaListaPastas("gdrive_base", r.listar)
+	l := novaListaPastas("gdrive_base", "Google Drive", r.listar)
 	pronta := make(chan struct{}, 4)
 	l.carregada = func() { pronta <- struct{}{} }
 	return l, pronta
@@ -151,5 +153,43 @@ func TestSeletorPastaVaziaContinuaNenhumaSubpastaAqui(t *testing.T) {
 	ts, bs := textos(l.lista.Objects)
 	if strings.Join(ts, "|") != TextoPastaSemSubpastas || len(bs) != 0 {
 		t.Errorf("pasta vazia mostra %q", ts)
+	}
+}
+
+// Demanda 027: o topo mostra "{Provedor} /{caminho}", nunca "{nome}_base:".
+func TestTopoDoSeletorMostraOProvedor(t *testing.T) {
+	r := &listagemRoteirizada{respostas: []func() ([]string, error){
+		func() ([]string, error) { return []string{"a"}, nil },
+		func() ([]string, error) { return []string{"b"}, nil },
+		func() ([]string, error) { return nil, nil },
+	}}
+	l, pronta := novaListaDeTeste(t, r)
+	l.carregar()
+	esperarCarga(t, pronta)
+	if got := l.lblCaminho.Text; got != "  Google Drive /" {
+		t.Errorf("topo = %q", got)
+	}
+	l.entrar("a")
+	esperarCarga(t, pronta)
+	l.entrar("b")
+	esperarCarga(t, pronta)
+	if got := l.lblCaminho.Text; got != "  Google Drive /a/b" || strings.Contains(got, "_base") {
+		t.Errorf("topo = %q", got)
+	}
+}
+
+// Demanda 027: erro do rclone no seletor aparece com a frase fixa.
+func TestSeletorErroDoRcloneSemIngles(t *testing.T) {
+	r := &listagemRoteirizada{respostas: []func() ([]string, error){
+		func() ([]string, error) {
+			return nil, &core.ErroRclone{Falha: core.FalhaConexao, Saida: "dial tcp: i/o timeout"}
+		},
+	}}
+	l, pronta := novaListaDeTeste(t, r)
+	l.carregar()
+	esperarCarga(t, pronta)
+	ts := strings.Join(textosDoCard(l.lista), "|")
+	if !strings.Contains(ts, "Não deu para listar as pastas: sem conexão com o Google Drive") || strings.Contains(ts, "dial") {
+		t.Errorf("lista = %q", ts)
 	}
 }
