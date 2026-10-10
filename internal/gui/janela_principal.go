@@ -169,6 +169,16 @@ func (jp *JanelaPrincipal) construirInterface() {
 	jp.atualizarCofres()
 }
 
+// faixaSomenteLeitura é a faixa fixa do topo quando a pasta de configuração
+// não pode ser usada (031), sem título.
+func faixaSomenteLeitura(pasta string) fyne.CanvasObject {
+	texto := widget.NewLabel(frases.SomenteLeitura(pasta))
+	texto.Wrapping = fyne.TextWrapWord
+	texto.TextStyle = fyne.TextStyle{Bold: true}
+	fundo := canvas.NewRectangle(CorAviso)
+	return container.NewStack(fundo, container.NewPadded(texto))
+}
+
 // atualizarCofres reconstroi os cards dos cofres.
 func (jp *JanelaPrincipal) atualizarCofres() {
 	jp.mu.Lock()
@@ -404,14 +414,4 @@ func criarCardCofre(cofre core.CofreStatus, falhaTrancar string, aoClicar, aoTra
 	}
 
 	return container.NewStack(cardBg, container.NewPadded(corpo))
-}
-
-// faixaSomenteLeitura é a faixa fixa do topo quando a pasta de configuração
-// não pode ser usada (031), sem título.
-func faixaSomenteLeitura(pasta string) fyne.CanvasObject {
-	texto := widget.NewLabel(frases.SomenteLeitura(pasta))
-	texto.Wrapping = fyne.TextWrapWord
-	texto.TextStyle = fyne.TextStyle{Bold: true}
-	fundo := canvas.NewRectangle(CorAviso)
-	return container.NewStack(fundo, container.NewPadded(texto))
 }
