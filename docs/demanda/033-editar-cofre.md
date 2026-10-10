@@ -152,7 +152,34 @@ O motivo está em como os cofres são criados hoje. `CriarCofre` grava `remoto_b
 - Cofre importado (`remoto_base` = `<nome>_base:<pasta>`): depois do `delete`, roda `rclone rmdir <nome>_base:<pasta>`, que só apaga a pasta se ela estiver vazia. Isso nunca roda quando `<pasta>` é vazio (raiz).
 - `--dry-run` não é usado: o resumo antes vem do `rclone size`.
 
-Risco que fica (ver "Riscos"): dois cofres com a mesma senha e a mesma senha 2 no mesmo lugar da mesma conta decifram os nomes um do outro. O `delete` de um apagaria os arquivos do outro.
+Risco que fica: dois cofres com a mesma senha e a mesma senha 2 no mesmo lugar da mesma conta decifram os nomes um do outro. O `delete` de um apagaria os arquivos do outro. Por isso existe o bloqueio abaixo.
+
+#### Bloqueio por arquivos em comum com outro cofre (aprovado pela UI)
+
+Quando outro cofre do `vaults.json` pode usar os mesmos arquivos no provedor, a opção `Deste computador e do {provedor}` fica desabilitada, com:
+
+`Não dá para excluir: o cofre {outro} usa os mesmos arquivos no {provedor}.`
+
+`Só deste computador` continua disponível. O bloqueio é o padrão porque, na dúvida, apagar pode destruir os dados de outro cofre, e não apagar não destrói nada. Douglas ainda pode mudar isso (pergunta 2).
+
+**Quando dois cofres "usam os mesmos arquivos".** Os dois têm de bater nas duas condições:
+
+1. **Mesma conta, até onde dá para saber.** Lida da seção `[<remoto>_base]` de cada um no `rclone.conf` (`config dump`):
+   - tipo do remoto base diferente (`drive` e `onedrive`, por exemplo): contas diferentes, não bloqueia;
+   - Google Drive: se os dois têm `team_drive` preenchido e diferente, são drives diferentes. O mesmo vale para `root_folder_id` preenchido e diferente nos dois. Em qualquer outro caso (os dois vazios, ou só um preenchido), conta como a mesma conta;
+   - OneDrive: `drive_id` é gravado na configuração ([rclone onedrive](https://rclone.org/onedrive/)). `drive_id` diferente: contas diferentes; igual ou ausente em algum dos dois: a mesma;
+   - Dropbox: a configuração não guarda nada que identifique a conta. Conta como a mesma;
+   - S3: `endpoint` e `region` diferentes: armazenamentos diferentes; iguais ou ausentes: o mesmo. A chave de acesso não conta, porque duas chaves podem ser da mesma conta;
+   - Pasta Local: o próprio caminho é a "conta"; a condição 2 decide.
+2. **Mesmo caminho, ou um dentro do outro.** O caminho é o que vem depois de `:` no `remoto_base` (vazio para os cofres na raiz). Antes de comparar: tira `/` das pontas, junta `/` repetidas e, na Pasta Local, resolve o caminho absoluto. Compara pasta por pasta, sem diferenciar maiúsculas (OneDrive e Dropbox não diferenciam; na dúvida, o app trata o Drive igual). Bloqueia se os caminhos são iguais ou se um é o começo do outro (`Cofres` e `Cofres/A`). `Cofres` e `Cofres2` não bloqueiam.
+
+**Por que não dá para separar as contas com certeza.** Dois remotos do Google Drive com tokens diferentes podem ser a mesma conta ou não, e nada na configuração diz qual. O rclone tem `rclone config userinfo`, que "prints the details of the person logged in to the cloud storage system" ([rclone config userinfo](https://rclone.org/commands/rclone_config_userinfo/)). Mas os backends `drive` e `dropbox` não implementam essa função: não há `UserInfo` em `backend/drive/drive.go` nem em `backend/dropbox/dropbox.go`. O ID real da pasta raiz do Drive o rclone só descobre por chamada à API, sem comando documentado para mostrar. Decisão: **bloquear de forma conservadora**. O app não faz chamada extra ao provedor para tentar separar as contas; usa só o que está no `rclone.conf`, e na dúvida conta como a mesma conta.
+
+**Consequência que precisa ficar clara.** Os cofres criados pelo app ficam na raiz da conta (caminho vazio), e a raiz está "dentro" de qualquer caminho. Então, com dois cofres do Google Drive criados pelo app, nenhum dos dois pode ser excluído do provedor enquanto o outro existir, mesmo que sejam contas diferentes. O usuário pode remover o outro `Só deste computador` primeiro, ou excluir pelo site do provedor. Pôr os cofres novos numa pasta própria (pergunta 3) diminui esse efeito.
+
+**Onde roda.** Ao abrir o diálogo de remover, e de novo no core, logo antes do `delete`. O `vaults.json` pode ter mudado no meio.
+
+Um refinamento possível, fora desta demanda: dois cofres com senhas diferentes não decifram os nomes um do outro, e o app já sabe revelar a senha guardada (030). Comparar as senhas poderia liberar alguns casos. Fica para depois, se o bloqueio atrapalhar.
 
 #### Resumo antes de apagar
 
@@ -242,7 +269,8 @@ Por que apagar os remotos do `rclone.conf`, e não só tirar da lista:
 ## Riscos
 
 - **Apagar a conta inteira.** Os cofres criados pelo app ficam na raiz da conta. Um `purge`, ou qualquer comando de apagar no remoto base, apagaria todos os arquivos do usuário no provedor, não só os do cofre. A regra "só `delete` pelo crypt" é a proteção, e tem teste próprio. Mover os cofres novos para uma pasta própria pode virar outra demanda.
-- **Cofres irmãos.** Dois cofres na mesma conta e no mesmo lugar, com a mesma senha e a mesma senha 2, decifram os nomes um do outro. O `delete` de um apaga os arquivos do outro. O app não consegue saber se dois remotos base são a mesma conta. Mitigação parcial: antes de apagar, o app avisa se outro cofre do `vaults.json` tem o mesmo provedor e o mesmo caminho (pergunta 2).
+- **Cofres irmãos.** Dois cofres na mesma conta e no mesmo lugar, com a mesma senha e a mesma senha 2, decifram os nomes um do outro. O `delete` de um apagaria os arquivos do outro. O bloqueio por arquivos em comum cobre os cofres do `vaults.json`. Não cobre um cofre que só existe em outro computador ou fora do app.
+- **Bloqueio demais.** Como o bloqueio é conservador, dois cofres do Drive na raiz bloqueiam um ao outro mesmo em contas diferentes (ver acima).
 - **Sem volta.** S3, Pasta Local e provedores com a lixeira desligada perdem os dados na hora. Mesmo com lixeira, o Google apaga de vez em 30 dias.
 - **Exclusão pela metade.** Um cofre com parte dos arquivos apagada continua destrancável e mostra um conteúdo incompleto. A marca `exclusao_incompleta` e a nova tentativa cobrem isso, mas o usuário pode ignorar.
 - **Cota da API.** O `size` e o `delete` de um cofre grande no Google Drive gastam cota (032). Com o app compartilhado, isso pode ficar lento.
@@ -263,12 +291,12 @@ Por que apagar os remotos do `rclone.conf`, e não só tirar da lista:
 ## Perguntas em aberto
 
 1. **Renomear (Douglas):** a decisão aqui é mudar só o nome visto, sem tocar no `rclone.conf` nem no cache. Serve, ou o nome do remoto também deve mudar, com os riscos descritos acima?
-2. **Cofres irmãos (Douglas e UI):** quando outro cofre do app tem o mesmo provedor e o mesmo caminho, a exclusão no provedor fica bloqueada, só avisa, ou não faz nada?
+2. **Confirmar o bloqueio (Douglas):** o padrão agora é bloquear (recomendação da UI). Confirma, ou prefere só avisar?
 3. **Raiz da conta (Douglas):** os cofres novos devem passar a ficar numa pasta própria no provedor? Isso diminuiria o risco do apagamento e do "not recommended" do rclone. Seria outra demanda.
 4. **Números do apagamento (Douglas):** os 2 min do resumo e os 5 min sem progresso são propostas.
 5. **Frases marcadas como proposta (UI):** placeholder do secret, botões, `Cofre reconectado.`, título, corpo, campo e botão `Remover` do diálogo, a linha da Pasta Local, o resumo e as linhas de lixeira, o progresso e `Parar`, a falha parcial e o card de exclusão incompleta, o nome em uso e o cache ilegível.
 
-Já decididas pela UI: `Editar` também em `Não destrancou`, com `Reconectar` em destaque; duas opções, com `Só deste computador` marcada; o botão `Excluir do {provedor}`; sem pedir a senha de novo; a frase de bloqueio com `Destranque o cofre...`.
+Já decididas pela UI: o bloqueio por arquivos em comum e a frase `Não dá para excluir: o cofre {outro} usa os mesmos arquivos no {provedor}.`; `Editar` também em `Não destrancou`, com `Reconectar` em destaque; duas opções, com `Só deste computador` marcada; o botão `Excluir do {provedor}`; sem pedir a senha de novo; a frase de bloqueio com `Destranque o cofre...`.
 
 ## Pronto quando
 
@@ -284,6 +312,7 @@ Já decididas pela UI: `Editar` também em `Não destrancou`, com `Reconectar` e
 - [ ] Teste: `Deste computador e do {provedor}` chama, nesta ordem, `size --json <remoto>:`, `delete --rmdirs <remoto>:` (com `-v`), `size --json <remoto>:` e só então a remoção local. `purge` nunca aparece em `chamadas.log`, e nenhum comando de apagar recebe `<remoto>_base:` (só `rmdir <remoto>_base:<pasta>`, e nunca com pasta vazia).
 - [ ] Teste: `delete` que falha, `Parar`, limite sem progresso e `size` final diferente de 0 deixam o cofre, os remotos e o cache; gravam `exclusao_incompleta: true`; o card mostra o aviso; a segunda tentativa que termina remove tudo.
 - [ ] Teste: `size` que falha ou passa do tempo mostra o resumo sem números e não impede apagar.
+- [ ] Teste do bloqueio por arquivos em comum, com dois cofres no `vaults.json` e o `rclone.conf` falso: mesmo tipo e os dois na raiz bloqueia; `Cofres` e `Cofres/A` bloqueia; `Cofres` e `Cofres2` não; `drive` e `onedrive` não; Drive com `team_drive` diferente nos dois não; Drive com `team_drive` só num deles bloqueia; OneDrive com `drive_id` diferente não; Dropbox sempre bloqueia quando os caminhos se cruzam. Bloqueado, a opção aparece desabilitada com a frase aprovada, `Só deste computador` funciona, e o core recusa o `delete` mesmo se a tela estiver velha.
 - [ ] Teste: a linha de lixeira segue o provedor e a seção do base (`use_trash = false` e `hard_delete = true` mostram `Não dá para desfazer.`).
 - [ ] Teste da tela: o diálogo abre com `Só deste computador` marcada e `Os arquivos no {provedor} continuam lá.` abaixo da pergunta; ao marcar a outra opção, a linha some, o resumo aparece e o botão vira `Excluir do {provedor}`; nas duas, o botão só habilita com o nome digitado; não há campo de senha.
 - [ ] Na tela, no Windows, com uma conta do Google Drive de teste que tenha também arquivos fora do cofre: `Deste computador e do Google Drive` apaga só os arquivos do cofre; os outros continuam; os do cofre aparecem na lixeira do Drive; o cofre sai do app.

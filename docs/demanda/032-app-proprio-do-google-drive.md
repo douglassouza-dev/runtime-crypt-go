@@ -42,7 +42,7 @@ Ou seja: além de "via expressa", o app próprio vai ser o único caminho para c
 - Texto de ajuda: `Recomendado se você envia muitos arquivos. Evita os limites do app compartilhado.` Sem números.
 - Embaixo dos campos do app próprio: `Se o app estiver em modo de teste, a autorização vence em 7 dias.`
 - Enquanto espera o OAuth: `Aguardando autorização no navegador…`, com o botão `Cancelar`. `Cancelar` encerra o `rclone authorize` (`GerenciadorOAuth.Abortar`) e desfaz o que foi criado (006).
-- Se o tempo acaba com o app próprio preenchido: `Não deu para autorizar: o Google não respondeu. Confira o Client ID.` Sem o app próprio, a frase de hoje continua.
+- Se o tempo acaba com o app próprio preenchido: `Não deu para autorizar: o Google não respondeu. Confira o Client ID.` Sem o app próprio, a frase de hoje continua. (Aprovado e confirmado pela UI: a frase vale só quando o usuário preencheu o app próprio.)
 - Com o link fechado, o fluxo fica exatamente como hoje: as mesmas chamadas ao rclone, com os mesmos argumentos.
 - OneDrive, Dropbox, S3 e Pasta Local não mostram o link.
 - ID ou secret recusados pelo Google aparecem no passo do OAuth como `Não deu para autorizar: o Google recusou esse app.`
@@ -162,7 +162,7 @@ Na hora de autorizar, o Google mostra uma tela de "app não verificado". O rclon
 2. **Obrigatório (Douglas):** com o desligamento do app compartilhado em 2026, o link continua opcional ou passa a ser o padrão para o Google Drive?
 3. **Frases de validação (UI):** as três frases marcadas como proposta.
 
-Já decididas pela UI: a espera com `Cancelar`, a frase do tempo esgotado e o aviso dos 7 dias.
+Já decididas pela UI: a espera com `Cancelar`, a frase do tempo esgotado (só com o app próprio preenchido, confirmado) e o aviso dos 7 dias.
 
 ## Pronto quando
 
