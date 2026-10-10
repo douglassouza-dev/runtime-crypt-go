@@ -28,6 +28,11 @@ package core
 //   RCLONE_FALSO_FALHA_TIPO=<t> `config create <nome> <t>` falha
 //   RCLONE_FALSO_DORME=<dur>    qualquer comando dorme este tempo antes de
 //                               responder (ex.: 10m), para testar tempo limite
+//   RCLONE_FALSO_OBSCURE=<v>    `obscure` devolve <v> em vez de "obs(<senha>)"
+//
+// `config create` lê as opções como o rclone real (cobra/pflag): um argumento
+// que começa com "-" antes de "--" é opção, e uma opção que o falso não
+// conhece sai com "unknown shorthand flag" (demanda 029).
 //
 // `mount` e `authorize` sem token ficam vivos até serem encerrados (no máximo
 // 2 min, para nunca deixar processo órfão depois dos testes).
@@ -56,6 +61,7 @@ const (
 	envFalsoDorme     = "RCLONE_FALSO_DORME"
 	envFalsoFalhaTipo = "RCLONE_FALSO_FALHA_TIPO"
 	envFalsoAuthFalha = "RCLONE_FALSO_AUTH_FALHA"
+	envFalsoObscure   = "RCLONE_FALSO_OBSCURE"
 
 	vidaMaximaFalso = 2 * time.Minute
 )
@@ -114,6 +120,11 @@ func rodarRcloneFalso(arg0 string, args []string) int {
 		return 0
 	}
 
+	args, codigo, ok := opcoesConfigCreateFalso(args)
+	if !ok {
+		return codigo
+	}
+
 	if conf := os.Getenv("RCLONE_CONFIG"); conf != "" {
 		if codigo, tratado := configIniFalso(conf, args); tratado {
 			return codigo
@@ -124,6 +135,10 @@ func rodarRcloneFalso(arg0 string, args []string) int {
 	case "--version":
 		fmt.Println("rclone v0.0.0-falso")
 	case "obscure":
+		if fixo := os.Getenv(envFalsoObscure); fixo != "" {
+			fmt.Println(fixo)
+			break
+		}
 		fmt.Println("obs(" + c.Stdin + ")")
 	case "config":
 		if len(args) > 1 && args[1] == "dump" {
@@ -200,6 +215,37 @@ func servirRCFalso(dir string, args []string) {
 		os.Exit(1)
 	}
 	go http.Serve(l, mux)
+}
+
+// opcoesConfigCreateFalso imita o pflag do rclone em `config create`
+// (demanda 029): tira o "--" e as opções conhecidas e devolve os argumentos
+// posicionais. Um "-x…" antes de "--" que não é opção conhecida é recusado
+// como no rclone real ("unknown shorthand flag", código 2).
+func opcoesConfigCreateFalso(args []string) (posicionais []string, codigo int, ok bool) {
+	if len(args) < 2 || args[0] != "config" || args[1] != "create" {
+		return args, 0, true
+	}
+	conhecidas := map[string]bool{"--obscure": true, "--no-obscure": true, "--non-interactive": true, "--no-output": true, "--all": true}
+	posicionais = []string{"config", "create"}
+	for i := 2; i < len(args); i++ {
+		a := args[i]
+		if a == "--" {
+			return append(posicionais, args[i+1:]...), 0, true
+		}
+		if strings.HasPrefix(a, "-") && len(a) > 1 {
+			if conhecidas[a] {
+				continue
+			}
+			if strings.HasPrefix(a, "--") {
+				fmt.Fprintf(os.Stderr, "Error: unknown flag: %s\n", a)
+			} else {
+				fmt.Fprintf(os.Stderr, "Error: unknown shorthand flag: '%c' in %s\n", a[1], a)
+			}
+			return nil, 2, false
+		}
+		posicionais = append(posicionais, a)
+	}
+	return posicionais, 0, true
 }
 
 // secaoIni é uma seção [nome] do rclone.conf falso.
@@ -333,6 +379,7 @@ func novoRcloneFalso(t *testing.T) *rcloneFalso {
 	t.Setenv(envFalsoDorme, "")
 	t.Setenv(envFalsoFalhaTipo, "")
 	t.Setenv(envFalsoAuthFalha, "")
+	t.Setenv(envFalsoObscure, "")
 	t.Setenv("RCLONE_CONFIG", "")
 	t.Cleanup(f.matarSobreviventes)
 	return f
