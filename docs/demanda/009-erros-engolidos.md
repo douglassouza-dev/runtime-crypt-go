@@ -16,7 +16,7 @@
 ## O que muda
 
 - As funções de listagem devolvem `([]T, error)`.
-- O seletor distingue "vazia" de "erro" e mostra o erro.
+- O seletor distingue "vazia" de "erro". Pasta vazia mostra `Nenhuma subpasta aqui.` (021). Erro de listagem mostra `Não deu para listar as pastas: {motivo}`, com o botão `Tentar de novo` ao lado. Erro nunca aparece como `Nenhuma subpasta aqui.`.
 - Os erros de auto-iniciar, auto-montar e de abrir Explorer ou navegador chegam ao usuário.
 
 ## O que fica de fora
@@ -28,4 +28,5 @@
 
 - [ ] `rg -n "return nil$" internal/core/gerenciador.go` não encontra retorno de erro disfarçado de lista vazia.
 - [ ] Teste: `ListarDiretoriosRemoto` com executável falso que sai com código 1 devolve erro diferente de `nil`.
-- [ ] Na tela: conectar existente com um remoto base de token inválido mostra mensagem de erro no seletor, não "Nenhuma subpasta".
+- [ ] Na tela: conectar existente com um remoto base de token inválido mostra `Não deu para listar as pastas: {motivo}` com `Tentar de novo`, nunca `Nenhuma subpasta aqui.`.
+- [ ] `Tentar de novo` lista de novo a mesma pasta. Se der certo, a lista aparece no lugar da linha de erro.
