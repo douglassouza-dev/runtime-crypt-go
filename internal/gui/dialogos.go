@@ -1,20 +1,77 @@
 package gui
 
 import (
+	"errors"
+
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/widget"
+	"github.com/eufrauzino/runtime-crypt-go/internal/core"
 	"github.com/eufrauzino/runtime-crypt-go/internal/gui/frases"
 )
 
-// DialogoSenha exibe um diálogo modal para entrada de senha de cofre.
-func DialogoSenha(janelaPai fyne.Window, nomeCofre string, acao string) string {
-	resultado := make(chan string, 1)
+// TextoSenhaErrada aparece embaixo do campo quando a senha não confere
+// (demanda 030, aprovado pela UI).
+const TextoSenhaErrada = "Senha errada."
 
-	entrySenha := widget.NewPasswordEntry()
-	entrySenha.SetPlaceHolder("Digite a senha...")
+// TextoFalhaSenha é a frase embaixo do campo de senha para o erro de
+// conferir (demanda 030, aprovadas pela UI). ok=false: o erro não é de
+// conferência e o diálogo fecha.
+func TextoFalhaSenha(err error) (string, bool) {
+	if errors.Is(err, core.ErrSenhaErrada) {
+		return TextoSenhaErrada, true
+	}
+	var e *core.ErroConferirSenha
+	if errors.As(err, &e) {
+		return e.Error(), true
+	}
+	return "", false
+}
+
+// DialogoSenha exibe um diálogo modal para entrada de senha de cofre e
+// devolve a senha ("" se cancelado).
+//
+// Demanda 030: com conferir, a senha é conferida antes de o diálogo fechar.
+// Se a senha não confere (core.ErrSenhaErrada) ou não dá para conferir
+// (*core.ErroConferirSenha), o diálogo fica aberto com a frase embaixo do
+// campo (TextoFalhaSenha), o campo focado e o texto selecionado; o cofre
+// continua trancado. Sem limite de tentativas. Qualquer outro erro fecha o
+// diálogo e devolve a senha: core.Destrancar confere de novo e devolve o erro.
+func DialogoSenha(janelaPai fyne.Window, nomeCofre string, acao string, conferir func(string) error) string {
+	resultado := make(chan string, 1)
+	d := novoDialogoSenha(janelaPai, nomeCofre, acao, conferir, func(senha string) { resultado <- senha })
+	d.mostrar()
+	return <-resultado
+}
+
+// dialogoSenha é o diálogo de DialogoSenha, separado para o teste com o
+// driver de teste do Fyne.
+type dialogoSenha struct {
+	janela       fyne.Window
+	entrySenha   *widget.Entry
+	lblErro      *widget.Label
+	btnCancelar  *widget.Button
+	btnConfirmar *widget.Button
+	popup        *widget.PopUp
+	conteudo     *fyne.Container
+	conferir     func(string) error
+	fim          func(string)
+	encerrado    bool
+
+	// naTela leva o resultado da conferência para a thread da tela. Em
+	// produção é fyne.Do; o teste troca por uma fila que ele mesmo roda,
+	// porque o driver de teste do Fyne roda fyne.Do na goroutine de quem
+	// chama.
+	naTela func(func())
+}
+
+func novoDialogoSenha(janelaPai fyne.Window, nomeCofre string, acao string, conferir func(string) error, fim func(string)) *dialogoSenha {
+	d := &dialogoSenha{janela: janelaPai, conferir: conferir, fim: fim, naTela: fyne.Do}
+
+	d.entrySenha = widget.NewPasswordEntry()
+	d.entrySenha.SetPlaceHolder("Digite a senha...")
 
 	// Ícone
 	lblIcone := canvas.NewText("🔐", CorVerde)
@@ -34,47 +91,85 @@ func DialogoSenha(janelaPai fyne.Window, nomeCofre string, acao string) string {
 	lblCampo := canvas.NewText("Senha do cofre:", CorTextoSec)
 	lblCampo.TextSize = 12
 
-	var dialogo *widget.PopUp
+	// Demanda 030: embaixo do campo, escondido até a senha não conferir.
+	// As frases de configuração passam de uma linha: o rótulo quebra.
+	d.lblErro = widget.NewLabel("")
+	d.lblErro.Importance = widget.DangerImportance
+	d.lblErro.Wrapping = fyne.TextWrapWord
+	d.lblErro.Hide()
 
-	btnCancelar := widget.NewButton("Cancelar", func() {
-		resultado <- ""
-		if dialogo != nil {
-			dialogo.Hide()
-		}
-	})
+	d.btnCancelar = widget.NewButton("Cancelar", func() { d.encerrar("") })
+	d.btnConfirmar = widget.NewButton(acao, d.confirmar)
+	d.btnConfirmar.Importance = widget.HighImportance
+	d.entrySenha.OnSubmitted = func(string) { d.confirmar() }
 
-	btnConfirmar := widget.NewButton(acao, func() {
-		senha := entrySenha.Text
-		if senha != "" {
-			resultado <- senha
-			if dialogo != nil {
-				dialogo.Hide()
-			}
-		}
-	})
-	btnConfirmar.Importance = widget.HighImportance
-
-	conteudo := container.NewVBox(
+	d.conteudo = container.NewVBox(
 		lblIcone,
 		lblTitulo,
 		lblNome,
 		widget.NewSeparator(),
 		lblCampo,
-		entrySenha,
+		d.entrySenha,
+		d.lblErro,
 		layout.NewSpacer(),
-		container.NewHBox(btnCancelar, layout.NewSpacer(), btnConfirmar),
+		container.NewHBox(d.btnCancelar, layout.NewSpacer(), d.btnConfirmar),
 	)
 
-	padded := container.NewPadded(conteudo)
-	padded.Resize(fyne.NewSize(400, 280))
+	padded := container.NewPadded(d.conteudo)
+	padded.Resize(fyne.NewSize(400, 330))
 
-	dialogo = widget.NewModalPopUp(padded, janelaPai.Canvas())
-	dialogo.Resize(fyne.NewSize(400, 280))
-	dialogo.Show()
+	d.popup = widget.NewModalPopUp(padded, janelaPai.Canvas())
+	d.popup.Resize(fyne.NewSize(400, 330))
+	return d
+}
 
-	janelaPai.Canvas().Focus(entrySenha)
+func (d *dialogoSenha) mostrar() {
+	d.popup.Show()
+	d.janela.Canvas().Focus(d.entrySenha)
+}
 
-	return <-resultado
+// encerrar fecha o diálogo e entrega o resultado uma vez só.
+func (d *dialogoSenha) encerrar(senha string) {
+	if d.encerrado {
+		return
+	}
+	d.encerrado = true
+	d.popup.Hide()
+	d.fim(senha)
+}
+
+// confirmar roda na thread da tela (clique ou Enter). A conferência chama o
+// rclone, então vai para uma goroutine; o resultado volta pela fyne.Do.
+func (d *dialogoSenha) confirmar() {
+	senha := d.entrySenha.Text
+	if senha == "" || d.encerrado || d.btnConfirmar.Disabled() {
+		return
+	}
+	if d.conferir == nil {
+		d.encerrar(senha)
+		return
+	}
+	d.btnConfirmar.Disable()
+	d.btnCancelar.Disable()
+	conferir, naTela := d.conferir, d.naTela
+	go func() {
+		err := conferir(senha)
+		naTela(func() { d.depoisDeConferir(senha, err) })
+	}()
+}
+
+func (d *dialogoSenha) depoisDeConferir(senha string, err error) {
+	d.btnConfirmar.Enable()
+	d.btnCancelar.Enable()
+	if texto, ok := TextoFalhaSenha(err); ok {
+		d.lblErro.SetText(texto)
+		d.lblErro.Show()
+		d.conteudo.Refresh() // a frase entra no layout embaixo do campo
+		d.janela.Canvas().Focus(d.entrySenha)
+		d.entrySenha.TypedShortcut(&fyne.ShortcutSelectAll{})
+		return
+	}
+	d.encerrar(senha)
 }
 
 // TipoMensagem define o tipo visual de uma mensagem.
