@@ -684,7 +684,7 @@ func (g *GerenciadorMontagem) esperarEnvio(info *InfoMontagem) error {
 			return fmt.Errorf("não deu para conferir o envio dos arquivos (%v)", err)
 		}
 		if n := e.DiskCache.ErroredFiles; n > 0 {
-			return fmt.Errorf("o envio de %d arquivo(s) falhou", n)
+			return fmt.Errorf("o envio de %s falhou", Arquivos(n))
 		}
 		pendente := e.pendentes()
 		if pendente == 0 {
@@ -698,7 +698,7 @@ func (g *GerenciadorMontagem) esperarEnvio(info *InfoMontagem) error {
 			ultimoAvanco = time.Now()
 		}
 		if time.Since(ultimoAvanco) > g.esperaSemEnvio {
-			return fmt.Errorf("o envio de %d arquivo(s) parou por %s", pendente, g.esperaSemEnvio)
+			return fmt.Errorf("o envio de %s parou por %s", Arquivos(pendente), g.esperaSemEnvio)
 		}
 		time.Sleep(g.intervaloEnvio)
 	}

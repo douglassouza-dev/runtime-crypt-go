@@ -96,7 +96,7 @@ func TestTrancarComEnvioQueFalhouNaoTranca(t *testing.T) {
 
 	err := g.Trancar("cofre")
 
-	if err == nil || !strings.Contains(err.Error(), "o envio de 1 arquivo(s) falhou") {
+	if err == nil || !strings.Contains(err.Error(), "o envio de 1 arquivo falhou") {
 		t.Fatalf("erro = %v", err)
 	}
 	if !processoVivoNoSO(pid) {
