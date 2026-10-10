@@ -24,11 +24,11 @@ type GerenciadorOAuth struct {
 	processo *exec.Cmd
 	// fim é fechado pela goroutine de leitura depois da única espera (Wait) do
 	// processo atual (demanda 020). Abortar espera este canal.
-	fim chan struct{}
-	token    string
-	url      string
-	erro     string
-	mu       sync.Mutex
+	fim   chan struct{}
+	token string
+	url   string
+	erro  string
+	mu    sync.Mutex
 }
 
 // NovoGerenciadorOAuth cria uma nova instância.
@@ -83,6 +83,7 @@ func (g *GerenciadorOAuth) Iniciar(executavel string, tipo string) bool {
 		buf := make([]byte, 4096)
 		var bufferToken []string
 		capturandoToken := false
+		ultimaLinha := ""
 
 		reURL := regexp.MustCompile(`https?://\S+`)
 		reJSON := regexp.MustCompile(`(\{.*\})`)
@@ -93,6 +94,9 @@ func (g *GerenciadorOAuth) Iniciar(executavel string, tipo string) bool {
 				texto := string(buf[:n])
 				for _, linha := range strings.Split(texto, "\n") {
 					linhaStrip := strings.TrimSpace(linha)
+					if linhaStrip != "" {
+						ultimaLinha = linhaStrip
+					}
 
 					// Detectar URL de auth
 					if strings.Contains(linhaStrip, "127.0.0.1") || strings.Contains(linhaStrip, "localhost") {
@@ -135,11 +139,20 @@ func (g *GerenciadorOAuth) Iniciar(executavel string, tipo string) bool {
 		}
 
 		cmd.Wait()
-		if ctx.Err() == context.DeadlineExceeded {
-			g.mu.Lock()
+		g.mu.Lock()
+		switch {
+		case ctx.Err() == context.DeadlineExceeded:
 			g.erro = erroTempoEsgotado(limite, []string{"authorize"}).Error()
-			g.mu.Unlock()
+		case g.token == "":
+			// Demanda 018: login recusado ou cancelado no navegador. O
+			// authorize sai sem token; quem espera fica sabendo na hora, em
+			// vez de esperar o tempo todo.
+			g.erro = "o rclone authorize terminou sem token"
+			if l := reDataLog.ReplaceAllString(ultimaLinha, ""); l != "" {
+				g.erro += ": " + l
+			}
 		}
+		g.mu.Unlock()
 		cancelar()
 	}()
 

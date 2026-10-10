@@ -55,13 +55,20 @@ func (i *InfoMontagem) vivo() bool {
 	}
 }
 
-// EstadoMontagem é o estado de uma montagem que está no mapa (demanda 010).
+// EstadoMontagem é o estado de um cofre/montagem (demandas 010 e 018). O core
+// é o único lugar que decide o estado; a tela só lê e traduz para as frases
+// dela.
 type EstadoMontagem string
 
 const (
+	// EstadoDesmontado: não há processo do rclone para o cofre.
+	EstadoDesmontado EstadoMontagem = "desmontado"
+	// EstadoMontando: MontarUnidade está esperando a unidade aparecer.
+	EstadoMontando EstadoMontagem = "montando"
 	// EstadoMontado: o processo do rclone vive E o ponto de montagem existe.
 	EstadoMontado EstadoMontagem = "montado"
-	// EstadoFalhou: uma das duas condições deixou de valer; Motivo diz qual.
+	// EstadoFalhou: a montagem nunca subiu, ou subiu e uma das duas condições
+	// deixou de valer. Motivo diz qual.
 	EstadoFalhou EstadoMontagem = "falhou"
 )
 
@@ -110,6 +117,13 @@ type GerenciadorMontagem struct {
 	// esperaEncerrar é quanto se espera o processo terminar depois de cada
 	// pedido, e o ponto de montagem sumir depois que ele terminou.
 	esperaEncerrar time.Duration
+
+	// montando guarda os remotos com MontarUnidade em andamento (demanda
+	// 018). Um segundo pedido para o mesmo remoto é recusado.
+	montando map[string]bool
+	// falhasMontagem guarda, por remoto, o motivo curto da última tentativa
+	// que nunca chegou a montar (demanda 018). Sai na próxima tentativa.
+	falhasMontagem map[string]string
 }
 
 // EsperaEncerrarPadrao é a espera por pedido de encerramento: cobre o
@@ -146,17 +160,53 @@ func NovoGerenciadorMontagem(executavel string, configVfs *ConfigVfs) *Gerenciad
 		limitePonto:  LimitePontoPadrao,
 
 		esperaEncerrar: EsperaEncerrarPadrao,
+
+		montando:       make(map[string]bool),
+		falhasMontagem: make(map[string]string),
 	}
 }
 
-// MontarUnidade monta um remoto crypt como unidade virtual.
-func (g *GerenciadorMontagem) MontarUnidade(remoto string, letra string, senha string, configVfsOverride map[string]string) (bool, string, string) {
-	if g.executavel == "" {
-		return false, "RClone nao disponivel.", ""
-	}
+// MsgJaDestrancando é a recusa de um segundo MontarUnidade do mesmo remoto
+// enquanto o primeiro espera (demanda 018).
+const MsgJaDestrancando = "Este cofre ja esta sendo destrancado."
 
+// MontarUnidade monta um remoto crypt como unidade virtual.
+//
+// Demanda 018: enquanto espera, o remoto fica no estado montando, e um
+// segundo pedido para ele é recusado sem iniciar outro rclone. Se a montagem
+// não sobe, o motivo curto fica guardado (estado falhou, nunca montou).
+func (g *GerenciadorMontagem) MontarUnidade(remoto string, letra string, senha string, configVfsOverride map[string]string) (bool, string, string) {
 	if !strings.HasSuffix(remoto, ":") {
 		remoto = remoto + ":"
+	}
+
+	g.mu.Lock()
+	if g.montando[remoto] {
+		g.mu.Unlock()
+		return false, MsgJaDestrancando, ""
+	}
+	g.montando[remoto] = true
+	delete(g.falhasMontagem, remoto)
+	g.mu.Unlock()
+
+	ok, msg, letraMontada, motivo := g.montar(remoto, letra, senha, configVfsOverride)
+
+	// A falha entra antes de o remoto sair de montando: a tela nunca vê
+	// desmontado entre os dois.
+	g.mu.Lock()
+	if !ok && motivo != "" {
+		g.falhasMontagem[remoto] = motivo
+	}
+	delete(g.montando, remoto)
+	g.mu.Unlock()
+	return ok, msg, letraMontada
+}
+
+// montar é o corpo de MontarUnidade. motivo é a frase curta de por que não
+// montou ("" quando montou, ou quando o remoto já estava montado).
+func (g *GerenciadorMontagem) montar(remoto string, letra string, senha string, configVfsOverride map[string]string) (ok bool, msg string, letraMontada string, motivo string) {
+	if g.executavel == "" {
+		return false, "RClone nao disponivel.", "", "o rclone não está disponível"
 	}
 
 	// Demanda 010: uma montagem que falhou continua no mapa até alguém agir.
@@ -164,10 +214,20 @@ func (g *GerenciadorMontagem) MontarUnidade(remoto string, letra string, senha s
 	// sai antes, e o processo que sobrou, se sobrou, é encerrado.
 	g.limparFalhas(remoto, letra)
 
+	// O que sobrou deste remoto no mapa está saudável: não monta duas vezes.
+	g.mu.Lock()
+	for _, info := range g.montagens {
+		if info.Remoto == remoto {
+			g.mu.Unlock()
+			return false, fmt.Sprintf("Este cofre ja esta montado em %s:", info.Letra), "", ""
+		}
+	}
+	g.mu.Unlock()
+
 	if letra == "" {
 		disponiveis := ObterLetrasDisponiveis(g.letrasOcupadas())
 		if len(disponiveis) == 0 {
-			return false, "Nenhuma letra de unidade disponivel.", ""
+			return false, "Nenhuma letra de unidade disponivel.", "", "nenhuma letra de unidade livre"
 		}
 		letra = disponiveis[0]
 	}
@@ -177,7 +237,7 @@ func (g *GerenciadorMontagem) MontarUnidade(remoto string, letra string, senha s
 	g.mu.Lock()
 	if _, existe := g.montagens[letra]; existe {
 		g.mu.Unlock()
-		return false, fmt.Sprintf("A letra %s: ja esta em uso.", letra), ""
+		return false, fmt.Sprintf("A letra %s: ja esta em uso.", letra), "", fmt.Sprintf("a letra %s: já está em uso", letra)
 	}
 	g.mu.Unlock()
 
@@ -216,7 +276,7 @@ func (g *GerenciadorMontagem) MontarUnidade(remoto string, letra string, senha s
 	cmd.Stderr = saidaErro
 
 	if err := cmd.Start(); err != nil {
-		return false, fmt.Sprintf("Erro ao iniciar rclone: %s", err.Error()), ""
+		return false, fmt.Sprintf("Erro ao iniciar rclone: %s", err.Error()), "", "o rclone não iniciou: " + err.Error()
 	}
 
 	// A goroutine acompanhar (demanda 001) começa já aqui: o único Wait do
@@ -239,7 +299,7 @@ func (g *GerenciadorMontagem) MontarUnidade(remoto string, letra string, senha s
 	for {
 		select {
 		case <-info.fim:
-			return false, mensagemFalhaMontagem(cmd, saidaErro), ""
+			return false, mensagemFalhaMontagem(cmd, saidaErro), "", motivoFalhaMontagem(cmd, saidaErro)
 		case <-prazo.C:
 			cmd.Process.Kill()
 			<-info.fim
@@ -247,7 +307,7 @@ func (g *GerenciadorMontagem) MontarUnidade(remoto string, letra string, senha s
 			if linhas := saidaErro.Texto(); linhas != "" {
 				msg += "\n\nSaida do rclone:\n" + linhas
 			}
-			return false, msg, ""
+			return false, msg, "", fmt.Sprintf("a unidade não ficou pronta em %s", limite)
 		case <-time.After(intervalo):
 		}
 
@@ -274,10 +334,26 @@ func (g *GerenciadorMontagem) MontarUnidade(remoto string, letra string, senha s
 			delete(g.montagens, letra)
 		}
 		g.mu.Unlock()
-		return false, mensagemFalhaMontagem(cmd, saidaErro), ""
+		return false, mensagemFalhaMontagem(cmd, saidaErro), "", motivoFalhaMontagem(cmd, saidaErro)
 	}
 
-	return true, fmt.Sprintf("Unidade %s: montada com sucesso.", letra), letra
+	return true, fmt.Sprintf("Unidade %s: montada com sucesso.", letra), letra, ""
+}
+
+// motivoFalhaMontagem é a versão curta de mensagemFalhaMontagem, para o card
+// (demanda 018): a última linha do stderr do rclone, sem a data, ou o código
+// de saída. Só chamar depois de info.fim fechado.
+func motivoFalhaMontagem(cmd *exec.Cmd, saidaErro *ultimasLinhas) string {
+	linhas := strings.Split(saidaErro.Texto(), "\n")
+	for i := len(linhas) - 1; i >= 0; i-- {
+		if l := strings.TrimSpace(reDataLog.ReplaceAllString(linhas[i], "")); l != "" {
+			return l
+		}
+	}
+	if cmd.ProcessState != nil {
+		return fmt.Sprintf("o rclone encerrou (código %d)", cmd.ProcessState.ExitCode())
+	}
+	return "o rclone encerrou"
 }
 
 // LimiteMontagemPadrao é quanto se espera a unidade aparecer. O WinFsp pode
@@ -572,8 +648,8 @@ func (g *GerenciadorMontagem) limparFalhas(remoto string, letra string) {
 }
 
 // ObterMontagens retorna um mapa nome_remoto → InfoMontagem das montagens no
-// estado montado. As que falharam ficam de fora (a tela as mostra como
-// trancadas até a 018).
+// estado montado. As que falharam ficam de fora (a tela usa
+// EstadosPorRemoto para mostrá-las).
 func (g *GerenciadorMontagem) ObterMontagens() map[string]InfoMontagem {
 	status := g.Status()
 	resultado := make(map[string]InfoMontagem)
@@ -599,6 +675,48 @@ func (g *GerenciadorMontagem) ObterLetraPorRemoto(nomeRemoto string) string {
 		}
 	}
 	return ""
+}
+
+// EstadoRemoto é o estado de um remoto para a tela (demanda 018).
+type EstadoRemoto struct {
+	Estado EstadoMontagem
+	// Motivo vem com EstadoFalhou. Quando Caiu, é um dos Motivo* deste
+	// arquivo; quando não, é a frase curta de por que não montou.
+	Motivo string
+	// Caiu diz que a montagem chegou a montado e depois caiu. Falso quando
+	// ela nunca subiu.
+	Caiu          bool
+	Letra         string
+	PontoMontagem string
+}
+
+// EstadosPorRemoto devolve nome_remoto → estado de todo remoto que não está
+// desmontado. Ordem de precedência: montando (uma nova tentativa em
+// andamento), depois o que está no mapa (montado ou caiu), depois a última
+// tentativa que não subiu.
+func (g *GerenciadorMontagem) EstadosPorRemoto() map[string]EstadoRemoto {
+	resultado := make(map[string]EstadoRemoto)
+	g.mu.Lock()
+	for remoto, motivo := range g.falhasMontagem {
+		resultado[strings.TrimSuffix(remoto, ":")] = EstadoRemoto{Estado: EstadoFalhou, Motivo: motivo}
+	}
+	g.mu.Unlock()
+
+	for _, s := range g.Status() {
+		e := EstadoRemoto{Estado: s.Estado, Letra: s.Letra, PontoMontagem: s.PontoMontagem}
+		if s.Estado == EstadoFalhou {
+			e.Motivo = s.Motivo
+			e.Caiu = true
+		}
+		resultado[strings.TrimSuffix(s.Remoto, ":")] = e
+	}
+
+	g.mu.Lock()
+	for remoto := range g.montando {
+		resultado[strings.TrimSuffix(remoto, ":")] = EstadoRemoto{Estado: EstadoMontando}
+	}
+	g.mu.Unlock()
+	return resultado
 }
 
 // letrasOcupadas retorna as letras atualmente em uso pelas montagens.

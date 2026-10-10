@@ -1,11 +1,12 @@
 package tray
 
 import (
-	"fmt"
+	"time"
 
 	"github.com/getlantern/systray"
 
 	"github.com/eufrauzino/runtime-crypt-go/internal/core"
+	"github.com/eufrauzino/runtime-crypt-go/internal/gui/frases"
 )
 
 // TipoAcaoTray identifica o tipo de ação enviada pelo tray.
@@ -62,7 +63,7 @@ func (g *GerenciadorTray) Iniciar(aoIniciar func(), aoEncerrar func()) {
 func (g *GerenciadorTray) aoIniciar() {
 	systray.SetIcon(g.iconeBytes)
 	systray.SetTitle("RuntimeCrypto")
-	systray.SetTooltip("RuntimeCrypto — Cofre Criptografado na Nuvem")
+	go g.acompanharCofres()
 
 	// Menu item principal
 	mAbrir := systray.AddMenuItem("Abrir RuntimeCrypto", "Abrir janela principal")
@@ -103,19 +104,26 @@ func (g *GerenciadorTray) aoIniciar() {
 	}()
 }
 
-// AtualizarTooltip atualiza o tooltip do tray com informação de cofres.
-func (g *GerenciadorTray) AtualizarTooltip() {
-	cofres := g.gerenciador.ListarCofres()
-	montados := 0
-	for _, c := range cofres {
-		if c.Montado {
-			montados++
-		}
-	}
+// AtualizarTooltip põe no tooltip o resumo dos cofres, com as mesmas frases
+// do card (demanda 018). Devolve o texto posto.
+func (g *GerenciadorTray) AtualizarTooltip() string {
+	texto := frases.Tooltip(g.gerenciador.ListarCofres())
+	systray.SetTooltip(texto)
+	return texto
+}
 
-	if montados > 0 {
-		systray.SetTooltip(fmt.Sprintf("RuntimeCrypto — %d cofre(s) destrancado(s)", montados))
-	} else {
-		systray.SetTooltip("RuntimeCrypto — Todos os cofres trancados")
+// intervaloTooltip é de quanto em quanto o tooltip confere os cofres.
+const intervaloTooltip = 2 * time.Second
+
+// acompanharCofres atualiza o tooltip a cada mudança de estado dos cofres.
+func (g *GerenciadorTray) acompanharCofres() {
+	anterior := g.AtualizarTooltip()
+	ticker := time.NewTicker(intervaloTooltip)
+	defer ticker.Stop()
+	for range ticker.C {
+		if texto := frases.Tooltip(g.gerenciador.ListarCofres()); texto != anterior {
+			systray.SetTooltip(texto)
+			anterior = texto
+		}
 	}
 }

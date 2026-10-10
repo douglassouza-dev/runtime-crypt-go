@@ -330,7 +330,7 @@ func TestListarRemotosDetalhado(t *testing.T) {
 		t.Fatalf("len = %d: %+v", len(got), got)
 	}
 	for _, r := range got {
-		if r.Nome == "cofre" && (!r.IsCrypt || r.RemotoBase != "gdrive:cofre" || r.Tipo != "crypt" || r.Montado) {
+		if r.Nome == "cofre" && (!r.IsCrypt || r.RemotoBase != "gdrive:cofre" || r.Tipo != "crypt" || r.Estado != EstadoDesmontado) {
 			t.Errorf("cofre: %+v", r)
 		}
 		if r.Nome == "gdrive" && (r.IsCrypt || r.Tipo != "drive") {
@@ -479,7 +479,7 @@ func TestListarCofres(t *testing.T) {
 
 	got := g.ListarCofres()
 
-	if len(got) != 1 || got[0].Nome != "cofre" || got[0].Montado || !got[0].TemSenha {
+	if len(got) != 1 || got[0].Nome != "cofre" || got[0].Estado != EstadoDesmontado || !got[0].TemSenha {
 		t.Errorf("ListarCofres = %+v", got)
 	}
 }

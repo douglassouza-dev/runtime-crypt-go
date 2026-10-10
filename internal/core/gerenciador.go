@@ -313,12 +313,12 @@ func (g *GerenciadorRClone) listarTodosRemotos() ([]string, error) {
 
 // RemotoDetalhado contém informações detalhadas de um remoto.
 type RemotoDetalhado struct {
-	Nome         string `json:"nome"`
-	Tipo         string `json:"tipo"`
-	IsCrypt      bool   `json:"is_crypt"`
-	RemotoBase   string `json:"remoto_base"`
-	Montado      bool   `json:"montado"`
-	LetraMontada string `json:"letra_montada,omitempty"`
+	Nome         string         `json:"nome"`
+	Tipo         string         `json:"tipo"`
+	IsCrypt      bool           `json:"is_crypt"`
+	RemotoBase   string         `json:"remoto_base"`
+	Estado       EstadoMontagem `json:"estado"`
+	LetraMontada string         `json:"letra_montada,omitempty"`
 }
 
 // ListarRemotosDetalhado retorna todos os remotos com tipo, config e status de montagem.
@@ -351,9 +351,10 @@ func (g *GerenciadorRClone) ListarRemotosDetalhado() ([]RemotoDetalhado, error) 
 			Tipo:       tipo,
 			IsCrypt:    tipo == "crypt",
 			RemotoBase: remotoBase,
-			Montado:    montado,
+			Estado:     EstadoDesmontado,
 		}
 		if montado {
+			item.Estado = EstadoMontado
 			item.LetraMontada = m.Letra
 		}
 		lista = append(lista, item)
@@ -442,8 +443,7 @@ func lerNomesLsjson(saida []byte) ([]string, error) {
 
 // ListarCofres retorna todos os cofres com status enriquecido.
 func (g *GerenciadorRClone) ListarCofres() []CofreStatus {
-	montagens := g.Montagens.ObterMontagens()
-	return g.Cofres.Listar(montagens, g.Senhas)
+	return g.Cofres.Listar(g.Montagens.EstadosPorRemoto(), g.Senhas)
 }
 
 // Encerrar limpa recursos ao sair do programa.

@@ -13,6 +13,8 @@ package core
 //   RCLONE_FALSO_DIR/lsjson.json saída de `lsjson` (padrão: [])
 //   RCLONE_FALSO_FALHA=1        qualquer comando escreve no stderr e sai com 1
 //   RCLONE_FALSO_TOKEN=<json>   `authorize` entrega este token e sai
+//   RCLONE_FALSO_AUTH_FALHA=<t> `authorize` escreve <t> e sai com 1 (login
+//                               recusado no navegador)
 //   RCLONE_CONFIG=<arquivo>     com esta variável, `config create|delete|dump`
 //                               e `listremotes` usam este arquivo INI, como o
 //                               rclone real (create em nome existente
@@ -39,12 +41,13 @@ import (
 )
 
 const (
-	envFalsoAtivo = "RCLONE_FALSO_ATIVO"
-	envFalsoDir   = "RCLONE_FALSO_DIR"
-	envFalsoFalha = "RCLONE_FALSO_FALHA"
-	envFalsoToken = "RCLONE_FALSO_TOKEN"
-	envFalsoDorme = "RCLONE_FALSO_DORME"
+	envFalsoAtivo     = "RCLONE_FALSO_ATIVO"
+	envFalsoDir       = "RCLONE_FALSO_DIR"
+	envFalsoFalha     = "RCLONE_FALSO_FALHA"
+	envFalsoToken     = "RCLONE_FALSO_TOKEN"
+	envFalsoDorme     = "RCLONE_FALSO_DORME"
 	envFalsoFalhaTipo = "RCLONE_FALSO_FALHA_TIPO"
+	envFalsoAuthFalha = "RCLONE_FALSO_AUTH_FALHA"
 
 	vidaMaximaFalso = 2 * time.Minute
 )
@@ -138,6 +141,11 @@ func rodarRcloneFalso(arg0 string, args []string) int {
 	case "authorize":
 		saida := "If your browser doesn't open automatically go to the following link: http://127.0.0.1:53682/auth?state=falso\n" +
 			"Log in and authorize rclone for access\nWaiting for code...\n"
+		if falha := os.Getenv(envFalsoAuthFalha); falha != "" {
+			os.Stdout.WriteString(saida)
+			fmt.Fprintln(os.Stderr, falha)
+			return 1
+		}
 		if token := os.Getenv(envFalsoToken); token != "" {
 			saida += "Got code\nPaste the following into your remote machine --->\n" + token + "\n<---End paste\n"
 			os.Stdout.WriteString(saida)
@@ -279,6 +287,7 @@ func novoRcloneFalso(t *testing.T) *rcloneFalso {
 	t.Setenv(envFalsoToken, "")
 	t.Setenv(envFalsoDorme, "")
 	t.Setenv(envFalsoFalhaTipo, "")
+	t.Setenv(envFalsoAuthFalha, "")
 	t.Setenv("RCLONE_CONFIG", "")
 	t.Cleanup(f.matarSobreviventes)
 	return f

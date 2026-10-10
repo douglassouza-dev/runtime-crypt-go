@@ -24,13 +24,20 @@ type Cofre struct {
 	AutoMontar    bool   `json:"auto_montar"`
 }
 
-// CofreStatus é um Cofre enriquecido com estado em tempo real.
+// CofreStatus é um Cofre enriquecido com estado em tempo real (demanda 018).
 type CofreStatus struct {
 	Cofre
-	Montado  bool   `json:"montado"`
-	Letra    string `json:"letra"`
-	TemSenha bool   `json:"tem_senha"`
+	Estado EstadoMontagem `json:"estado"`
+	// Motivo vem com EstadoFalhou; Caiu diz se a montagem chegou a subir.
+	Motivo        string `json:"motivo,omitempty"`
+	Caiu          bool   `json:"caiu,omitempty"`
+	Letra         string `json:"letra"`
+	PontoMontagem string `json:"ponto_montagem,omitempty"`
+	TemSenha      bool   `json:"tem_senha"`
 }
+
+// EstaMontado diz se o cofre está no estado montado.
+func (c CofreStatus) EstaMontado() bool { return c.Estado == EstadoMontado }
 
 // GerenciadorCofres é responsável pelo CRUD de cofres e persistência em JSON.
 type GerenciadorCofres struct {
@@ -192,22 +199,25 @@ func gravarAtomico(caminho string, dados []byte) error {
 	return nil
 }
 
-// Listar retorna todos os cofres com status enriquecido.
-// Recebe as montagens ativas e o cache de senhas para preencher o status.
-func (g *GerenciadorCofres) Listar(montagens map[string]InfoMontagem, senhas *CacheSenhas) []CofreStatus {
+// Listar retorna todos os cofres com status enriquecido. estados vem de
+// GerenciadorMontagem.EstadosPorRemoto; cofre ausente dele está desmontado.
+func (g *GerenciadorCofres) Listar(estados map[string]EstadoRemoto, senhas *CacheSenhas) []CofreStatus {
 	g.mu.RLock()
 	defer g.mu.RUnlock()
 
 	resultado := make([]CofreStatus, 0, len(g.cofres))
 	for _, cofre := range g.cofres {
-		m, montado := montagens[cofre.Nome]
 		status := CofreStatus{
 			Cofre:    cofre,
-			Montado:  montado,
+			Estado:   EstadoDesmontado,
 			TemSenha: senhas.Existe(cofre.Nome),
 		}
-		if montado {
-			status.Letra = m.Letra
+		if e, ok := estados[cofre.Nome]; ok {
+			status.Estado = e.Estado
+			status.Motivo = e.Motivo
+			status.Caiu = e.Caiu
+			status.Letra = e.Letra
+			status.PontoMontagem = e.PontoMontagem
 		}
 		resultado = append(resultado, status)
 	}

@@ -12,6 +12,7 @@ import (
 
 // interacaoFalsa faz o papel da tela.
 type interacaoFalsa struct {
+	passos   []Passo
 	urls     []string
 	pastas   []string // remotos pedidos ao EscolherPasta
 	caminho  string
@@ -19,6 +20,8 @@ type interacaoFalsa struct {
 }
 
 func (i *interacaoFalsa) AbrirAutorizacao(url string) { i.urls = append(i.urls, url) }
+
+func (i *interacaoFalsa) Passo(p Passo) { i.passos = append(i.passos, p) }
 
 func (i *interacaoFalsa) EscolherPasta(remotoBase, _ string) (string, bool) {
 	i.pastas = append(i.pastas, remotoBase)
@@ -240,4 +243,81 @@ func TestDestrancarCanceladoNaoMonta(t *testing.T) {
 	if len(f.chamadas()) != 0 {
 		t.Error("não deveria chamar o rclone")
 	}
+}
+
+// Demanda 018: login cancelado no navegador. O authorize sai sem token; o
+// caso de uso para no passo "autorizando" logo, sem esperar o tempo todo.
+func TestCriarCofreOAuthCanceladoParaNoPassoAutorizando(t *testing.T) {
+	g, _ := novoGerenciadorFalso(t)
+	conf := confFalso(t, "")
+	esperasCurtas(t)
+	esperaTokenOAuth = time.Minute
+	t.Setenv(envFalsoAuthFalha, "2026/10/09 10:00:00 Failed to get token: access_denied")
+	ui := &interacaoFalsa{}
+
+	inicio := time.Now()
+	_, err := g.CriarCofre(DadosNovoCofre{
+		Provedor: ObterProvedor("drive"), Nome: "fotos", Senha: "senha-forte", Confirmacao: "senha-forte",
+	}, ui)
+
+	var ep *ErroPasso
+	if !errors.As(err, &ep) || ep.Passo != PassoAutorizando {
+		t.Fatalf("erro = %#v, quer ErroPasso no passo autorizando", err)
+	}
+	if !strings.Contains(err.Error(), "access_denied") {
+		t.Errorf("o erro deveria trazer o motivo do rclone: %v", err)
+	}
+	if d := time.Since(inicio); d > 10*time.Second {
+		t.Errorf("levou %v; deveria parar quando o authorize sai", d)
+	}
+	if len(ui.passos) != 1 || ui.passos[0] != PassoAutorizando {
+		t.Errorf("passos = %v, quer [autorizando]", ui.passos)
+	}
+	if texto := lerConf(t, conf); strings.Contains(texto, "fotos") {
+		t.Errorf("rclone.conf mudou:\n%s", texto)
+	}
+}
+
+func TestCriarCofrePassosEmOrdem(t *testing.T) {
+	g, _ := novoGerenciadorFalso(t)
+	confFalso(t, "")
+	esperasCurtas(t)
+	t.Setenv(envFalsoToken, tokenFalso)
+	ui := &interacaoFalsa{}
+
+	if _, err := g.CriarCofre(DadosNovoCofre{
+		Provedor: ObterProvedor("drive"), Nome: "fotos", Senha: "senha-forte", Confirmacao: "senha-forte",
+	}, ui); err != nil {
+		t.Fatal(err)
+	}
+
+	quer := []Passo{PassoAutorizando, PassoCriandoRemoto, PassoCriandoRemoto, PassoGravando}
+	if strings.Join(passosEmTexto(ui.passos), ",") != strings.Join(passosEmTexto(quer), ",") {
+		t.Errorf("passos = %v, quer %v", ui.passos, quer)
+	}
+}
+
+func TestCriarCofreErroNoCryptDizOPasso(t *testing.T) {
+	g, _ := novoGerenciadorFalso(t)
+	confFalso(t, "")
+	esperasCurtas(t)
+	t.Setenv(envFalsoToken, tokenFalso)
+	t.Setenv(envFalsoFalhaTipo, "crypt")
+
+	_, err := g.CriarCofre(DadosNovoCofre{
+		Provedor: ObterProvedor("drive"), Nome: "fotos", Senha: "senha-forte", Confirmacao: "senha-forte",
+	}, &interacaoFalsa{})
+
+	var ep *ErroPasso
+	if !errors.As(err, &ep) || ep.Passo != PassoCriandoRemoto {
+		t.Fatalf("erro = %#v, quer ErroPasso no passo criando remoto", err)
+	}
+}
+
+func passosEmTexto(ps []Passo) []string {
+	var s []string
+	for _, p := range ps {
+		s = append(s, string(p))
+	}
+	return s
 }

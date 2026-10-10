@@ -20,6 +20,34 @@ type Interacao interface {
 	// EscolherPasta mostra as pastas do remoto e devolve a escolhida. ok=false
 	// quando o usuário cancela.
 	EscolherPasta(remotoBase string, tituloProvedor string) (caminho string, ok bool)
+	// Passo avisa em que passo o caso de uso entrou (demanda 018).
+	Passo(p Passo)
+}
+
+// Passo é uma etapa de CriarCofre/ConectarCofre (demanda 018).
+type Passo string
+
+const (
+	PassoAutorizando   Passo = "autorizando"
+	PassoCriandoRemoto Passo = "criando remoto"
+	PassoGravando      Passo = "gravando"
+)
+
+// ErroPasso é o erro de um passo de CriarCofre/ConectarCofre: a tela diz em
+// que passo parou.
+type ErroPasso struct {
+	Passo Passo
+	Err   error
+}
+
+func (e *ErroPasso) Error() string { return e.Err.Error() }
+func (e *ErroPasso) Unwrap() error { return e.Err }
+
+func noPasso(p Passo, err error) error {
+	if err == nil {
+		return nil
+	}
+	return &ErroPasso{Passo: p, Err: err}
 }
 
 // TamanhoMinimoSenha é o mínimo de caracteres da senha de um cofre novo.
@@ -127,16 +155,19 @@ func (g *GerenciadorRClone) criarRemotoBase(c *CriacaoCofre, prov *Provedor, ui 
 	nomeBase := NomeRemotoBase(c.Nome())
 	switch {
 	case prov.OAuth:
+		ui.Passo(PassoAutorizando)
 		token, err := g.autorizar(prov, ui)
 		if err != nil {
-			return "", err
+			return "", noPasso(PassoAutorizando, err)
 		}
+		ui.Passo(PassoCriandoRemoto)
 		if ok, msg := c.CriarRemoto(nomeBase, prov.Id, map[string]string{"token": token}); !ok {
-			return "", errors.New(msg)
+			return "", noPasso(PassoCriandoRemoto, errors.New(msg))
 		}
 	case prov.Id == "local_path":
+		ui.Passo(PassoCriandoRemoto)
 		if ok, msg := c.CriarRemoto(nomeBase, "local", map[string]string{"remote": ""}); !ok {
-			return "", errors.New(msg)
+			return "", noPasso(PassoCriandoRemoto, errors.New(msg))
 		}
 	}
 	return nomeBase, nil
@@ -160,11 +191,13 @@ func (g *GerenciadorRClone) CriarCofre(d DadosNovoCofre, ui Interacao) (remotoBa
 		return "", err
 	}
 	remotoBase = nomeBase + ":"
+	ui.Passo(PassoCriandoRemoto)
 	if ok, msg := criacao.CriarCrypt(remotoBase, d.Senha, d.Senha, nil); !ok {
-		return "", errors.New(msg)
+		return "", noPasso(PassoCriandoRemoto, errors.New(msg))
 	}
+	ui.Passo(PassoGravando)
 	if ok, msg := criacao.Concluir(d.Provedor.Id, d.Provedor.Nome, remotoBase); !ok {
-		return "", errors.New(msg)
+		return "", noPasso(PassoGravando, errors.New(msg))
 	}
 	g.Senhas.Armazenar(d.Nome, d.Senha)
 	return remotoBase, nil
@@ -201,11 +234,13 @@ func (g *GerenciadorRClone) ConectarCofre(d DadosConectarCofre, ui Interacao) (r
 	}
 	remotoBase = nomeBase + ":" + caminho
 
+	ui.Passo(PassoCriandoRemoto)
 	if ok, msg := criacao.CriarCrypt(remotoBase, d.Senha, senha2, nil); !ok {
-		return "", errors.New(msg)
+		return "", noPasso(PassoCriandoRemoto, errors.New(msg))
 	}
+	ui.Passo(PassoGravando)
 	if ok, msg := criacao.Concluir(d.Provedor.Id, d.Provedor.Nome, remotoBase); !ok {
-		return "", errors.New(msg)
+		return "", noPasso(PassoGravando, errors.New(msg))
 	}
 	g.Senhas.Armazenar(d.Nome, d.Senha)
 	return remotoBase, nil
@@ -234,8 +269,15 @@ func (g *GerenciadorRClone) Destrancar(nome string, pedirSenha func() (string, b
 
 // EstaMontado diz se o cofre está montado agora.
 func (g *GerenciadorRClone) EstaMontado(nome string) bool {
-	_, montado := g.Montagens.ObterMontagens()[nome]
-	return montado
+	return g.EstadoDoCofre(nome).Estado == EstadoMontado
+}
+
+// EstadoDoCofre devolve o estado atual do cofre nome (demanda 018).
+func (g *GerenciadorRClone) EstadoDoCofre(nome string) EstadoRemoto {
+	if e, ok := g.Montagens.EstadosPorRemoto()[nome]; ok {
+		return e
+	}
+	return EstadoRemoto{Estado: EstadoDesmontado}
 }
 
 // AutoMontar monta os cofres marcados para auto-montagem que têm senha na
@@ -243,7 +285,7 @@ func (g *GerenciadorRClone) EstaMontado(nome string) bool {
 func (g *GerenciadorRClone) AutoMontar() map[string]error {
 	falhas := map[string]error{}
 	for _, cofre := range g.ListarCofres() {
-		if !cofre.AutoMontar || !cofre.TemSenha || cofre.Montado {
+		if !cofre.AutoMontar || !cofre.TemSenha || cofre.Estado == EstadoMontado || cofre.Estado == EstadoMontando {
 			continue
 		}
 		senha := g.Senhas.Obter(cofre.Nome)
