@@ -282,7 +282,7 @@ func (g *GerenciadorMontagem) montar(remoto string, letra string, senha string, 
 	for _, info := range g.montagens {
 		if info.Remoto == remoto {
 			g.mu.Unlock()
-			return false, fmt.Sprintf("Este cofre ja esta montado em %s:", info.Letra), "", ""
+			return false, fmt.Sprintf("Este cofre ja esta montado em %s", TextoPonto(g.caminhoPonto(info.Letra))), "", ""
 		}
 	}
 	g.mu.Unlock()
@@ -307,13 +307,14 @@ func (g *GerenciadorMontagem) montar(remoto string, letra string, senha string, 
 	g.mu.Lock()
 	if _, existe := g.montagens[letra]; existe {
 		g.mu.Unlock()
-		return false, fmt.Sprintf("A letra %s: ja esta em uso.", letra), "", fmt.Sprintf("a letra %s: já está em uso", letra)
+		rotulo := RotuloPonto(g.caminhoPonto(letra))
+		return false, fmt.Sprintf("%s ja esta em uso.", maiuscula(rotulo)), "", rotulo + " já está em uso"
 	}
 	g.mu.Unlock()
 
 	if criarPasta {
 		if err := os.MkdirAll(letra, 0o700); err != nil {
-			return false, fmt.Sprintf("Nao deu para criar a pasta %s: %v", letra, err), "", fmt.Sprintf("não deu para criar a pasta %s", letra)
+			return false, fmt.Sprintf("Nao deu para criar a pasta %s: %v", TextoPonto(letra), err), "", fmt.Sprintf("não deu para criar a pasta %s", TextoPonto(letra))
 		}
 		// Se não montar, a pasta criada (vazia) sai.
 		defer func() {
@@ -419,7 +420,7 @@ func (g *GerenciadorMontagem) montar(remoto string, letra string, senha string, 
 		return false, mensagemFalhaMontagem(cmd, saidaErro), "", motivoFalhaMontagem(cmd, saidaErro)
 	}
 
-	return true, fmt.Sprintf("Unidade %s: montada com sucesso.", letra), letra, ""
+	return true, fmt.Sprintf("%s foi montada.", maiuscula(RotuloPonto(g.caminhoPonto(letra)))), letra, ""
 }
 
 // motivoFalhaMontagem é a versão curta de mensagemFalhaMontagem, para o card
@@ -542,7 +543,7 @@ func (g *GerenciadorMontagem) DesmontarUnidade(letra string) (bool, string) {
 	info, existe := g.montagens[letra]
 	g.mu.Unlock()
 	if !existe {
-		return false, fmt.Sprintf("Nenhuma montagem ativa na letra %s:", letra)
+		return false, fmt.Sprintf("Nenhuma montagem ativa em %s", TextoPonto(g.caminhoPonto(letra)))
 	}
 
 	info.controle.desmontando.Store(true)
@@ -566,7 +567,7 @@ func (g *GerenciadorMontagem) DesmontarUnidade(letra string) (bool, string) {
 	}
 
 	if !terminou {
-		msg := fmt.Sprintf("Unidade %s: o rclone (pid %d) nao terminou depois de Interrupt e duas tentativas de Kill. A unidade pode continuar aberta.", letra, info.Processo.Pid)
+		msg := fmt.Sprintf("O rclone (pid %d) nao terminou depois de Interrupt e duas tentativas de Kill; %s pode continuar aberta.", info.Processo.Pid, RotuloPonto(g.caminhoPonto(letra)))
 		if len(motivos) > 0 {
 			msg += " (" + strings.Join(motivos, "; ") + ")"
 		}
@@ -592,7 +593,12 @@ func (g *GerenciadorMontagem) DesmontarUnidade(letra string) (bool, string) {
 		livre = esperarCondicao(g.esperaEncerrar, func() bool { return !g.pontoExiste(ponto) })
 	}
 	if !livre {
-		msg := fmt.Sprintf("Unidade %s: o rclone terminou, mas %s continua visivel. Confira no Explorador antes de considerar o cofre trancado.", letra, ponto)
+		var msg string
+		if EhUnidade(ponto) {
+			msg = fmt.Sprintf("O rclone terminou, mas %s continua visivel. Confira no Explorador antes de considerar o cofre trancado.", RotuloPonto(ponto))
+		} else {
+			msg = fmt.Sprintf("O rclone terminou, mas %s continua montada. Confira antes de considerar o cofre trancado.", RotuloPonto(ponto))
+		}
 		if len(motivos) > 0 {
 			msg += " (" + strings.Join(motivos, "; ") + ")"
 		}
@@ -602,7 +608,7 @@ func (g *GerenciadorMontagem) DesmontarUnidade(letra string) (bool, string) {
 		g.removerPastaVazia(ponto)
 	}
 
-	return true, fmt.Sprintf("Unidade %s: desmontada com sucesso.", letra)
+	return true, fmt.Sprintf("%s foi desmontada.", maiuscula(RotuloPonto(ponto)))
 }
 
 // removerPastaVazia tira a pasta do ponto de montagem se ela estiver vazia e

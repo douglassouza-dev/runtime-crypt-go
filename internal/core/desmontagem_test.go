@@ -103,7 +103,7 @@ func TestDesmontarComPontoQueNaoSomeDevolveFalse(t *testing.T) {
 
 	ok, msg := g.DesmontarUnidade("V")
 
-	if ok || !strings.Contains(msg, "continua visivel") {
+	if ok || !strings.Contains(msg, "continua") || !strings.Contains(msg, RotuloPonto(g.caminhoPonto("V"))) {
 		t.Errorf("ok=%v msg=%q", ok, msg)
 	}
 	if processoVivoNoSO(pid) {

@@ -18,6 +18,18 @@ O README e o CHANGELOG anunciam Linux e macOS.
 - `AbrirExplorador` recebe o ponto real.
 - A desmontagem nesses SOs confere que o ponto deixou de ser montagem, por exemplo com `fusermount -u` ou `umount` se o processo não liberar. A escolha fica no PR.
 
+### O que a tela escreve fora do Windows
+
+Toda frase mostra a pasta, nunca `X:\`:
+
+| Situação | Frase |
+|---|---|
+| destrancado | `Destrancado • ~/RuntimeCrypto/{nome}` |
+| caiu, a pasta deixou de ser montagem | `Caiu: a pasta ~/RuntimeCrypto/{nome} sumiu` |
+| caiu, a pasta não respondeu | `Caiu: a pasta ~/RuntimeCrypto/{nome} não respondeu` |
+
+As mensagens de montar e desmontar falam em "a pasta …" (ex.: `A pasta ~/RuntimeCrypto/{nome} foi desmontada.`), nunca em "Unidade /caminho". No Windows continuam com a unidade (`a unidade X:\ …`).
+
 ## O que fica de fora
 
 - Empacotamento para Linux e macOS.
@@ -28,3 +40,4 @@ O README e o CHANGELOG anunciam Linux e macOS.
 - [ ] Em Linux com FUSE3: criar um cofre de Pasta Local (depende de 014) ou conectar um existente, destrancar, gravar um arquivo, trancar. `mount | grep rclone` fica vazio depois de trancar.
 - [ ] Teste em `internal/core` com build tag `linux` cobre a escolha do ponto de montagem.
 - [ ] README atualizado com o que foi e o que não foi testado em cada SO.
+- [ ] Teste das duas formas: com pasta (`Destrancado • ~/RuntimeCrypto/{nome}`, `Caiu: a pasta … sumiu`, `… não respondeu`, mensagens de desmontagem sem "Unidade /caminho") e com unidade (`Destrancado • X:\`, `a unidade X:\ não respondeu`).

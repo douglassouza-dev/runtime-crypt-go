@@ -22,9 +22,10 @@ const (
 	Caiu = "Caiu: %s"
 
 	// Motivos de queda, já na língua da tela.
-	MotivoRcloneParou  = "o rclone parou"
-	MotivoUnidadeSumiu = "a unidade %s sumiu"
-	MotivoSemResposta  = "a unidade %s não respondeu"
+	MotivoRcloneParou = "o rclone parou"
+	// %s é core.RotuloPonto: "a unidade V:\" ou "a pasta ~/RuntimeCrypto/x".
+	MotivoPontoSumiu   = "%s sumiu"
+	MotivoSemResposta  = "%s não respondeu"
 	TextoTentarDeNovo  = "Tentar de novo"
 	TextoDestrancar    = "Destrancar"
 	TextoTrancar       = "Trancar"
@@ -33,10 +34,11 @@ const (
 	limiteTooltipUTF16 = 127 // NOTIFYICONDATA.szTip tem 128 posições
 )
 
-// Ponto é o ponto de montagem como a tela escreve (ex.: `V:\`).
+// Ponto é o ponto de montagem como a tela escreve: `V:\` no Windows,
+// `~/RuntimeCrypto/{nome}` fora dele (demanda 013).
 func Ponto(c core.CofreStatus) string {
 	if c.PontoMontagem != "" {
-		return c.PontoMontagem
+		return core.TextoPonto(c.PontoMontagem)
 	}
 	if c.Letra != "" {
 		return c.Letra + `:\`
@@ -55,11 +57,19 @@ func Motivo(c core.CofreStatus) string {
 	case c.Motivo == core.MotivoProcessoTerminou:
 		return MotivoRcloneParou
 	case c.Motivo == core.MotivoPontoSumiu:
-		return fmt.Sprintf(MotivoUnidadeSumiu, Ponto(c))
+		return fmt.Sprintf(MotivoPontoSumiu, rotulo(c))
 	case strings.HasPrefix(c.Motivo, strings.SplitN(core.MotivoPontoNaoResponde, "%", 2)[0]):
-		return fmt.Sprintf(MotivoSemResposta, Ponto(c))
+		return fmt.Sprintf(MotivoSemResposta, rotulo(c))
 	}
 	return c.Motivo
+}
+
+// rotulo é "a unidade V:\" ou "a pasta ~/RuntimeCrypto/x".
+func rotulo(c core.CofreStatus) string {
+	if c.PontoMontagem != "" {
+		return core.RotuloPonto(c.PontoMontagem)
+	}
+	return core.RotuloPonto(Ponto(c))
 }
 
 // DoCofre é a frase do estado do cofre, igual no card e na bandeja.
