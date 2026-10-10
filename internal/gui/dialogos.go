@@ -67,11 +67,14 @@ type dialogoSenha struct {
 	naTela func(func())
 }
 
+// TextoCampoSenha é o placeholder do campo de senha (aprovado na 031).
+const TextoCampoSenha = "Senha"
+
 func novoDialogoSenha(janelaPai fyne.Window, nomeCofre string, acao string, conferir func(string) error, fim func(string)) *dialogoSenha {
 	d := &dialogoSenha{janela: janelaPai, conferir: conferir, fim: fim, naTela: fyne.Do}
 
 	d.entrySenha = widget.NewPasswordEntry()
-	d.entrySenha.SetPlaceHolder("Digite a senha...")
+	d.entrySenha.SetPlaceHolder(TextoCampoSenha)
 
 	// Ícone
 	lblIcone := canvas.NewText("🔐", CorVerde)
