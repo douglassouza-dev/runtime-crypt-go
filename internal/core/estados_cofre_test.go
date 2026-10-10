@@ -82,6 +82,7 @@ func TestEstadoDuranteAEsperaMontandoESegundoPedidoRecusado(t *testing.T) {
 	g := NovoGerenciadorMontagem(f.exe, NovoConfigVfs())
 	raiz := t.TempDir()
 	g.caminhoPonto = func(letra string) string { return filepath.Join(raiz, letra) }
+	g.pontoExiste = caminhoExiste // a pasta temporária faz o papel da unidade
 	g.esperaEncerrar = 200 * time.Millisecond
 	t.Cleanup(g.DesmontarTodas)
 
@@ -134,6 +135,7 @@ func TestEstadoMontagemQueNuncaSubiuFalhouSemCaiu(t *testing.T) {
 	g := NovoGerenciadorMontagem(f.exe, NovoConfigVfs())
 	raiz := t.TempDir()
 	g.caminhoPonto = func(letra string) string { return filepath.Join(raiz, letra) }
+	g.pontoExiste = caminhoExiste // a pasta temporária faz o papel da unidade
 	f.falhar()
 	t.Setenv("RCLONE_FALSO_STDERR", "2026/10/09 10:00:00 CRITICAL: Fatal error: cannot find winfsp")
 

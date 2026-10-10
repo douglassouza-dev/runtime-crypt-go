@@ -82,6 +82,22 @@ runtime-crypto/
 | **FUSE** | 3.x | Linux — `sudo apt install fuse3` |
 | **macFUSE** | 4.x | macOS — [osxfuse.github.io](https://osxfuse.github.io/) |
 
+## 🗂️ Onde o cofre aparece em cada sistema
+
+| Sistema | Ponto de montagem | Ao trancar |
+|---|---|---|
+| Windows | Letra livre (V:, W:, …) | A letra some com o rclone |
+| Linux | Pasta `~/RuntimeCrypto/<nome do cofre>`, criada ao destrancar | O rclone solta a pasta; se ela ficar presa, `fusermount3 -u` (ou `fusermount -u`). A pasta é removida se estiver vazia |
+| macOS | Pasta `~/RuntimeCrypto/<nome do cofre>`, criada ao destrancar | Igual ao Linux, com `umount` no lugar do `fusermount` |
+
+A pasta não é configurável por cofre (demanda 013).
+
+### O que foi testado em cada sistema
+
+- **Linux (FUSE3, rclone 1.60):** testado de verdade. Conectar um cofre crypt que já existia numa pasta local, destrancar, gravar um arquivo, trancar: `mount | grep rclone` fica vazio e a pasta do ponto sai. Destrancar de novo lê o arquivo. Foi feito pelo `core`, sem a janela. A janela não foi aberta no Linux.
+- **Windows (WinFsp):** a montagem em letra é a de antes. O CI roda os testes no Windows com um rclone falso; a montagem real no WinFsp não foi refeita nesta mudança.
+- **macOS (macFUSE/FUSE-T):** **não testado**. Não houve máquina. O código usa `umount` para soltar uma pasta presa e compila (`GOOS=darwin go vet ./internal/core`).
+
 ## 🚀 Compilação
 
 ```bash

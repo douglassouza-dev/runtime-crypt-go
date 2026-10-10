@@ -75,7 +75,7 @@ func (a *Acoes) destrancar(nome string) {
 	a.jp.Mostrar()
 	// "Destrancando…" aparece assim que a montagem começa (demanda 018).
 	go a.jp.atualizarLogoApos(nome)
-	letra, err := a.g.Destrancar(nome, func() (string, bool) {
+	ponto, err := a.g.Destrancar(nome, func() (string, bool) {
 		senha := DialogoSenha(a.jp.Janela(), nome, "Desbloquear")
 		return senha, senha != ""
 	})
@@ -86,10 +86,11 @@ func (a *Acoes) destrancar(nome string) {
 		DialogoMensagem(a.jp.Janela(), "Erro ao Destrancar",
 			fmt.Sprintf("Falha ao montar '%s':\n%s", nome, err), MsgErro)
 	default:
-		texto := fmt.Sprintf("'%s' montado em %s:\\\n\nO Explorador de Arquivos foi aberto.", nome, letra)
-		if err := core.AbrirExplorador(letra + ":\\"); err != nil {
+		// Demanda 013: o Explorador abre o ponto real (letra ou pasta).
+		texto := fmt.Sprintf("'%s' montado em %s\n\nO Explorador de Arquivos foi aberto.", nome, ponto)
+		if err := core.AbrirExplorador(ponto); err != nil {
 			// Demanda 009: a falha ao abrir o Explorador chega ao usuário.
-			texto = fmt.Sprintf("'%s' montado em %s:\\\n\nNão deu para abrir o Explorador: %v", nome, letra, err)
+			texto = fmt.Sprintf("'%s' montado em %s\n\nNão deu para abrir o Explorador: %v", nome, ponto, err)
 		}
 		DialogoMensagem(a.jp.Janela(), "Cofre Destrancado", texto, MsgInfo)
 	}
