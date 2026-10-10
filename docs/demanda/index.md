@@ -4,6 +4,8 @@ Regra do processo: [000-processo.md](000-processo.md). A demanda existe antes de
 
 A ordem segue o risco à estabilidade e aos segredos. A migração para Wails (019) vem depois das demandas de estabilidade e de segredos e depois de a lógica sair da GUI.
 
+`Feita (<sha>)` é o merge que levou ao `master` o último PR da demanda. Quando o PR entrou primeiro em outro branch, é o merge desse branch no `master`.
+
 | Nº | Título | Risco | Depende de | Estado |
 |---|---|---|---|---|
 | [001](001-rastreio-de-montagem.md) | O programa perde o processo do rclone logo depois de montar | Alto · estabilidade | — | Feita (bc37337) |
@@ -39,8 +41,6 @@ A ordem segue o risco à estabilidade e aos segredos. A migração para Wails (0
 | [031](031-pasta-de-configuracao.md) | vaults.json e log na pasta de configuração do usuário | Alto · dados | 007, 012, 027 | Feita (f3df0a4) |
 | [032](032-app-proprio-do-google-drive.md) | App próprio do Google (client ID e client secret) no Google Drive | Médio · uso, segredos | 027, 029, ADR-0006 | Aberta |
 | [033](033-editar-cofre.md) | Editar cofre: nome, app do Google, reconectar e remover (deste computador ou também do provedor) | Alto · dados, segredos | 006, 026, 028, 031, 032 | Aberta |
-
-`Feita (<sha>)` é o merge que levou ao `master` o último PR da demanda. Quando o PR entrou primeiro em outro branch, é o merge desse branch no `master`.
 
 ## Ordem sugerida de execução
 
