@@ -39,6 +39,8 @@ A ordem segue o risco à estabilidade e aos segredos. A migração para Wails (0
 | [031](031-pasta-de-configuracao.md) | vaults.json e log na pasta de configuração do usuário | Alto · dados | 007, 012, 027 | Aberta |
 | [032](032-app-proprio-do-google-drive.md) | App próprio do Google (client ID e client secret) no Google Drive | Médio · uso, segredos | 027, 029, ADR-0006 | Aberta |
 | [033](033-editar-cofre.md) | Editar cofre: nome, app do Google, reconectar e remover (deste computador ou também do provedor) | Alto · dados, segredos | 006, 026, 028, 031, 032 | Aberta |
+| [034](034-s3-pede-as-chaves.md) | S3 não pede as chaves: o que o assistente precisa pedir | Médio · uso, segredos | 005, 014 | Aberta |
+| [035](035-pasta-do-cofre-novo.md) | Criar cofre sempre grava na raiz da conta (`Pasta: /`) | Médio · dados, uso | 006, 021, 023 | Aberta |
 
 ## Ordem sugerida de execução
 
@@ -104,4 +106,9 @@ flowchart LR
     d028 --> d033
     d031 --> d033
     d032 --> d033
+    d005 --> d034["034 chaves do S3"]
+    d014 --> d034
+    d006 --> d035["035 pasta do cofre novo"]
+    d021 --> d035
+    d023 --> d035
 ```
